@@ -1,0 +1,8 @@
+language: rust
+
+rust:
+- stable
+
+script:
+- cargo build --manifest-path ./base/Cargo.toml
+- cargo build --manifest-path ./examples/Cargo.toml
