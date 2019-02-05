@@ -5,8 +5,18 @@ version  = "0.0.1"
 authors  = ["usami-renko <usami-ssc@protonmail.com>"]
 edition  = "2018"
 keywords = ["Vulkan", "Rust", "Graphics"]
-description = "An library to provide convenient methods to access vulkan."
+description = "A library to provide convenient methods to access vulkan."
 
 [dependencies]
 ash   = "0.27.1"
-winit = "0.18.0"
+winit = "0.18.1"
+
+# vulkan platform dependencies on macOS.
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = "0.13.0"
+cocoa = "0.18.4"
+objc  = "0.2.5"
+
+# vulkan platform dependencies on Windows.
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { version = "0.3.5", features = ["windef", "libloaderapi"] }

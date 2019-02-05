@@ -10,5 +10,12 @@ A implementaion of SaschaWillems/Vulkan(https://github.com/SaschaWillems/Vulkan)
 '''
 
 [dependencies]
-ash   = "0.27.1"
-winit = "0.18.0"
+ash = "0.27.1"
+winit = "0.18.1"
+nalgebra = "0.16"
+
+vkbase = { package = "vulkan-base", path = "../base" }
+
+[[bin]]
+name = "ash_test"
+path = "src/ash_test/triangle.rs"
