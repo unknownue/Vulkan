@@ -5,7 +5,6 @@ use ash::vk_make_version;
 use ash::version::InstanceV1_0;
 use ash::version::DeviceV1_0;
 use ash::version::EntryV1_0;
-use nalgebra::Matrix4;
 
 use std::ptr;
 use std::ffi::{CString, CStr};
@@ -36,7 +35,6 @@ struct VulkanApp {
     window: winit::Window,
 
     // vulkan stuff
-    _entry                     : ash::Entry,
     instance                   : ash::Instance,
     surface_loader             : ash::extensions::khr::Surface,
     surface                    : vk::SurfaceKHR,
@@ -44,7 +42,7 @@ struct VulkanApp {
     debug_callback             : vk::DebugReportCallbackEXT,
 
     physical_device            : vk::PhysicalDevice,
-    device                     : ash::Device,
+    device                     : ash::Device, // logical device
 
     queue_family               : QueueFamilyIndices,
     graphics_queue             : vk::Queue,
@@ -103,7 +101,6 @@ impl VulkanApp {
             window,
 
             // vulkan stuff
-            _entry: entry,
             instance,
             surface: surface_stuff.surface,
             surface_loader: surface_stuff.surface_loader,
@@ -207,7 +204,7 @@ impl VulkanApp {
             p_next               : ptr::null(),
             wait_semaphore_count : 1,
             p_wait_semaphores    : signal_semaphores.as_ptr(),
-            swapchain_count      : 1,
+            swapchain_count      : swapchains.len() as _,
             p_swapchains         : swapchains.as_ptr(),
             p_image_indices      : &image_index,
             p_results            : ptr::null_mut(),
@@ -327,8 +324,12 @@ fn create_instance(entry: &ash::Entry, window_title: &str, is_enable_debug: bool
     };
 
     // VK_EXT debug report has been requested here.
-    use vkbase::platforms::extension_names;
-    let extension_names = extension_names();
+    use vkbase::platforms::platform_surface_names;
+    let extension_names = [
+        ash::extensions::khr::Surface::name().as_ptr(),
+        ash::extensions::ext::DebugReport::name().as_ptr(),
+        platform_surface_names().as_ptr(),
+    ];
 
     let requred_validation_layer_raw_names: Vec<CString> = required_validation_layers.iter()
         .map(|layer_name| CString::new(*layer_name).unwrap())
@@ -1377,11 +1378,4 @@ struct SyncObjects {
     image_available_semaphores : Vec<vk::Semaphore>,
     render_finished_semaphores : Vec<vk::Semaphore>,
     inflight_fences            : Vec<vk::Fence>,
-}
-
-#[derive(Clone, Debug, Copy)]
-struct UniformBufferObject {
-    model : Matrix4<f32>,
-    view  : Matrix4<f32>,
-    proj  : Matrix4<f32>,
 }

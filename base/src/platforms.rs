@@ -2,8 +2,6 @@
 use winit;
 use ash::vk;
 use ash::version::{ EntryV1_0, InstanceV1_0 };
-use ash::extensions::ext::DebugReport;
-use ash::extensions::khr::Surface;
 use std::ffi::CStr;
 
 #[cfg(target_os = "macos")]
@@ -22,31 +20,22 @@ use cocoa::appkit::{ NSView, NSWindow };
 #[cfg(target_os = "macos")]
 use objc::runtime::YES;
 
+/// get the names of required extensions used in linux.
 #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
-pub fn extension_names() -> Vec<*const i8> {
-    vec![
-        Surface::name().as_ptr(),
-        XlibSurface::name().as_ptr(),
-        DebugReport::name().as_ptr(),
-    ]
+pub fn platform_surface_names() -> &'static CStr {
+    XlibSurface::name()
 }
 
+/// get the names of required extension used in macOS.
 #[cfg(target_os = "macos")]
-pub fn extension_names() -> Vec<*const i8> {
-    vec![
-        Surface::name().as_ptr(),
-        MacOSSurface::name().as_ptr(),
-        DebugReport::name().as_ptr(),
-    ]
+pub fn platform_surface_names() -> &'static CStr {
+    MacOSSurface::name()
 }
 
-#[cfg(all(windows))]
-pub fn extension_names() -> Vec<*const i8> {
-    vec![
-        Surface::name().as_ptr(),
-        Win32Surface::name().as_ptr(),
-        DebugReport::name().as_ptr(),
-    ]
+/// get the names of required extension used in Windows.
+#[cfg(target_os = "windows")]
+pub fn platform_surface_names() -> &'static CStr {
+    Win32Surface::name()
 }
 
 /// get the required surface used in linux.
