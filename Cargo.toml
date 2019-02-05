@@ -1,0 +1,12 @@
+
+[package]
+name     = "vulkan"
+version  = "0.0.1"
+authors  = ["usami-renko <usami-ssc@protonmail.com>"]
+edition  = "2018"
+keywords = ["Vulkan", "Rust", "Graphics"]
+description = '''
+A implementaion of SaschaWillems/Vulkan(https://github.com/SaschaWillems/Vulkan) using Rust Programming Language.
+'''
+
+[dependencies]
