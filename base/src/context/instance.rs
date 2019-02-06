@@ -25,6 +25,8 @@ pub struct InstanceConfig {
     pub application_name: String,
     /// `engine_name` is the name of the engine used to create the application or None if it is not provided.
     pub engine_name: String,
+    /// `print_available_layers` specific program to print all available instance layers to console.
+    pub print_available_layers: bool,
     /// `require_layer_names` specific which layers to load by vulkan.
     pub require_layer_names: Vec<String>,
     /// `debug` specifies the debug tools used in vulkan backend.
@@ -40,6 +42,7 @@ impl Default for InstanceConfig {
            engine_version      : vk_make_version!(1, 0, 97),
            application_name    : String::from("Vulkan Application"),
            engine_name         : String::from("Engine powered by Vulkan"),
+           print_available_layers: false,
            require_layer_names : vec![
                // request validation layer by default.
                String::from("VK_LAYER_LUNARG_standard_validation"),
@@ -84,7 +87,7 @@ impl VkInstance {
         };
 
         // check if all instance layer is support.
-        if is_all_instance_layer_support(&entry, &config.require_layer_names)? == false {
+        if is_all_instance_layer_support(&entry, config.print_available_layers, &config.require_layer_names)? == false {
             return Err(VkError::unsupported("Some of Vulkan instance layer"))
         }
 
@@ -118,18 +121,16 @@ impl VkInstance {
     /// Specify the necessary extensions.
     fn require_extensions(debug: DebugType) -> Vec<*const i8>  {
 
-        use crate::platforms::platform_surface_names;
-        use crate::context::debug::DebugType::*;
-
+        // request extension about platform specific surface and debug tools.
         let mut instance_extensions = vec![
             ash::extensions::khr::Surface::name(),
-            platform_surface_names(),
+            crate::platforms::platform_surface_names(),
         ];
 
         match debug {
-            | DebugReport => instance_extensions.push(ash::extensions::ext::DebugReport::name()),
-            | DebugUtils  => instance_extensions.push(ash::extensions::ext::DebugUtils::name()),
-            | None => {},
+            | DebugType::DebugReport => instance_extensions.push(ash::extensions::ext::DebugReport::name()),
+            | DebugType::DebugUtils  => instance_extensions.push(ash::extensions::ext::DebugUtils::name()),
+            | DebugType::None => {},
         }
 
         instance_extensions.into_iter().map(|extension| {
@@ -139,6 +140,8 @@ impl VkInstance {
 
     /// Destroy the `vk::Instance` object. This function must be called before this wrapper class is dropped.
     ///
+    /// Be careful about the destruction order of Vulkan object, and we have better to destroy them manually.
+    ///
     /// In Vulkan, all child objects created using instance must have been destroyed prior to destroying instance.
     pub fn discard(&self) {
         unsafe {
@@ -147,19 +150,29 @@ impl VkInstance {
     }
 }
 
-fn is_all_instance_layer_support(entry: &ash::Entry, required_layers: &[String]) -> VkResult<bool> {
+fn is_all_instance_layer_support(entry: &ash::Entry, print_available_layers: bool, required_layers: &[String]) -> VkResult<bool> {
+
+    use crate::utils::cast::chars2string;
 
     let layer_properties = entry.enumerate_instance_layer_properties()
         .or(Err(VkError::query("Layer Properties")))?;
 
+    let available_layer_names: Vec<String> = layer_properties.into_iter().map(|available_layer| {
+        chars2string(&available_layer.layer_name)
+    }).collect();
+
+    if print_available_layers {
+        println!("[Info] Available instance layers: ");
+        available_layer_names.iter().for_each(|layer| {
+            println!("\t{}", layer)
+        });
+    }
+
     let result = required_layers.iter().all(|required_layer_name| {
 
-        layer_properties.iter().any(|available_layer| {
+        available_layer_names.iter().any(|available_layer| {
 
-            use crate::utils::cast::chars2string;
-            let available_layer_name = chars2string(&available_layer.layer_name);
-
-            available_layer_name == (*required_layer_name)
+            (*available_layer) == (*required_layer_name)
         })
     });
 
