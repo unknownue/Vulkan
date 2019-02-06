@@ -4,6 +4,7 @@ use ash::vk_make_version;
 use ash::version::{InstanceV1_0, EntryV1_0};
 
 use crate::context::debug::DebugType;
+use crate::context::objects::VkBackendObject;
 use crate::vkuint;
 use crate::error::{VkResult, VkError};
 
@@ -137,16 +138,17 @@ impl VkInstance {
             extension.as_ptr()
         }).collect()
     }
+}
+
+impl VkBackendObject for VkInstance {
 
     /// Destroy the `vk::Instance` object. This function must be called before this wrapper class is dropped.
     ///
     /// Be careful about the destruction order of Vulkan object, and we have better to destroy them manually.
     ///
     /// In Vulkan, all child objects created using instance must have been destroyed prior to destroying instance.
-    pub fn discard(&self) {
-        unsafe {
-            self.handle.destroy_instance(None);
-        }
+    unsafe fn discard(&self) {
+        self.handle.destroy_instance(None);
     }
 }
 
