@@ -35,7 +35,7 @@ impl Default for DebugType {
 }
 
 /// `DebugInstance` is used as a trait object.
-pub trait DebugInstance {
+trait DebugInstance {
     /// Destroy this validation tool.
     unsafe fn discard(&self);
 }
