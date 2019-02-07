@@ -2,18 +2,21 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
+use failure_derive::Fail;
+
 use crate::context::instance::VkInstance;
 use crate::context::device::{VkDevice, VkQueue};
 use crate::context::surface::VkSurface;
 use crate::error::{VkResult, VkError};
-use crate::vkuint;
+use crate::{vkuint, vklint};
 
 use std::ptr;
 
 pub struct SwapchainConfig {
 
     present_vsync: bool,
-    dimension: vk::Extent2D,
+    dimension_preference: vk::Extent2D,
+    image_acquire_time: vklint,
 }
 
 pub struct VkSwapchain {
@@ -30,6 +33,8 @@ pub struct VkSwapchain {
     dimension: vk::Extent2D,
     /// the queue used to present image.
     present_queue: VkQueue,
+
+    config: SwapchainConfig,
 }
 
 struct SwapchainImage {
@@ -40,6 +45,18 @@ struct SwapchainImage {
     image: vk::Image,
     /// the corresponding image views associated with the presentable images created by swapchain.
     view : vk::ImageView,
+}
+
+#[derive(Debug, Fail)]
+pub enum SwapchainSyncError {
+    #[fail(display = "No image became available within the time allowed.")]
+    TimeOut,
+    #[fail(display = "Swapchain does not match the surface properties exactly.")]
+    SubOptimal,
+    #[fail(display = "Surface has changed and is not compatible with the swapchain.")]
+    SurfaceOutDate,
+    #[fail(display = "Get unknown error when acquiring image.")]
+    Unknown,
 }
 
 impl VkSwapchain {
@@ -89,7 +106,7 @@ impl VkSwapchain {
 
         let image_resouces = obtain_swapchain_images(device, handle, &loader, &swapchain_format)?;
         let result = VkSwapchain {
-            handle, loader, present_queue,
+            handle, loader, present_queue, config,
             images: image_resouces,
             format: swapchain_format.color_format,
             dimension: swapchain_capability.swapchain_extent,
@@ -98,7 +115,71 @@ impl VkSwapchain {
         Ok(result)
     }
 
-    fn discard(&self, device: &VkDevice) {
+    /// Acquire an available presentable image to use, and retrieve the index of that image.
+    ///
+    /// `sign_semaphore` is the semaphore to signal during this function, or None for no semaphore to signal.
+    ///
+    /// `sign_fence` is the fence to signal during this function, or None for no fence to signal.
+    pub fn next_image(&self, semaphore: Option<vk::Semaphore>, fence: Option<vk::Fence>) -> Result<vkuint, SwapchainSyncError> {
+
+        let semaphore = semaphore.unwrap_or(vk::Semaphore::null());
+        let fence = fence.unwrap_or(vk::Fence::null());
+
+        // execute next image acquire operation.
+        let (image_index, is_sub_optimal) = unsafe {
+            self.loader.acquire_next_image(self.handle, self.config.image_acquire_time, semaphore, fence)
+                .map_err(|error| match error {
+                    | vk::Result::TIMEOUT               => SwapchainSyncError::TimeOut,
+                    | vk::Result::ERROR_OUT_OF_DATE_KHR => SwapchainSyncError::SurfaceOutDate,
+                    | _ => SwapchainSyncError::Unknown,
+                })?
+        };
+
+        if is_sub_optimal {
+            Err(SwapchainSyncError::SubOptimal)
+        } else {
+            Ok(image_index)
+        }
+    }
+
+    /// Queue an image for presentation.
+    ///
+    /// `wait_semaphores` specifies the semaphores to wait for before issuing the present request.
+    ///
+    /// `queue` is a queue that is capable of presentation to the target surface’s platform on the same device as the image’s swapchain.
+    /// Generally it's a `vk::Queue` that is support `vk::QUEUE_GRAPHICS_BIT`.
+    ///
+    /// `image_index` is the index of swapchain’s presentable images.
+    pub fn present(&self, device: &VkDevice, wait_semaphores: &[vk::Semaphore], image_index: vkuint) -> Result<(), SwapchainSyncError> {
+
+        // Currently only support single swapchain and single image index.
+        let present_info = vk::PresentInfoKHR {
+            s_type              : vk::StructureType::PRESENT_INFO_KHR,
+            p_next              : ptr::null(),
+            wait_semaphore_count: wait_semaphores.len() as _,
+            p_wait_semaphores   : wait_semaphores.as_ptr(),
+            swapchain_count     : 1,
+            p_swapchains        : &self.handle,
+            p_image_indices     : &image_index,
+            p_results           : ptr::null_mut(),
+        };
+
+        let is_sub_optimal = unsafe {
+            self.loader.queue_present(self.present_queue.handle, &present_info)
+                .or(Err(SwapchainSyncError::Unknown))?
+        };
+
+        if is_sub_optimal {
+            Err(SwapchainSyncError::SubOptimal)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Destroy the `vk::SwapchainKHR` object.
+    ///
+    /// The application must not destroy `vk::SwapchainKHR` until after completion of all outstanding operations on images that were acquired from the `vk::SwapchainKHR`.
+    pub fn discard(&self, device: &VkDevice) {
 
         unsafe {
 
@@ -290,8 +371,8 @@ fn query_swapchain_capability(device: &VkDevice, surface: &VkSurface, config: &S
         use std::cmp::{max, min};
 
         vk::Extent2D {
-            width: min(max(config.dimension.width, surface_caps.min_image_extent.width), surface_caps.max_image_extent.width),
-            height: min(max(config.dimension.height, surface_caps.min_image_extent.height), surface_caps.max_image_extent.height),
+            width: min(max(config.dimension_preference.width, surface_caps.min_image_extent.width), surface_caps.max_image_extent.width),
+            height: min(max(config.dimension_preference.height, surface_caps.min_image_extent.height), surface_caps.max_image_extent.height),
         }
     } else {
         // If the surface size is defined, the swap chain size must match.
