@@ -31,8 +31,8 @@ impl Default for LogicDevConfig {
 
 pub struct VkLogicalDevice {
 
-    handle: ash::Device,
-    queues: QueryFamilies,
+    pub handle: ash::Device,
+    pub queues: QueryFamilies,
 }
 
 pub struct QueryFamilies {

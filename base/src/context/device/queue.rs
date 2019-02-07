@@ -86,8 +86,8 @@ impl QueueRequester {
         if selected_family.is_none() {
 
             // select the first family which has remaining queue.
-            selected_family = candidate_families.iter().find(|family_index| {
-                self.cis[**family_index].count < self.family_properties[**family_index].queue_count
+            selected_family = candidate_families.iter().find(|&&family_index| {
+                self.cis[family_index].count < self.family_properties[family_index].queue_count
             }).cloned();
         }
 
