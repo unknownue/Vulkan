@@ -8,6 +8,7 @@ use crate::context::instance::VkInstance;
 use crate::context::device::{VkDevice, VkQueue};
 use crate::context::surface::VkSurface;
 use crate::error::{VkResult, VkError};
+use crate::utils::time::VkTimeDuration;
 use crate::{vkuint, vklint};
 
 use std::ptr;
@@ -16,7 +17,22 @@ pub struct SwapchainConfig {
 
     present_vsync: bool,
     dimension_preference: vk::Extent2D,
-    image_acquire_time: vklint,
+    image_acquire_time: VkTimeDuration,
+}
+
+impl Default for SwapchainConfig {
+
+    fn default() -> SwapchainConfig {
+
+        SwapchainConfig {
+            present_vsync: false,
+            dimension_preference: vk::Extent2D {
+                width : 1280,
+                height: 720,
+            },
+            image_acquire_time: VkTimeDuration::Infinite,
+        }
+    }
 }
 
 pub struct VkSwapchain {
@@ -34,7 +50,7 @@ pub struct VkSwapchain {
     /// the queue used to present image.
     present_queue: VkQueue,
 
-    config: SwapchainConfig,
+    image_acquire_time: vklint,
 }
 
 struct SwapchainImage {
@@ -106,10 +122,11 @@ impl VkSwapchain {
 
         let image_resouces = obtain_swapchain_images(device, handle, &loader, &swapchain_format)?;
         let result = VkSwapchain {
-            handle, loader, present_queue, config,
+            handle, loader, present_queue,
             images: image_resouces,
             format: swapchain_format.color_format,
             dimension: swapchain_capability.swapchain_extent,
+            image_acquire_time: config.image_acquire_time.value(),
         };
 
         Ok(result)
@@ -127,7 +144,7 @@ impl VkSwapchain {
 
         // execute next image acquire operation.
         let (image_index, is_sub_optimal) = unsafe {
-            self.loader.acquire_next_image(self.handle, self.config.image_acquire_time, semaphore, fence)
+            self.loader.acquire_next_image(self.handle, self.image_acquire_time, semaphore, fence)
                 .map_err(|error| match error {
                     | vk::Result::TIMEOUT               => SwapchainSyncError::TimeOut,
                     | vk::Result::ERROR_OUT_OF_DATE_KHR => SwapchainSyncError::SurfaceOutDate,
@@ -264,8 +281,7 @@ fn query_optimal_present_mode(device: &VkDevice, surface: &VkSurface, config: &S
     // The vk::PresentModeKHR::FIFO mode must always be present as per spec.
     // This mode waits for the vertical blank ("v-sync").
     let result = if config.present_vsync {
-        vk::PresentModeKHR::FIFO
-    } else {
+
         // if v-sync is not requested, try to find a mailbox mode.
         // it's the lowest latency non-tearing present mode available.
         let present_mode_searching = || {
@@ -284,6 +300,8 @@ fn query_optimal_present_mode(device: &VkDevice, surface: &VkSurface, config: &S
         };
 
         present_mode_searching()
+    } else {
+        vk::PresentModeKHR::FIFO
     };
 
     Ok(result)

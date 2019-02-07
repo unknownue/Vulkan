@@ -97,7 +97,7 @@ impl VkLogicalDevice {
         Ok(device)
     }
 
-    fn discard(&self) {
+    pub fn discard(&self) {
 
         unsafe {
             self.handle.destroy_device(None);

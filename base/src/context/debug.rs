@@ -47,7 +47,7 @@ pub struct VkDebugger {
 
 impl VkDebugger {
 
-    pub fn new(instance: &VkInstance, config: &ValidationConfig) -> VkResult<VkDebugger> {
+    pub fn new(instance: &VkInstance, config: ValidationConfig) -> VkResult<VkDebugger> {
 
         let debugger = match config.debug_type {
             | DebugType::DebugReport => {
@@ -67,7 +67,7 @@ impl VkDebugger {
         Ok(result)
     }
 
-    fn discard(&self) {
+    pub fn discard(&self) {
 
         if let Some(ref debugger) = self.target {
             unsafe {

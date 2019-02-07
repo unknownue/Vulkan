@@ -72,7 +72,7 @@ impl VkSurface {
     }
 
     /// Destroy the `vk::SurfaceKHR` object.
-    fn discard(&self) {
+    pub fn discard(&self) {
 
         unsafe {
             self.loader.destroy_surface(self.handle, None);

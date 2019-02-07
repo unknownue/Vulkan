@@ -143,7 +143,7 @@ impl VkInstance {
     /// Be careful about the destruction order of Vulkan object, and we have better to destroy them manually.
     ///
     /// In Vulkan, all child objects created using instance must have been destroyed prior to destroying instance.
-    fn discard(&self) {
+    pub fn discard(&self) {
 
         unsafe {
             self.handle.destroy_instance(None);
