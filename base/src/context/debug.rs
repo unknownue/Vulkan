@@ -2,7 +2,6 @@
 use ash::vk;
 
 use crate::context::instance::VkInstance;
-use crate::context::objects::VkBackendObject;
 use crate::{vklint, vksint, vkchar, vkptr, vkbool};
 use crate::error::{VkResult, VkError};
 
@@ -67,17 +66,17 @@ impl VkDebugger {
         let result = VkDebugger { target: debugger };
         Ok(result)
     }
-}
 
-impl VkBackendObject for VkDebugger {
-
-    unsafe fn discard(&self) {
+    fn discard(&self) {
 
         if let Some(ref debugger) = self.target {
-            debugger.discard();
+            unsafe {
+                debugger.discard();
+            }
         }
     }
 }
+
 
 // Debug Report -----------------------------------------------------------------------------------
 

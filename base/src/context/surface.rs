@@ -2,7 +2,6 @@
 use ash::vk;
 
 use crate::context::instance::VkInstance;
-use crate::context::objects::VkBackendObject;
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
@@ -71,12 +70,12 @@ impl VkSurface {
                 .or(Err(VkError::query("Surface Present Modes")))
         }
     }
-}
-
-impl VkBackendObject for VkSurface {
 
     /// Destroy the `vk::SurfaceKHR` object.
-    unsafe fn discard(&self) {
-        self.loader.destroy_surface(self.handle, None);
+    fn discard(&self) {
+
+        unsafe {
+            self.loader.destroy_surface(self.handle, None);
+        }
     }
 }

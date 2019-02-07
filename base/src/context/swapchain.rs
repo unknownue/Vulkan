@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::instance::VkInstance;
-use crate::context::device::VkDevice;
+use crate::context::device::{VkDevice, VkQueue};
 use crate::context::surface::VkSurface;
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
@@ -28,6 +28,8 @@ pub struct VkSwapchain {
     format: vk::Format,
     /// the dimension of presentable images.
     dimension: vk::Extent2D,
+    /// the queue used to present image.
+    present_queue: VkQueue,
 }
 
 struct SwapchainImage {
@@ -44,6 +46,8 @@ impl VkSwapchain {
 
     pub fn new(instance: &VkInstance, device: &VkDevice, surface: &VkSurface, config: SwapchainConfig, old_chain: Option<VkSwapchain>) -> VkResult<VkSwapchain> {
 
+        let present_queue = query_present_queue(device, surface)
+            .ok_or(VkError::other("Graphics Queue is not support to present image to platform's surface."))?;
         let swapchain_format = query_optimal_format(device, surface)?;
         let swapchain_capability = query_swapchain_capability(device, surface, &config)?;
         let swapchain_present_mode = query_optimal_present_mode(device, surface, &config)?;
@@ -85,7 +89,7 @@ impl VkSwapchain {
 
         let image_resouces = obtain_swapchain_images(device, handle, &loader, &swapchain_format)?;
         let result = VkSwapchain {
-            handle, loader,
+            handle, loader, present_queue,
             images: image_resouces,
             format: swapchain_format.color_format,
             dimension: swapchain_capability.swapchain_extent,
@@ -107,6 +111,19 @@ impl VkSwapchain {
     }
 }
 
+
+
+// -----------------------------------------------------------------------------------
+fn query_present_queue(device: &VkDevice, surface: &VkSurface) -> Option<VkQueue> {
+
+    // TODO: Find an alternative queue if graphics queue is not support to present operation.
+    // just check if graphics queue support present operation.
+    if surface.query_is_family_presentable(device.phy.handle, device.logic.queues.graphics.family_index) {
+        Some(device.logic.queues.graphics.clone())
+    } else {
+        None
+    }
+}
 
 fn obtain_swapchain_images(device: &VkDevice, swapchain: vk::SwapchainKHR, loader: &ash::extensions::khr::Swapchain, format: &SwapchainFormat) -> VkResult<Vec<SwapchainImage>> {
 
@@ -155,8 +172,7 @@ fn obtain_swapchain_images(device: &VkDevice, swapchain: vk::SwapchainKHR, loade
 
     Ok(result)
 }
-
-
+// -----------------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------------
 fn query_optimal_present_mode(device: &VkDevice, surface: &VkSurface, config: &SwapchainConfig) -> VkResult<vk::PresentModeKHR> {

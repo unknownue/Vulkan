@@ -5,7 +5,6 @@ use ash::version::{DeviceV1_0, InstanceV1_0};
 use crate::context::instance::VkInstance;
 use crate::context::device::physical::VkPhysicalDevice;
 use crate::context::device::queue::{QueueRequester, QueueRequestStrategy};
-use crate::context::objects::VkBackendObject;
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
@@ -36,11 +35,12 @@ pub struct VkLogicalDevice {
 }
 
 pub struct QueryFamilies {
-    graphics: VkQueue,
-    compute : VkQueue,
-    transfer: VkQueue,
+    pub graphics: VkQueue,
+    pub compute : VkQueue,
+    pub transfer: VkQueue,
 }
 
+#[derive(Debug, Clone)]
 pub struct VkQueue {
     pub handle: vk::Queue,
     pub family_index: vkuint,
@@ -96,12 +96,12 @@ impl VkLogicalDevice {
         let device = VkLogicalDevice { handle, queues };
         Ok(device)
     }
-}
 
-impl VkBackendObject for VkLogicalDevice {
+    fn discard(&self) {
 
-    unsafe fn discard(&self) {
-        self.handle.destroy_device(None);
+        unsafe {
+            self.handle.destroy_device(None);
+        }
     }
 }
 
