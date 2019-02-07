@@ -26,10 +26,7 @@ impl Default for SwapchainConfig {
 
         SwapchainConfig {
             present_vsync: false,
-            dimension_preference: vk::Extent2D {
-                width : 1280,
-                height: 720,
-            },
+            dimension_preference: crate::constants::SCREEN_DIMENSION,
             image_acquire_time: VkTimeDuration::Infinite,
         }
     }

@@ -46,6 +46,10 @@ impl VkError {
         })
     }
 
+    pub(crate) fn window(description: impl AsRef<str>) -> VkError {
+        VkError::from(VkErrorKind::Window { description: description.as_ref().to_string() })
+    }
+
     pub fn other(description: impl AsRef<str>) -> VkError {
         VkError::from(VkErrorKind::Other {
             description: description.as_ref().to_string()
@@ -95,6 +99,9 @@ pub enum VkErrorKind {
     /// An error that occurred while trying to compile shader code in runtime.
     #[fail(display = "Error occurred during runtime shader compiling: {}.", compile_message)]
     Shaderc { compile_message: String },
+    /// An error occurred while communicate with Window.
+    #[fail(display = "Failed to interact with Window: {}.", description)]
+    Window { description: String },
     /// An error that occurred while working with a file path.
     #[fail(display = "Failed to locate file at: {:?}", path)]
     Path { path: PathBuf },

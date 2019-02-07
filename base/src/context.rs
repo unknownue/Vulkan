@@ -54,27 +54,27 @@ pub struct VulkanContextBuilder<'a> {
 
 impl<'a> VulkanContextBuilder<'a> {
 
-    pub fn config_instance(mut self, config: instance::InstanceConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_instance_config(mut self, config: instance::InstanceConfig) -> VulkanContextBuilder<'a> {
         self.config.instance = config;
         self
     }
 
-    pub fn config_debugger(mut self, config: debug::ValidationConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_debugger_config(mut self, config: debug::ValidationConfig) -> VulkanContextBuilder<'a> {
         self.config.debugger = config;
         self
     }
 
-    pub fn config_logic_device(mut self, config: device::LogicDevConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_logic_device_config(mut self, config: device::LogicDevConfig) -> VulkanContextBuilder<'a> {
         self.config.dev_logic = config;
         self
     }
 
-    pub fn config_physical_device(mut self, config: device::PhysicalDevConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_physical_device_config(mut self, config: device::PhysicalDevConfig) -> VulkanContextBuilder<'a> {
         self.config.dev_phy = config;
         self
     }
 
-    pub fn config_swapchain(mut self, config: swapchain::SwapchainConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_swapchain_config(mut self, config: swapchain::SwapchainConfig) -> VulkanContextBuilder<'a> {
         self.config.swapchain = config;
         self
     }
