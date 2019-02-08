@@ -5,6 +5,7 @@ use ash::version::DeviceV1_0;
 use crate::context::{VulkanContext, VkDevice, SwapchainSyncError};
 use crate::workflow::Workflow;
 use crate::workflow::window::WindowContext;
+use crate::input::InputController;
 use crate::utils::fps::FpsCounter;
 use crate::utils::time::VkTimeDuration;
 use crate::utils::frame::{FrameCounter, FrameAction};
@@ -55,16 +56,20 @@ impl ProcPipeline {
 
     fn main_loop(&mut self, app: &mut impl Workflow) -> VkResult<()> {
 
+        let mut input_handler = InputController::default();
+
         'loop_marker: loop {
 
             let delta_time = self.fps_counter.delta_time();
 
-            self.window.event_loop.poll_events(|_event| {
-                // record event here.
-                // ...
+            self.window.event_loop.poll_events(|event| {
+                input_handler.record_event(event);
             });
+            self.frame_counter.set_action(input_handler.current_action());
 
-            app.receive_input(delta_time);
+            let input_feedback = app.receive_input(delta_time);
+            self.frame_counter.set_action(input_feedback);
+
             self.render_frame(app, delta_time)?;
 
             match self.frame_counter.current_action() {
@@ -80,6 +85,7 @@ impl ProcPipeline {
                 },
             }
 
+            input_handler.tick_frame();
             self.frame_counter.next_frame();
             self.fps_counter.tick_frame();
         }

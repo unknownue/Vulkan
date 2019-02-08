@@ -5,6 +5,7 @@ mod loops;
 
 use ash::vk;
 use crate::context::VkDevice;
+use crate::utils::frame::FrameAction;
 use crate::error::VkResult;
 
 pub trait Workflow {
@@ -19,7 +20,7 @@ pub trait Workflow {
         Ok(())
     }
 
-    fn receive_input(&mut self, delta_time: f32);
+    fn receive_input(&mut self, delta_time: f32) -> FrameAction;
 
     fn deinit(&mut self, device: &VkDevice) -> VkResult<()>;
 }

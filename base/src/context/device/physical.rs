@@ -9,6 +9,7 @@ use crate::error::{VkResult, VkError};
 use std::ffi::CString;
 
 
+#[derive(Debug, Clone)]
 pub struct PhysicalDevConfig {
 
     print_device_properties: bool,

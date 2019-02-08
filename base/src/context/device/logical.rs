@@ -11,6 +11,7 @@ use crate::vkuint;
 use std::ptr;
 
 
+#[derive(Debug, Clone)]
 pub struct LogicDevConfig {
 
     pub request_queues: vk::QueueFlags,

@@ -44,9 +44,7 @@ impl VulkanContext {
 
     pub fn recreate_swapchain(&mut self, window: &winit::Window) -> VkResult<()> {
 
-        let dimension = window.get_inner_size()
-            .and_then(|dim| Some(ash::vk::Extent2D { width : dim.width as _, height: dim.height as _, }))
-            .ok_or(VkError::window("Failed to get dimension of current window."))?;
+        let dimension = window_dimension(window)?;
         self.swapchain.rebuild(&self.instance, &self.device, &self.surface, dimension)?;
 
         Ok(())
@@ -116,12 +114,17 @@ impl<'a> VulkanContextBuilder<'a> {
             logic: logic_device,
         };
 
-        let dimension = self.window.get_inner_size()
-            .and_then(|dim| Some(ash::vk::Extent2D { width : dim.width as _, height: dim.height as _, }))
-            .ok_or(VkError::window("Failed to get dimension of current window."))?;
+        let dimension = window_dimension(&self.window)?;
         let swapchain = swapchain::VkSwapchain::new(&instance, &device, &surface, self.config.swapchain, dimension)?;
 
         let context = VulkanContext { instance, debugger, surface, device, swapchain };
         Ok(context)
     }
+}
+
+
+fn window_dimension(window: &winit::Window) -> VkResult<ash::vk::Extent2D> {
+    window.get_inner_size()
+        .and_then(|dim| Some(ash::vk::Extent2D { width : dim.width as _, height: dim.height as _, }))
+        .ok_or(VkError::window("Failed to get dimension of current window."))
 }

@@ -11,6 +11,7 @@ use std::ffi::CString;
 use std::ptr;
 
 /// The configuration parameters used in the initialization of `vk::Instance`.
+#[derive(Debug, Clone)]
 pub struct InstanceConfig {
 
     /// `api_version` must be the highest version of Vulkan that the application is designed to use.

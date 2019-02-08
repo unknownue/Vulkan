@@ -6,13 +6,6 @@ pub struct FrameCounter {
     action : FrameAction,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum FrameAction {
-    Rendering,
-    SwapchainRecreate,
-    Terminal,
-}
-
 impl FrameCounter {
 
     pub fn new(frame_in_flight: usize) -> FrameCounter {
@@ -34,9 +27,13 @@ impl FrameCounter {
         self.action.clone()
     }
 
-    #[inline]
     pub fn set_action(&mut self, action: FrameAction) {
-        self.action = action;
+
+        // Only cover current action with higher priority.
+        // Rendering should have lower priority than other actions.
+        if self.action == FrameAction::Rendering {
+            self.action = action;
+        }
     }
 
     #[inline]
@@ -45,4 +42,14 @@ impl FrameCounter {
         self.current = (self.current + 1) % self.frame_in_flight;
         self.action = FrameAction::Rendering;
     }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum FrameAction {
+    /// ordinary action.
+    Rendering,
+    /// tell program the swapchain has to update to adapt current window surface.
+    SwapchainRecreate,
+    /// Indicate the program to terminal.
+    Terminal,
 }

@@ -6,6 +6,7 @@ pub mod utils;
 mod error;
 mod context;
 mod workflow;
+mod input;
 
 // type alias ------------------------------------
 /// unsigned integer type commonly used in vulkan(an alias type of uint32_t).

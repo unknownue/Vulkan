@@ -95,4 +95,11 @@ impl WindowContext {
         };
         Ok(window)
     }
+
+    pub fn dimension(&self) -> VkResult<vk::Extent2D> {
+
+        self.handle.get_inner_size()
+            .and_then(|dim| Some(ash::vk::Extent2D { width : dim.width as _, height: dim.height as _, }))
+            .ok_or(VkError::window("Failed to get dimension of current window."))
+    }
 }
