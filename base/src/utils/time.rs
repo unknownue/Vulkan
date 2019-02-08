@@ -10,10 +10,10 @@ pub enum VkTimeDuration {
     Infinite,
 }
 
-impl VkTimeDuration {
+impl From<VkTimeDuration> for vklint {
 
-    pub fn value(&self) -> vklint {
-        match self {
+    fn from(time: VkTimeDuration) -> vklint {
+        match time {
             | VkTimeDuration::Immediate => 0,
             | VkTimeDuration::Time(time) =>
                 (time.subsec_nanos() as vklint) + time.as_secs() * 1_000_000_000,

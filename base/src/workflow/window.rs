@@ -51,8 +51,8 @@ pub enum WindowMode {
 
 pub struct WindowContext {
 
-    event_loop: winit::EventsLoop,
-    handle: winit::Window,
+    pub(super) event_loop: winit::EventsLoop,
+    pub(super) handle: winit::Window,
 }
 
 impl WindowContext {
@@ -83,8 +83,7 @@ impl WindowContext {
                 let primary_monitor = event_loop.get_primary_monitor();
                 builder.with_fullscreen(Some(primary_monitor))
             },
-            | WindowMode::Normal
-            | _ => {
+            | WindowMode::Normal => {
                 builder
             },
         };

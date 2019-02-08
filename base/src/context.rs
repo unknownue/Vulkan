@@ -1,4 +1,7 @@
 
+pub use self::device::VkDevice;
+pub use self::swapchain::SwapchainSyncError;
+
 mod instance;
 mod debug;
 mod surface;
@@ -6,7 +9,8 @@ mod device;
 mod swapchain;
 
 
-use crate::error::VkResult;
+use ash::version::DeviceV1_0;
+use crate::error::{VkResult, VkError};
 
 #[derive(Default)]
 pub struct VulkanConfig {
@@ -23,8 +27,9 @@ pub struct VulkanContext {
     instance  : instance::VkInstance,
     debugger  : debug::VkDebugger,
     surface   : surface::VkSurface,
-    device    : device::VkDevice,
-    swapchain : swapchain::VkSwapchain,
+
+    pub(super) swapchain: swapchain::VkSwapchain,
+    pub device: device::VkDevice,
 }
 
 impl VulkanContext {
@@ -35,6 +40,25 @@ impl VulkanContext {
             window,
             config: VulkanConfig::default(),
         }
+    }
+
+    pub fn recreate_swapchain(&mut self, window: &winit::Window) -> VkResult<()> {
+
+        let dimension = window.get_inner_size()
+            .and_then(|dim| Some(ash::vk::Extent2D { width : dim.width as _, height: dim.height as _, }))
+            .ok_or(VkError::window("Failed to get dimension of current window."))?;
+        self.swapchain.rebuild(&self.instance, &self.device, &self.surface, dimension)?;
+
+        Ok(())
+    }
+
+    pub fn wait_idle(&self) -> VkResult<()> {
+        unsafe {
+            self.device.logic.handle.device_wait_idle()
+                .map_err(|_| VkError::device("Device Waiting Idle"))?;
+        }
+
+        Ok(())
     }
 
     pub fn discard(&self) {
@@ -92,7 +116,10 @@ impl<'a> VulkanContextBuilder<'a> {
             logic: logic_device,
         };
 
-        let swapchain = swapchain::VkSwapchain::new(&instance, &device, &surface, self.config.swapchain, None)?;
+        let dimension = self.window.get_inner_size()
+            .and_then(|dim| Some(ash::vk::Extent2D { width : dim.width as _, height: dim.height as _, }))
+            .ok_or(VkError::window("Failed to get dimension of current window."))?;
+        let swapchain = swapchain::VkSwapchain::new(&instance, &device, &surface, self.config.swapchain, dimension)?;
 
         let context = VulkanContext { instance, debugger, surface, device, swapchain };
         Ok(context)

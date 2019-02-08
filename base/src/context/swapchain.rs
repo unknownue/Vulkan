@@ -13,10 +13,10 @@ use crate::{vkuint, vklint};
 
 use std::ptr;
 
+#[derive(Debug, Clone)]
 pub struct SwapchainConfig {
 
     present_vsync: bool,
-    dimension_preference: vk::Extent2D,
     image_acquire_time: VkTimeDuration,
 }
 
@@ -26,7 +26,6 @@ impl Default for SwapchainConfig {
 
         SwapchainConfig {
             present_vsync: false,
-            dimension_preference: crate::constants::SCREEN_DIMENSION,
             image_acquire_time: VkTimeDuration::Infinite,
         }
     }
@@ -47,7 +46,11 @@ pub struct VkSwapchain {
     /// the queue used to present image.
     present_queue: VkQueue,
 
+    frame_in_flight: usize,
+
     image_acquire_time: vklint,
+
+    config: SwapchainConfig,
 }
 
 struct SwapchainImage {
@@ -74,12 +77,26 @@ pub enum SwapchainSyncError {
 
 impl VkSwapchain {
 
-    pub fn new(instance: &VkInstance, device: &VkDevice, surface: &VkSurface, config: SwapchainConfig, old_chain: Option<VkSwapchain>) -> VkResult<VkSwapchain> {
+    pub fn new(instance: &VkInstance, device: &VkDevice, surface: &VkSurface, config: SwapchainConfig, dimension: vk::Extent2D) -> VkResult<VkSwapchain> {
+
+        VkSwapchain::build(instance, device, surface, config, dimension, None)
+    }
+
+    pub fn rebuild(&mut self, instance: &VkInstance, device: &VkDevice, surface: &VkSurface, dimension: vk::Extent2D) -> VkResult<()> {
+
+        let new_chain = VkSwapchain::build(instance, device, surface, self.config.clone(), dimension, Some(self.handle))?;
+        self.discard(device);
+        *self = new_chain;
+
+        Ok(())
+    }
+
+    fn build(instance: &VkInstance, device: &VkDevice, surface: &VkSurface, config: SwapchainConfig, dimension: vk::Extent2D, old_chain: Option<vk::SwapchainKHR>) -> VkResult<VkSwapchain> {
 
         let present_queue = query_present_queue(device, surface)
             .ok_or(VkError::other("Graphics Queue is not support to present image to platform's surface."))?;
         let swapchain_format = query_optimal_format(device, surface)?;
-        let swapchain_capability = query_swapchain_capability(device, surface, &config)?;
+        let swapchain_capability = query_swapchain_capability(device, surface, dimension)?;
         let swapchain_present_mode = query_optimal_present_mode(device, surface, &config)?;
 
         let swapchain_ci = vk::SwapchainCreateInfoKHR {
@@ -101,7 +118,7 @@ impl VkSwapchain {
             present_mode             : swapchain_present_mode,
             // setting clipped to vk::TRUE allows the implementation to discard rendering outside of the surface area.
             clipped                  : vk::TRUE,
-            old_swapchain: old_chain.as_ref().and_then(|c| Some(c.handle)).unwrap_or(vk::SwapchainKHR::null()),
+            old_swapchain: old_chain.and_then(|c| Some(c)).unwrap_or(vk::SwapchainKHR::null()),
         };
 
         let loader = ash::extensions::khr::Swapchain::new(&instance.handle, &device.logic.handle);
@@ -111,19 +128,15 @@ impl VkSwapchain {
                 .or(Err(VkError::create("Swapchain")))?
         };
 
-        // if an existing swap chain is re-created, destroy the old swap chain.
-        // this also cleans up all the presentable images.
-        if let Some(old_chain) = old_chain {
-            old_chain.discard(device);
-        }
+        let image_resources = obtain_swapchain_images(device, handle, &loader, &swapchain_format)?;
+        let frame_in_flight = image_resources.len();
+        let image_acquire_time = config.image_acquire_time.into();
 
-        let image_resouces = obtain_swapchain_images(device, handle, &loader, &swapchain_format)?;
         let result = VkSwapchain {
-            handle, loader, present_queue,
-            images: image_resouces,
+            handle, loader, present_queue, frame_in_flight, image_acquire_time, config,
+            images: image_resources,
             format: swapchain_format.color_format,
             dimension: swapchain_capability.swapchain_extent,
-            image_acquire_time: config.image_acquire_time.value(),
         };
 
         Ok(result)
@@ -164,7 +177,7 @@ impl VkSwapchain {
     /// Generally it's a `vk::Queue` that is support `vk::QUEUE_GRAPHICS_BIT`.
     ///
     /// `image_index` is the index of swapchain’s presentable images.
-    pub fn present(&self, device: &VkDevice, wait_semaphores: &[vk::Semaphore], image_index: vkuint) -> Result<(), SwapchainSyncError> {
+    pub fn present(&self, wait_semaphores: &[vk::Semaphore], image_index: vkuint) -> Result<(), SwapchainSyncError> {
 
         // Currently only support single swapchain and single image index.
         let present_info = vk::PresentInfoKHR {
@@ -190,6 +203,10 @@ impl VkSwapchain {
         }
     }
 
+    pub fn frame_in_flight(&self) -> usize {
+        self.frame_in_flight.clone()
+    }
+
     /// Destroy the `vk::SwapchainKHR` object.
     ///
     /// The application must not destroy `vk::SwapchainKHR` until after completion of all outstanding operations on images that were acquired from the `vk::SwapchainKHR`.
@@ -211,7 +228,7 @@ impl VkSwapchain {
 // -----------------------------------------------------------------------------------
 fn query_present_queue(device: &VkDevice, surface: &VkSurface) -> Option<VkQueue> {
 
-    // TODO: Find an alternative queue if graphics queue is not support to present operation.
+    // TODO: Find an alternative queue if graphics queue is not support present operation.
     // just check if graphics queue support present operation.
     if surface.query_is_family_presentable(device.phy.handle, device.logic.queues.graphics.family_index) {
         Some(device.logic.queues.graphics.clone())
@@ -362,7 +379,7 @@ struct SwapchainCapability {
     composite_alpha: vk::CompositeAlphaFlagsKHR,
 }
 
-fn query_swapchain_capability(device: &VkDevice, surface: &VkSurface, config: &SwapchainConfig) -> VkResult<SwapchainCapability> {
+fn query_swapchain_capability(device: &VkDevice, surface: &VkSurface, dimension: vk::Extent2D) -> VkResult<SwapchainCapability> {
 
     let surface_caps = surface.query_capabilities(device.phy.handle)?;
 
@@ -386,8 +403,8 @@ fn query_swapchain_capability(device: &VkDevice, surface: &VkSurface, config: &S
         use std::cmp::{max, min};
 
         vk::Extent2D {
-            width: min(max(config.dimension_preference.width, surface_caps.min_image_extent.width), surface_caps.max_image_extent.width),
-            height: min(max(config.dimension_preference.height, surface_caps.min_image_extent.height), surface_caps.max_image_extent.height),
+            width: min(max(dimension.width, surface_caps.min_image_extent.width), surface_caps.max_image_extent.width),
+            height: min(max(dimension.height, surface_caps.min_image_extent.height), surface_caps.max_image_extent.height),
         }
     } else {
         // If the surface size is defined, the swap chain size must match.
