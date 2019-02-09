@@ -44,9 +44,9 @@ impl Default for PhysicalDevConfig {
 pub struct VkPhysicalDevice {
 
     pub handle: vk::PhysicalDevice,
-    config: PhysicalDevConfig,
+    pub memories: vk::PhysicalDeviceMemoryProperties,
 
-    memories: vk::PhysicalDeviceMemoryProperties,
+    config: PhysicalDevConfig,
 }
 
 impl VkPhysicalDevice {

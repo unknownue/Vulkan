@@ -1,4 +1,7 @@
 
+pub use self::window::{WindowContext, WindowConfig};
+pub use self::loops::ProcPipeline;
+
 mod window;
 mod loops;
 

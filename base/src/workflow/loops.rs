@@ -37,14 +37,18 @@ impl ProcPipeline {
         Ok(target)
     }
 
+    pub fn frame_in_flight(&self) -> usize {
+        self.vulkan.swapchain.frame_in_flight()
+    }
+
     pub fn launch(&mut self, mut app: impl Workflow) -> VkResult<()> {
 
         app.init(&self.vulkan.device)?;
 
         self.main_loop(&mut app)?;
 
-        app.deinit(&self.vulkan.device)?;
         self.vulkan.wait_idle()?;
+        app.deinit(&self.vulkan.device)?;
         // free the program specific resource.
         drop(app);
         // and then free vulkan context resource.
@@ -77,11 +81,11 @@ impl ProcPipeline {
                 | FrameAction::SwapchainRecreate => {
 
                     self.vulkan.wait_idle()?;
-                    self.vulkan.recreate_swapchain(&self.window.handle)?;
+                    self.vulkan.recreate_swapchain(&self.window)?;
                     app.swapchain_reload(&self.vulkan.device)?;
                 },
                 | FrameAction::Terminal => {
-                    break  'loop_marker
+                    break 'loop_marker
                 },
             }
 

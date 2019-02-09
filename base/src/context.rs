@@ -2,6 +2,11 @@
 pub use self::device::VkDevice;
 pub use self::swapchain::SwapchainSyncError;
 
+pub use self::instance::InstanceConfig;
+pub use self::debug::ValidationConfig;
+pub use self::device::{LogicDevConfig, PhysicalDevConfig};
+pub use self::swapchain::SwapchainConfig;
+
 mod instance;
 mod debug;
 mod surface;
@@ -10,16 +15,17 @@ mod swapchain;
 
 
 use ash::version::DeviceV1_0;
+use crate::workflow::WindowContext;
 use crate::error::{VkResult, VkError};
 
 #[derive(Default)]
 pub struct VulkanConfig {
 
-    instance  : instance::InstanceConfig,
-    debugger  : debug::ValidationConfig,
-    dev_logic : device::LogicDevConfig,
-    dev_phy   : device::PhysicalDevConfig,
-    swapchain : swapchain::SwapchainConfig,
+    instance  : InstanceConfig,
+    debugger  : ValidationConfig,
+    dev_logic : LogicDevConfig,
+    dev_phy   : PhysicalDevConfig,
+    swapchain : SwapchainConfig,
 }
 
 pub struct VulkanContext {
@@ -29,12 +35,12 @@ pub struct VulkanContext {
     surface   : surface::VkSurface,
 
     pub(super) swapchain: swapchain::VkSwapchain,
-    pub device: device::VkDevice,
+    pub(crate) device: device::VkDevice,
 }
 
 impl VulkanContext {
 
-    pub fn new(window: &winit::Window) -> VulkanContextBuilder {
+    pub fn new(window: &WindowContext) -> VulkanContextBuilder {
 
         VulkanContextBuilder {
             window,
@@ -42,15 +48,15 @@ impl VulkanContext {
         }
     }
 
-    pub fn recreate_swapchain(&mut self, window: &winit::Window) -> VkResult<()> {
+    pub(super) fn recreate_swapchain(&mut self, window: &WindowContext) -> VkResult<()> {
 
-        let dimension = window_dimension(window)?;
+        let dimension = window.dimension()?;
         self.swapchain.rebuild(&self.instance, &self.device, &self.surface, dimension)?;
 
         Ok(())
     }
 
-    pub fn wait_idle(&self) -> VkResult<()> {
+    pub(super) fn wait_idle(&self) -> VkResult<()> {
         unsafe {
             self.device.logic.handle.device_wait_idle()
                 .map_err(|_| VkError::device("Device Waiting Idle"))?;
@@ -59,10 +65,11 @@ impl VulkanContext {
         Ok(())
     }
 
-    pub fn discard(&self) {
+    pub(super) fn discard(&self) {
 
         self.swapchain.discard(&self.device);
         self.device.logic.discard();
+        self.surface.discard();
         self.debugger.discard();
         self.instance.discard();
     }
@@ -70,33 +77,33 @@ impl VulkanContext {
 
 pub struct VulkanContextBuilder<'a> {
 
-    window: &'a winit::Window,
+    window: &'a WindowContext,
     config: VulkanConfig,
 }
 
 impl<'a> VulkanContextBuilder<'a> {
 
-    pub fn with_instance_config(mut self, config: instance::InstanceConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_instance_config(mut self, config: InstanceConfig) -> VulkanContextBuilder<'a> {
         self.config.instance = config;
         self
     }
 
-    pub fn with_debugger_config(mut self, config: debug::ValidationConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_debugger_config(mut self, config: ValidationConfig) -> VulkanContextBuilder<'a> {
         self.config.debugger = config;
         self
     }
 
-    pub fn with_logic_device_config(mut self, config: device::LogicDevConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_logic_device_config(mut self, config: LogicDevConfig) -> VulkanContextBuilder<'a> {
         self.config.dev_logic = config;
         self
     }
 
-    pub fn with_physical_device_config(mut self, config: device::PhysicalDevConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_physical_device_config(mut self, config: PhysicalDevConfig) -> VulkanContextBuilder<'a> {
         self.config.dev_phy = config;
         self
     }
 
-    pub fn with_swapchain_config(mut self, config: swapchain::SwapchainConfig) -> VulkanContextBuilder<'a> {
+    pub fn with_swapchain_config(mut self, config: SwapchainConfig) -> VulkanContextBuilder<'a> {
         self.config.swapchain = config;
         self
     }
@@ -105,7 +112,7 @@ impl<'a> VulkanContextBuilder<'a> {
 
         let instance = instance::VkInstance::new(self.config.instance)?;
         let debugger = debug::VkDebugger::new(&instance, self.config.debugger)?;
-        let surface = surface::VkSurface::new(&instance, &self.window)?;
+        let surface = surface::VkSurface::new(&instance, &self.window.handle)?;
 
         let phy_device = device::VkPhysicalDevice::new(&instance, self.config.dev_phy)?;
         let logic_device = device::VkLogicalDevice::new(&instance, &phy_device, self.config.dev_logic)?;
@@ -114,17 +121,10 @@ impl<'a> VulkanContextBuilder<'a> {
             logic: logic_device,
         };
 
-        let dimension = window_dimension(&self.window)?;
+        let dimension = self.window.dimension()?;
         let swapchain = swapchain::VkSwapchain::new(&instance, &device, &surface, self.config.swapchain, dimension)?;
 
         let context = VulkanContext { instance, debugger, surface, device, swapchain };
         Ok(context)
     }
-}
-
-
-fn window_dimension(window: &winit::Window) -> VkResult<ash::vk::Extent2D> {
-    window.get_inner_size()
-        .and_then(|dim| Some(ash::vk::Extent2D { width : dim.width as _, height: dim.height as _, }))
-        .ok_or(VkError::window("Failed to get dimension of current window."))
 }

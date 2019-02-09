@@ -51,8 +51,8 @@ pub enum WindowMode {
 
 pub struct WindowContext {
 
-    pub(super) event_loop: winit::EventsLoop,
-    pub(super) handle: winit::Window,
+    pub(crate) event_loop: winit::EventsLoop,
+    pub(crate) handle: winit::Window,
 }
 
 impl WindowContext {

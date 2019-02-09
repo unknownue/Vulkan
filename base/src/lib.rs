@@ -1,10 +1,15 @@
 
+pub use self::workflow::{Workflow, WindowContext, WindowConfig};
+pub use self::workflow::ProcPipeline;
+pub use self::error::{VkResult, VkError};
+pub use self::utils::frame::FrameAction;
+
+pub mod context;
 pub mod constants;
 pub mod platforms;
 pub mod utils;
 
 mod error;
-mod context;
 mod workflow;
 mod input;
 

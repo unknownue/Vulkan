@@ -16,8 +16,8 @@ use std::ptr;
 #[derive(Debug, Clone)]
 pub struct SwapchainConfig {
 
-    present_vsync: bool,
-    image_acquire_time: VkTimeDuration,
+    pub present_vsync: bool,
+    pub image_acquire_time: VkTimeDuration,
 }
 
 impl Default for SwapchainConfig {

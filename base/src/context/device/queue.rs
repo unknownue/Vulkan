@@ -45,8 +45,10 @@ impl QueueRequester {
             instance.handle.get_physical_device_queue_family_properties(phy.handle)
         };
 
-        let queue_cis = [0..families.len()].iter()
-            .map(|_| FamilyQueuesCreateInfo::default()).collect();
+        let mut queue_cis = Vec::with_capacity(families.len());
+        for _ in 0..families.len() {
+            queue_cis.push(FamilyQueuesCreateInfo::default());
+        }
 
         QueueRequester {
             strategy,
@@ -71,13 +73,14 @@ impl QueueRequester {
             }
         });
 
-        // check there are enough queues remain in dedicated queue family.
+        // check if there are enough queues remain in dedicated queue family.
         if let Some((dedicated_family_index, position)) = dedicated_family {
 
             if self.cis[dedicated_family_index].count < self.family_properties[dedicated_family_index].queue_count {
                 // set dedicated_family_index as the final selected queue family.
                 selected_family = Some(dedicated_family_index);
-            } else { // there are no queue remaining in this family.
+            } else {
+                // if there are no queue remaining in this family.
                 // remove this candidate queue family.
                 candidate_families.remove(position);
             }
@@ -128,7 +131,8 @@ impl QueueRequester {
                 let device_queue_ci = vk::DeviceQueueCreateInfo {
                     s_type: vk::StructureType::DEVICE_QUEUE_CREATE_INFO,
                     p_next: ptr::null(),
-                    flags : vk::DeviceQueueCreateFlags::empty(), // flags is reserved for future use in API version 1.1.82.
+                    // flags is reserved for future use in API version 1.1.82.
+                    flags : vk::DeviceQueueCreateFlags::empty(),
                     queue_family_index: family_index as _,
                     queue_count       : ci.priorities.len() as _,
                     p_queue_priorities: ci.priorities.as_ptr(),

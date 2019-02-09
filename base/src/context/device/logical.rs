@@ -94,6 +94,17 @@ impl VkLogicalDevice {
         };
 
         let queues = queue_requests.dispatch_queues(&handle, &queue_requester);
+
+        if config.request_queues.contains(vk::QueueFlags::GRAPHICS) {
+            debug_assert_ne!(queues.graphics.handle, vk::Queue::null())
+        }
+        if config.request_queues.contains(vk::QueueFlags::COMPUTE) {
+            debug_assert_ne!(queues.compute.handle, vk::Queue::null())
+        }
+        if config.request_queues.contains(vk::QueueFlags::TRANSFER) {
+            debug_assert_ne!(queues.transfer.handle, vk::Queue::null())
+        }
+
         let device = VkLogicalDevice { handle, queues };
         Ok(device)
     }
