@@ -64,30 +64,36 @@ impl ProcPipeline {
 
         'loop_marker: loop {
 
+            macro_rules! execute_action {
+                ($action:ident) => {
+                    match $action {
+                        | FrameAction::Rendering => {},
+                        | FrameAction::SwapchainRecreate => {
+
+                            self.vulkan.wait_idle()?;
+                            self.vulkan.recreate_swapchain(&self.window)?;
+                            app.swapchain_reload(&self.vulkan.device, &self.vulkan.swapchain)?;
+                        },
+                        | FrameAction::Terminal => {
+                            break 'loop_marker
+                        },
+                    }
+                }
+            }
+
             let delta_time = self.fps_counter.delta_time();
 
             self.window.event_loop.poll_events(|event| {
                 input_handler.record_event(event);
             });
-            self.frame_counter.set_action(input_handler.current_action());
+            let window_feedback = input_handler.current_action();
+            execute_action!(window_feedback);
 
             let input_feedback = app.receive_input(&input_handler, delta_time);
-            self.frame_counter.set_action(input_feedback);
+            execute_action!(input_feedback);
 
-            self.render_frame(app, delta_time)?;
-
-            match self.frame_counter.current_action() {
-                | FrameAction::Rendering => {},
-                | FrameAction::SwapchainRecreate => {
-
-                    self.vulkan.wait_idle()?;
-                    self.vulkan.recreate_swapchain(&self.window)?;
-                    app.swapchain_reload(&self.vulkan.device)?;
-                },
-                | FrameAction::Terminal => {
-                    break 'loop_marker
-                },
-            }
+            let render_feedback = self.render_frame(app, delta_time)?;
+            execute_action!(render_feedback);
 
             input_handler.tick_frame();
             self.frame_counter.next_frame();
@@ -97,7 +103,7 @@ impl ProcPipeline {
         Ok(())
     }
 
-    fn render_frame(&mut self, app: &mut impl Workflow, delta_time: f32) -> VkResult<()> {
+    fn render_frame(&mut self, app: &mut impl Workflow, delta_time: f32) -> VkResult<FrameAction> {
 
         // wait and acquire next image. -------------------------------------
         let fence_ready = self.syncs.sync_fences[self.frame_counter.current_frame()];
@@ -111,8 +117,7 @@ impl ProcPipeline {
             | Err(e) => match e {
                 | SwapchainSyncError::SurfaceOutDate
                 | SwapchainSyncError::SubOptimal => {
-                    self.frame_counter.set_action(FrameAction::SwapchainRecreate);
-                    return Ok(())
+                    return Ok(FrameAction::SwapchainRecreate)
                 },
                 | SwapchainSyncError::TimeOut
                 | SwapchainSyncError::Unknown => {
@@ -135,19 +140,22 @@ impl ProcPipeline {
         // TODO: Add ownership transfer if need.
         // see https://github.com/KhronosGroup/Vulkan-Docs/wiki/Synchronization-Examples.
         // or see https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-3#inpage-nav-6-3
-        self.vulkan.swapchain.present(&[await_render], acquire_image_index)
-            .or_else(|e| match e {
+        match self.vulkan.swapchain.present(&[await_render], acquire_image_index) {
+            | Ok(_) => {},
+            | Err(e) => match e {
                 | SwapchainSyncError::SurfaceOutDate
                 | SwapchainSyncError::SubOptimal => {
-                    self.frame_counter.set_action(FrameAction::SwapchainRecreate);
-                    Ok(())
+                    return Ok(FrameAction::SwapchainRecreate)
                 },
                 | SwapchainSyncError::TimeOut
                 | SwapchainSyncError::Unknown => {
-                    Err(VkError::other(e.to_string()))
+                    return Err(VkError::other(e.to_string()))
                 },
-            })
+            },
+        }
         // ------------------------------------------------------------------
+
+        Ok(FrameAction::Rendering)
     }
 }
 

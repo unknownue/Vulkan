@@ -3,7 +3,6 @@ pub struct FrameCounter {
 
     frame_in_flight: usize,
     current: usize,
-    action : FrameAction,
 }
 
 impl FrameCounter {
@@ -13,7 +12,6 @@ impl FrameCounter {
         FrameCounter {
             frame_in_flight,
             current: 0,
-            action: FrameAction::Rendering,
         }
     }
 
@@ -23,24 +21,9 @@ impl FrameCounter {
     }
 
     #[inline]
-    pub fn current_action(&self) -> FrameAction {
-        self.action.clone()
-    }
-
-    pub fn set_action(&mut self, action: FrameAction) {
-
-        // Only cover current action with higher priority.
-        // Rendering should have lower priority than other actions.
-        if self.action == FrameAction::Rendering {
-            self.action = action;
-        }
-    }
-
-    #[inline]
     pub fn next_frame(&mut self) {
 
         self.current = (self.current + 1) % self.frame_in_flight;
-        self.action = FrameAction::Rendering;
     }
 }
 

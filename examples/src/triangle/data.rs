@@ -370,9 +370,9 @@ fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: 
 
     let ubo_data = [
         UboVS {
-            projection: nalgebra::Matrix4::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
-            view: nalgebra::Matrix4::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
-            model: nalgebra::Matrix4::identity(),
+            projection: Mat4F::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
+            view: Mat4F::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
+            model: Mat4F::identity(),
         },
     ];
 

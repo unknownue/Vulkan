@@ -71,60 +71,6 @@ pub struct VulkanExample {
     render_await: vk::Semaphore,
 }
 
-impl vkbase::Workflow for VulkanExample {
-
-    fn init(&mut self, device: &VkDevice) -> VkResult<()> {
-
-        self.record_commands(device, self.dimension)?;
-        Ok(())
-    }
-
-    fn render_frame(&mut self, device: &VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
-
-        let submit_infos = [
-            vk::SubmitInfo {
-                s_type: vk::StructureType::SUBMIT_INFO,
-                p_next: ptr::null(),
-                wait_semaphore_count   : 1,
-                p_wait_semaphores      : &await_present,
-                // Pipeline stage at which the queue submission will wait (via p_wait_semaphores).
-                p_wait_dst_stage_mask  : &vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                command_buffer_count   : 1,
-                p_command_buffers      : &self.commands[image_index],
-                signal_semaphore_count : 1,
-                p_signal_semaphores    : &self.render_await,
-            },
-        ];
-
-        // Submit to the graphics queue passing a wait fence.
-        unsafe {
-            device.logic.handle.queue_submit(device.logic.queues.graphics.handle, &submit_infos, device_available)
-                .map_err(|_| VkError::device("Queue Submit"))?;
-        }
-
-        Ok(self.render_await)
-    }
-
-    fn swapchain_reload(&mut self, _device: &VkDevice) -> VkResult<()> {
-        Ok(())
-    }
-
-    fn receive_input(&mut self, inputer: &vkbase::InputController, _delta_time: f32) -> FrameAction {
-
-        if inputer.key.is_key_pressed(winit::VirtualKeyCode::Escape) {
-            return FrameAction::Terminal
-        }
-
-        FrameAction::Rendering
-    }
-
-    fn deinit(&mut self, device: &VkDevice) -> VkResult<()> {
-
-        self.discard(device);
-        Ok(())
-    }
-}
-
 impl VulkanExample {
 
     pub fn new(context: &vkbase::context::VulkanContext) -> VkResult<VulkanExample> {
@@ -159,6 +105,100 @@ impl VulkanExample {
         };
         Ok(target)
     }
+}
+
+impl vkbase::Workflow for VulkanExample {
+
+    fn init(&mut self, device: &VkDevice) -> VkResult<()> {
+
+        self.record_commands(device, self.dimension)?;
+        Ok(())
+    }
+
+    fn render_frame(&mut self, device: &VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
+
+        let submit_infos = [
+            vk::SubmitInfo {
+                s_type: vk::StructureType::SUBMIT_INFO,
+                p_next: ptr::null(),
+                wait_semaphore_count   : 1,
+                p_wait_semaphores      : &await_present,
+                // Pipeline stage at which the queue submission will wait (via p_wait_semaphores).
+                p_wait_dst_stage_mask  : &vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                command_buffer_count   : 1,
+                p_command_buffers      : &self.commands[image_index],
+                signal_semaphore_count : 1,
+                p_signal_semaphores    : &self.render_await,
+            },
+        ];
+
+        // Submit to the graphics queue passing a wait fence.
+        unsafe {
+            device.logic.handle.queue_submit(device.logic.queues.graphics.handle, &submit_infos, device_available)
+                .map_err(|_| VkError::device("Queue Submit"))?;
+        }
+
+        Ok(self.render_await)
+    }
+
+    fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
+
+        // when toggle swapchain recreation, all the resources rely on swapchain and pipeline must be cleaned and regenerated.
+        // including Pipeline, RenderPass, CommandBuffer, Framebuffer, attachment images(here is depth stencil image).
+
+        // release resource about the old pipeline.
+        // the destruction of swapchain is hidden behind.
+        unsafe {
+
+            let destructor = &device.logic.handle;
+
+            destructor.destroy_pipeline(self.pipeline, None);
+            destructor.destroy_render_pass(self.render_pass, None);
+
+            destructor.destroy_image_view(self.depth_image.view, None);
+            destructor.destroy_image(self.depth_image.image, None);
+            destructor.free_memory(self.depth_image.memory, None);
+
+            for &frame in self.framebuffers.iter() {
+                destructor.destroy_framebuffer(frame, None);
+            }
+        }
+
+        // recreate the resources.
+        unsafe {
+
+            self.dimension = new_chain.dimension;
+            self.render_pass = setup_renderpass(device, new_chain)?;
+            self.depth_image = setup_depth_stencil(device, self.dimension)?;
+
+            self.framebuffers = setup_framebuffers(device, new_chain, self.render_pass, &self.depth_image)?;
+            self.pipeline = prepare_pipelines(device, self.render_pass, self.pipeline_layout)?;
+
+            device.logic.handle.reset_command_pool(self.command_pool, vk::CommandPoolResetFlags::RELEASE_RESOURCES)
+                .map_err(|_| VkError::device("Reset Command Poll"))?;
+            self.record_commands(device, self.dimension)?;
+        }
+
+        Ok(())
+    }
+
+    fn receive_input(&mut self, inputer: &vkbase::InputController, _delta_time: f32) -> FrameAction {
+
+        if inputer.key.is_key_pressed(winit::VirtualKeyCode::Escape) {
+            return FrameAction::Terminal
+        }
+
+        FrameAction::Rendering
+    }
+
+    fn deinit(&mut self, device: &VkDevice) -> VkResult<()> {
+
+        self.discard(device);
+        Ok(())
+    }
+}
+
+impl VulkanExample {
 
     // Build separate command buffers for every framebuffer image.
     // Unlike in OpenGL all rendering commands are recorded once into command buffers that are then resubmitted to the queue.
