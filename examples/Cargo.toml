@@ -22,5 +22,9 @@ name = "ash_test"
 path = "src/ash_test/triangle.rs"
 
 [[bin]]
-name = "triangle"
-path = "src/triangle/main.rs"
+name = "triangle_v1"
+path = "src/triangle_v1/main.rs"
+
+[[bin]]
+name = "triangle_v2"
+path = "src/triangle_v2/main.rs"

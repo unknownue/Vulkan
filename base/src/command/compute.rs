@@ -4,7 +4,7 @@ use ash::vk;
 use crate::command::VkCommandType;
 use crate::command::recorder::VkCmdRecorder;
 
-struct ICompute;
+pub struct ICompute;
 
 impl VkCommandType for ICompute {
     const BIND_POINT: vk::PipelineBindPoint = vk::PipelineBindPoint::COMPUTE;

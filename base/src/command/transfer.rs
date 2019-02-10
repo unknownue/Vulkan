@@ -7,7 +7,7 @@ use crate::command::recorder::VkCmdRecorder;
 
 use crate::ci::image::ImageBarrierCI;
 
-struct ITransfer;
+pub struct ITransfer;
 
 impl VkCommandType for ITransfer {
     const BIND_POINT: vk::PipelineBindPoint = vk::PipelineBindPoint::GRAPHICS;

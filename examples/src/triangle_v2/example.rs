@@ -13,61 +13,33 @@ use std::ffi::CString;
 
 use crate::data::{Vertex, VertexBuffer, IndexBuffer, UniformBuffer, DepthImage};
 
-const SHADER_VERTEX_PATH  : &'static str = "examples/src/triangle/triangle.vert.glsl";
-const SHADER_FRAGMENT_PATH: &'static str = "examples/src/triangle/triangle.frag.glsl";
+const SHADER_VERTEX_PATH  : &'static str = "examples/src/triangle_v1/triangle.vert.glsl";
+const SHADER_FRAGMENT_PATH: &'static str = "examples/src/triangle_v1/triangle.frag.glsl";
 
 pub struct VulkanExample {
 
-    // the size of current window.
     dimension: vk::Extent2D,
-    // the resource about vertex buffer.
     vertex_buffer: VertexBuffer,
-    // the resource about index buffer.
     index_buffer: IndexBuffer,
-    // the resource about uniform buffer.
     uniform_buffer: UniformBuffer,
 
     depth_image: DepthImage,
 
     render_pass: vk::RenderPass,
 
-    /// The pipeline layout is used by a pipeline to access the descriptor sets.
-    ///
-    /// It defines interface (without binding any actual data) between the shader stages used by the pipeline and the shader resources.
-    ///
-    /// A pipeline layout can be shared among multiple pipelines as long as their interfaces match.
     pipeline_layout: vk::PipelineLayout,
 
-    /// Pipelines (often called "pipeline state objects") are used to bake all states that affect a pipeline.
-    ///
-    /// While in OpenGL every state can be changed at (almost) any time, Vulkan requires to layout the graphics (and compute) pipeline states upfront.
-    ///
-    /// So for each combination of non-dynamic pipeline states you need a new pipeline (there are a few exceptions to this not discussed here).
-    ///
-    /// Even though this adds a new dimension of planing ahead, it's a great opportunity for performance optimizations by the driver.
     pipeline: vk::Pipeline,
 
     framebuffers: Vec<vk::Framebuffer>,
 
-    /// Descriptor sets are allocated and store in descriptor pool.
     descriptor_pool: vk::DescriptorPool,
-
-    /// The descriptor set layout describes the shader binding layout (without actually referencing descriptor).
-    ///
-    /// Like the pipeline layout, it's pretty much a blueprint and can be used with different descriptor sets as long as their layout matches.
     descriptor_set_layout: vk::DescriptorSetLayout,
-
-    /// The descriptor set stores the resources bound to the binding points in a shader.
-    ///
-    /// It connects the binding points of the different shaders with the buffers and images used for those bindings.
     descriptor_set: vk::DescriptorSet,
 
-    /// Command buffer pool.
     command_pool: vk::CommandPool,
-    // Command buffers used for rendering.
     commands: Vec<vk::CommandBuffer>,
 
-    // this semaphore is used to ensure that all rendering commands submitted have been finished before presenting the image.
     render_await: vk::Semaphore,
 }
 
@@ -143,11 +115,6 @@ impl vkbase::Workflow for VulkanExample {
 
     fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
-        // when toggle swapchain recreation, all the resources rely on swapchain and pipeline must be cleaned and regenerated.
-        // including Pipeline, RenderPass, CommandBuffer, Framebuffer, attachment images(here is depth stencil image).
-
-        // release resource about the old pipeline.
-        // the destruction of swapchain is hidden behind.
         unsafe {
 
             let destructor = &device.logic.handle;
@@ -200,88 +167,46 @@ impl vkbase::Workflow for VulkanExample {
 
 impl VulkanExample {
 
-    // Build separate command buffers for every framebuffer image.
-    // Unlike in OpenGL all rendering commands are recorded once into command buffers that are then resubmitted to the queue.
-    // This allows to generate work upfront and from multiple threads, one of the biggest advantages of Vulkan.
     fn record_commands(&self, device: &VkDevice, dimension: vk::Extent2D) -> VkResult<()> {
 
-        let cmd_begin_ci = vk::CommandBufferBeginInfo {
-            s_type: vk::StructureType::COMMAND_BUFFER_BEGIN_INFO,
-            p_next: ptr::null(),
-            flags : vk::CommandBufferUsageFlags::empty(),
-            p_inheritance_info: ptr::null(),
-        };
-
-        // Set clear values for all framebuffer attachments with loadOp set to clear.
-        // Use two attachments (color and depth) that are cleared at the start of the subpass,
-        // and as such we need to set clear values for both.
         let clear_values = [
             vk::ClearValue { color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] } },
             vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
         ];
 
-        for (i, command) in self.commands.iter().enumerate() {
+        let viewport = vk::Viewport {
+            x: 0.0, y: 0.0,
+            width: dimension.width as f32, height: dimension.height as f32,
+            min_depth: 0.0, max_depth: 1.0,
+        };
 
-            let renderpass_begin_ci = vk::RenderPassBeginInfo {
-                s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
-                p_next: ptr::null(),
-                render_pass: self.render_pass,
-                framebuffer: self.framebuffers[i],
-                render_area: vk::Rect2D {
-                    extent: dimension,
-                    offset: vk::Offset2D { x: 0, y: 0 },
-                },
-                clear_value_count: clear_values.len() as _,
-                p_clear_values   : clear_values.as_ptr(),
-            };
+        let scissor = vk::Rect2D {
+            extent: dimension.clone(),
+            offset: vk::Offset2D { x: 0, y: 0 },
+        };
 
-            let viewport = vk::Viewport {
-                x: 0.0, y: 0.0,
-                width: dimension.width as f32, height: dimension.height as f32,
-                min_depth: 0.0, max_depth: 1.0,
-            };
+        for (i, &command) in self.commands.iter().enumerate() {
 
-            let scissor = vk::Rect2D {
-                extent: dimension.clone(),
-                offset: vk::Offset2D { x: 0, y: 0 },
-            };
+            use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
+            use vkbase::ci::pipeline::RenderPassBI;
 
-            // Start the first sub pass specified in our default render pass setup by the base class.
-            // This will clear the color and depth attachment.
-            unsafe {
+            let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(device, command);
 
-                device.logic.handle.begin_command_buffer(command.clone(), &cmd_begin_ci)
-                    .map_err(|_| VkError::device("Begin command buffer"))?;
+            let render_pass_bi = RenderPassBI::new(self.render_pass, self.framebuffers[i])
+                .render_extent(dimension)
+                .clear_values(&clear_values);
 
-                device.logic.handle.cmd_begin_render_pass(command.clone(), &renderpass_begin_ci, vk::SubpassContents::INLINE);
-                // update viewport state.
-                device.logic.handle.cmd_set_viewport(command.clone(), 0, &[viewport]);
-                // update dynamic scissor state.
-                device.logic.handle.cmd_set_scissor(command.clone(), 0, &[scissor]);
-                // bind descriptor sets describing shader binding points.
-                device.logic.handle.cmd_bind_descriptor_sets(command.clone(), vk::PipelineBindPoint::GRAPHICS, self.pipeline_layout, 0, &[self.descriptor_set], &[]);
-
-                // bind the rendering pipeline.
-                // the pipeline (state object) contains all states of the rendering pipeline.
-                // binding it will set all the states specified at pipeline creation time.
-                device.logic.handle.cmd_bind_pipeline(command.clone(), vk::PipelineBindPoint::GRAPHICS, self.pipeline);
-
-                // bind triangle vertex buffer (contains position and colors).
-                device.logic.handle.cmd_bind_vertex_buffers(command.clone(), 0, &[self.vertex_buffer.buffer], &[0]);
-                // bind triangle index buffer.
-                device.logic.handle.cmd_bind_index_buffer(command.clone(), self.index_buffer.buffer, 0, vk::IndexType::UINT32);
-
-                // draw indexed triangle.
-                device.logic.handle.cmd_draw_indexed(command.clone(), self.index_buffer.count, 1, 0, 0, 1);
-
-                device.logic.handle.cmd_end_render_pass(command.clone());
-
-                // ending the render pass will add an implicit barrier transitioning the frame buffer color attachment to
-                // VK_IMAGE_LAYOUT_PRESENT_SRC_KHR for presenting it to the windowing system.
-                device.logic.handle.end_command_buffer(command.clone())
-                    .map_err(|_| VkError::device("End command buffer"))?;
-            }
-
+            recorder.begin_record()?
+                .begin_render_pass(render_pass_bi)
+                .set_viewport(0, &[viewport])
+                .set_scissor(0, &[scissor])
+                .bind_descriptor_sets(self.pipeline_layout, 0, &[self.descriptor_set], &[])
+                .bind_pipeline(self.pipeline)
+                .bind_vertex_buffers(0, &[self.vertex_buffer.buffer], &[0])
+                .bind_index_buffer(self.index_buffer.buffer, vk::IndexType::UINT32, 0)
+                .draw_indexed(self.index_buffer.count, 1, 0, 0, 1)
+                .end_render_pass()
+                .end_record()?;
         }
 
         Ok(())
@@ -290,7 +215,7 @@ impl VulkanExample {
     fn discard(&self, device: &VkDevice) {
 
         let destructor = &device.logic.handle;
-        // clean up used Vulkan resources.
+
         unsafe {
             destructor.destroy_pipeline(self.pipeline, None);
             destructor.destroy_pipeline_layout(self.pipeline_layout, None);
@@ -342,23 +267,17 @@ pub fn create_command_buffer(device: &VkDevice, pool: vk::CommandPool, count: vk
 
 fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {
 
-    // We need to tell the API the number of max. requested descriptors per type
     let pool_sizes = vec![
-        // This example only uses one descriptor type (uniform buffer) and only requests one descriptor of this type.
         vk::DescriptorPoolSize {
             ty: vk::DescriptorType::UNIFORM_BUFFER,
             descriptor_count: 1,
         },
     ];
 
-    // Create the global descriptor pool
-    // All descriptors used in this example are allocated from this pool.
     let descriptor_pool_ci = vk::DescriptorPoolCreateInfo {
         s_type: vk::StructureType::DESCRIPTOR_POOL_CREATE_INFO,
         p_next: ptr::null(),
         flags: vk::DescriptorPoolCreateFlags::empty(),
-        // Set the max number of descriptor sets that can be requested from this pool
-        // (requesting beyond this limit will result in an error).
         max_sets: 1,
         pool_size_count: pool_sizes.len() as _,
         p_pool_sizes: pool_sizes.as_ptr(),
@@ -374,12 +293,7 @@ fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {
 
 fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayout, vk::PipelineLayout)> {
 
-    // Setup layout of descriptors used in this example.
-    // Basically connects the different shader stages to descriptors for binding uniform buffers, image samplers, etc.
-    // So every shader binding should map to one descriptor set layout binding.
-
     let layout_bindings = [
-        // Binding 0: Uniform buffer (Vertex shader)
         vk::DescriptorSetLayoutBinding {
             binding: 0,
             descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
@@ -421,7 +335,6 @@ fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayo
 
 fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, layout: vk::DescriptorSetLayout, uniforms: &UniformBuffer) -> VkResult<vk::DescriptorSet> {
 
-    // Allocate a new descriptor set from descriptor pool.
     let set_layouts = [layout];
 
     let descriptor_set_allot_ci = vk::DescriptorSetAllocateInfo {
@@ -438,17 +351,13 @@ fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, layout: vk:
     }.remove(0);
 
 
-    // Update the descriptor set determining the shader binding points.
-    // For every binding point used in a shader there needs to be one descriptor set matching that binding point.
     let buffer_write_info = [uniforms.descriptor.clone()];
 
-    // Binding 0 : Uniform buffer.
     let write_infos = [
         vk::WriteDescriptorSet {
             s_type: vk::StructureType::WRITE_DESCRIPTOR_SET,
             p_next: ptr::null(),
             dst_set: descriptor_set,
-            // Binds this uniform buffer to binding point 0.
             dst_binding: 0,
             dst_array_element: 0,
             descriptor_count: 1,
@@ -499,7 +408,6 @@ fn setup_depth_stencil(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<D
         device.logic.handle.get_image_memory_requirements(image)
     };
 
-    // Allocate memory for the image (device local) and bind it to our image.
     let mem_alloc = vk::MemoryAllocateInfo {
         s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
         p_next: ptr::null(),

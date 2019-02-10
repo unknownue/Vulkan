@@ -45,6 +45,11 @@ impl RenderPassBI {
         self
     }
 
+    pub fn clear_values(mut self, values: &[vk::ClearValue]) -> RenderPassBI {
+        self.clears.extend_from_slice(values);
+        self
+    }
+
     pub(crate) fn build(&self) -> vk::RenderPassBeginInfo {
 
         vk::RenderPassBeginInfo {

@@ -9,7 +9,7 @@ use crate::{vkuint, vkfloat, vksint, vkbytes};
 use crate::ci::pipeline::RenderPassBI;
 
 
-struct IGraphics;
+pub struct IGraphics;
 
 impl VkCommandType for IGraphics {
     const BIND_POINT: vk::PipelineBindPoint = vk::PipelineBindPoint::GRAPHICS;
@@ -115,10 +115,10 @@ impl<'a> CmdGraphicsApi for VkCmdRecorder<'a, IGraphics> {
         } self
     }
 
-    fn bind_descriptor_sets(&self, layout: vk::PipelineLayout, first_set: vkuint, sets: &[vk::DescriptorSet], dynamics: &[vkuint]) -> &VkCmdRecorder<'a, IGraphics> {
+    fn bind_descriptor_sets(&self, layout: vk::PipelineLayout, first_set: vkuint, descriptor_sets: &[vk::DescriptorSet], dynamic_offsets: &[vkuint]) -> &VkCmdRecorder<'a, IGraphics> {
 
         unsafe {
-            self.device.logic.handle.cmd_bind_descriptor_sets(self.command, IGraphics::BIND_POINT, layout, first_set, sets, dynamics);
+            self.device.logic.handle.cmd_bind_descriptor_sets(self.command, IGraphics::BIND_POINT, layout, first_set, descriptor_sets, dynamic_offsets);
         } self
     }
 
@@ -172,7 +172,7 @@ pub trait CmdGraphicsApi {
 
     fn bind_index_buffer(&self, buffer: vk::Buffer, index_type: vk::IndexType, offset: vkbytes) -> &Self;
 
-    fn bind_descriptor_sets(&self, layout: vk::PipelineLayout, first_set: vkuint, sets: &[vk::DescriptorSet], dynamics: &[vkuint]) -> &Self;
+    fn bind_descriptor_sets(&self, layout: vk::PipelineLayout, first_set: vkuint, descriptor_sets: &[vk::DescriptorSet], dynamic_offsets: &[vkuint]) -> &Self;
 
     fn draw(&self, vertex_count: vkuint, instance_count: vkuint, first_vertex: vkuint, first_instance: vkuint) -> &Self;
 

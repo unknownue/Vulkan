@@ -8,9 +8,9 @@ pub use self::input::InputController;
 pub mod context;
 pub mod ci;
 pub mod utils;
+pub mod command;
 pub mod platforms;
 
-mod command;
 mod error;
 mod workflow;
 mod input;

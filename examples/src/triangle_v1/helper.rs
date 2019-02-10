@@ -31,7 +31,7 @@ pub fn get_memory_type_index(device: &VkDevice, mut type_bits: vkuint, propertie
         type_bits >>= 1;
     }
 
-    panic!("Could not find a suitable memroy type")
+    panic!("Could not find a suitable memory type")
 }
 
 pub fn create_command_pool(device: &VkDevice) -> VkResult<vk::CommandPool> {
