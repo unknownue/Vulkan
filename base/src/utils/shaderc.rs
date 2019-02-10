@@ -1,4 +1,6 @@
 
+use ash::vk;
+
 use crate::error::{VkResult, VkError};
 
 pub struct ShadercOptions {
@@ -69,11 +71,12 @@ impl VkShaderCompiler {
         self.options = options;
     }
 
-    pub fn compile_source_into_spirv(&mut self, source: &str, kind: shaderc::ShaderKind, input_name: &str, entry_name: &str) -> VkResult<Vec<u8>> {
+    pub fn compile_source_into_spirv(&mut self, source: &str, stage: vk::ShaderStageFlags, input_name: &str, entry_name: &str) -> VkResult<Vec<u8>> {
 
+        let shader_kind = cast_shaderc_kind(stage);
         let compile_options = self.options.to_shaderc_options()?;
 
-        let result = self.compiler.compile_into_spirv(source, kind, input_name, entry_name, Some(&compile_options))
+        let result = self.compiler.compile_into_spirv(source, shader_kind, input_name, entry_name, Some(&compile_options))
             .map_err(|e| VkError::shaderc(format!("Failed to compile {}({})", input_name, e)))?;
 
         if result.get_num_warnings() > 0 {
@@ -82,5 +85,18 @@ impl VkShaderCompiler {
 
         let spirv = result.as_binary_u8().to_owned();
         Ok(spirv)
+    }
+}
+
+fn cast_shaderc_kind(stage: vk::ShaderStageFlags) -> shaderc::ShaderKind {
+    match stage {
+        | vk::ShaderStageFlags::VERTEX                  => shaderc::ShaderKind::Vertex,
+        | vk::ShaderStageFlags::GEOMETRY                => shaderc::ShaderKind::Geometry,
+        | vk::ShaderStageFlags::TESSELLATION_CONTROL    => shaderc::ShaderKind::TessControl,
+        | vk::ShaderStageFlags::TESSELLATION_EVALUATION => shaderc::ShaderKind::TessEvaluation,
+        | vk::ShaderStageFlags::FRAGMENT                => shaderc::ShaderKind::Fragment,
+        | vk::ShaderStageFlags::COMPUTE                 => shaderc::ShaderKind::Compute,
+        | vk::ShaderStageFlags::ALL_GRAPHICS
+        | _ => shaderc::ShaderKind::InferFromSource,
     }
 }

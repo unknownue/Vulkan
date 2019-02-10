@@ -76,10 +76,9 @@ impl ShaderModuleCI {
 
         let codes = match self.shader_type {
             | ShaderType::GLSLSource => {
-                let source = load_to_string(self.path)?;
-                let kind = cast_shaderc_kind(self.shader_stage);
 
-                compiler.compile_source_into_spirv(&source, kind, &self.tag_name, &self.main)?
+                let source = load_to_string(self.path)?;
+                compiler.compile_source_into_spirv(&source, self.shader_stage, &self.tag_name, &self.main)?
             },
             | ShaderType::SprivSource => {
                 load_spriv_bytes(self.path)?
@@ -167,19 +166,6 @@ impl crate::context::VulkanObject for vk::ShaderModule {
 
 
 // helper functions. ---------------------------------------------------------------------------------
-fn cast_shaderc_kind(stage: vk::ShaderStageFlags) -> shaderc::ShaderKind {
-    match stage {
-        | vk::ShaderStageFlags::VERTEX                  => shaderc::ShaderKind::Vertex,
-        | vk::ShaderStageFlags::GEOMETRY                => shaderc::ShaderKind::Geometry,
-        | vk::ShaderStageFlags::TESSELLATION_CONTROL    => shaderc::ShaderKind::TessControl,
-        | vk::ShaderStageFlags::TESSELLATION_EVALUATION => shaderc::ShaderKind::TessEvaluation,
-        | vk::ShaderStageFlags::FRAGMENT                => shaderc::ShaderKind::Fragment,
-        | vk::ShaderStageFlags::COMPUTE                 => shaderc::ShaderKind::Compute,
-        | vk::ShaderStageFlags::ALL_GRAPHICS
-        | _ => shaderc::ShaderKind::InferFromSource,
-    }
-}
-
 fn load_spriv_bytes(path: PathBuf) -> VkResult<Vec<u8>> {
 
     let file = File::open(path.clone())

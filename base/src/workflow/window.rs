@@ -26,10 +26,13 @@ impl Default for WindowConfig {
     fn default() -> WindowConfig {
 
         WindowConfig {
-            title: crate::constants::DEFAULT_TITLE.to_string(),
+            title: String::from("Vulkan Example"),
             mode: WindowMode::Normal,
 
-            dimension: crate::constants::SCREEN_DIMENSION.clone(),
+            dimension: vk::Extent2D {
+                width : 1280,
+                height: 720,
+            },
             max_dimension: None,
             min_dimension: None,
 

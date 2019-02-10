@@ -76,11 +76,11 @@ impl VulkanExample {
     pub fn new(context: &vkbase::context::VulkanContext) -> VkResult<VulkanExample> {
 
         let device = &context.device;
-        let swachain = &context.swapchain;
-        let dimension = swachain.dimension;
+        let swapchain = &context.swapchain;
+        let dimension = swapchain.dimension;
 
         let command_pool = super::helper::create_command_pool(device)?;
-        let commands = create_command_buffer(device, command_pool, swachain.frame_in_flight as _)?;
+        let commands = create_command_buffer(device, command_pool, swapchain.frame_in_flight as _)?;
 
         let (vertex_buffer, index_buffer) = super::data::prepare_vertices(device, command_pool)?;
         let uniform_buffer = super::data::prepare_uniform(device, dimension)?;
