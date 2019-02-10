@@ -71,7 +71,7 @@ impl ProcPipeline {
             });
             self.frame_counter.set_action(input_handler.current_action());
 
-            let input_feedback = app.receive_input(delta_time);
+            let input_feedback = app.receive_input(&input_handler, delta_time);
             self.frame_counter.set_action(input_feedback);
 
             self.render_frame(app, delta_time)?;
@@ -106,8 +106,7 @@ impl ProcPipeline {
                 .map_err(|_| VkError::device("Fence waiting"))?;
         }
 
-        let image_to_acquire = self.syncs.image_awaits[self.frame_counter.current_frame()];
-        let acquire_image_index = match self.vulkan.swapchain.next_image(Some(image_to_acquire), None) {
+        let acquire_image_index = match self.vulkan.swapchain.next_image(Some(self.syncs.await_present), None) {
             | Ok(image_index) => image_index,
             | Err(e) => match e {
                 | SwapchainSyncError::SurfaceOutDate
@@ -129,14 +128,14 @@ impl ProcPipeline {
         // ------------------------------------------------------------------
 
         // call command buffer(activate pipeline to draw) -------------------
-        let image_ready_to_present = app.render_frame(&self.vulkan.device, fence_ready, image_to_acquire, acquire_image_index as _, delta_time)?;
+        let await_render = app.render_frame(&self.vulkan.device, fence_ready, self.syncs.await_present, acquire_image_index as _, delta_time)?;
         // ------------------------------------------------------------------
 
         // present image. ---------------------------------------------------
         // TODO: Add ownership transfer if need.
         // see https://github.com/KhronosGroup/Vulkan-Docs/wiki/Synchronization-Examples.
         // or see https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-3#inpage-nav-6-3
-        self.vulkan.swapchain.present(&[image_ready_to_present], acquire_image_index)
+        self.vulkan.swapchain.present(&[await_render], acquire_image_index)
             .or_else(|e| match e {
                 | SwapchainSyncError::SurfaceOutDate
                 | SwapchainSyncError::SubOptimal => {
@@ -158,7 +157,7 @@ struct SyncResource {
 
     frame_count: usize,
 
-    image_awaits: Vec<vk::Semaphore>,
+    await_present: vk::Semaphore,
     sync_fences : Vec<vk::Fence>,
 }
 
@@ -166,7 +165,6 @@ impl SyncResource {
 
     pub fn new(device: &VkDevice, frame_count: usize) -> VkResult<SyncResource> {
 
-        let mut image_awaits = Vec::with_capacity(frame_count);
         let mut sync_fences = Vec::with_capacity(frame_count);
 
         let semaphore_ci = vk::SemaphoreCreateInfo {
@@ -174,6 +172,11 @@ impl SyncResource {
             p_next: ptr::null(),
             // flags is reserved for future use in API version 1.1.82.
             flags: vk::SemaphoreCreateFlags::empty(),
+        };
+
+        let await_present = unsafe {
+            device.logic.handle.create_semaphore(&semaphore_ci, None)
+                .or(Err(VkError::create("Semaphore")))?
         };
 
         let fence_ci = vk::FenceCreateInfo {
@@ -185,20 +188,17 @@ impl SyncResource {
         for _ in 0..frame_count {
 
             unsafe {
-                let semaphore = device.logic.handle.create_semaphore(&semaphore_ci, None)
-                    .or(Err(VkError::create("Semaphore")))?;
-                image_awaits.push(semaphore);
-
                 let fence = device.logic.handle.create_fence(&fence_ci, None)
                     .or(Err(VkError::create("Fence")))?;
                 sync_fences.push(fence);
             }
         }
 
-        let syncs = SyncResource { frame_count, image_awaits, sync_fences };
+        let syncs = SyncResource { frame_count, await_present, sync_fences };
         Ok(syncs)
     }
 
+    #[allow(dead_code)]
     fn reset(&mut self, device: &VkDevice) -> VkResult<()> {
 
         self.discard(device);
@@ -210,16 +210,14 @@ impl SyncResource {
     fn discard(&mut self, device: &VkDevice) {
 
         unsafe {
-            for &semaphore in self.image_awaits.iter() {
-                device.logic.handle.destroy_semaphore(semaphore, None);
-            }
+
+            device.logic.handle.destroy_semaphore(self.await_present, None);
 
             for &fence in self.sync_fences.iter() {
                 device.logic.handle.destroy_fence(fence, None);
             }
         }
 
-        self.image_awaits.clear();
         self.sync_fences.clear();
     }
 }

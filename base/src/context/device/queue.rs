@@ -16,7 +16,7 @@ type QueuePriority = vkfloat;
 
 pub struct QueueRequester {
 
-    strategy: QueueRequestStrategy,
+    _strategy: QueueRequestStrategy,
 
     // record the current create info of each queue family.
     cis: Vec<FamilyQueuesCreateInfo>,
@@ -51,7 +51,7 @@ impl QueueRequester {
         }
 
         QueueRequester {
-            strategy,
+            _strategy: strategy,
             cis: queue_cis,
             family_properties: families,
             queues_requested: Vec::new(),

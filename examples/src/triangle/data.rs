@@ -1,11 +1,12 @@
 
 use ash::vk;
+use ash::version::DeviceV1_0;
 
 use vkbase::context::VkDevice;
 use vkbase::{VkResult, VkError};
 use vkbase::{vkuint, vkbytes};
 
-use helper;
+use crate::helper;
 
 use std::mem;
 use std::ptr;
@@ -13,15 +14,16 @@ use std::ptr;
 type Mat4F = nalgebra::Matrix4<f32>;
 
 /// Vertex layout used in this example.
+#[derive(Debug, Clone, Copy)]
 pub struct Vertex {
     position: [f32; 3],
     color: [f32; 3],
 }
 
-struct InputDescriptionStaff {
-    bindings  : Vec<vk::VertexInputBindingDescription>,
-    attributes: Vec<vk::VertexInputAttributeDescription>,
-    state: vk::PipelineVertexInputStateCreateInfo,
+pub struct InputDescriptionStaff {
+    pub bindings  : Vec<vk::VertexInputBindingDescription>,
+    pub attributes: Vec<vk::VertexInputAttributeDescription>,
+    pub state: vk::PipelineVertexInputStateCreateInfo,
 }
 
 impl Vertex {
@@ -44,15 +46,15 @@ impl Vertex {
             vk::VertexInputAttributeDescription {
                 location: 0,
                 binding : 0,
-                format  : vk::Format::R32G32_SFLOAT, // three 32 bit signed (SFLOAT) floats (R32 G32 B32).
-                offset  : memoffset::offset_of!(Vertex, position),
+                format  : vk::Format::R32G32B32_SFLOAT, // three 32 bit signed (SFLOAT) floats (R32 G32 B32).
+                offset  : memoffset::offset_of!(Vertex, position) as _,
             },
             // layout (location = 1) in vec3 inColor;
             vk::VertexInputAttributeDescription {
                 location: 1,
                 binding : 0,
-                format  : vk::Format::R32G32_SFLOAT,
-                offset  : memoffset::offset_of!(Vertex, color),
+                format  : vk::Format::R32G32B32_SFLOAT,
+                offset  : memoffset::offset_of!(Vertex, color) as _,
             },
         ];
 
@@ -105,12 +107,18 @@ pub struct UniformBuffer {
 //		mat4 viewMatrix;
 //		mat4 modelMatrix;
 //	} ubo;
+#[derive(Debug, Clone, Copy)]
 pub struct UboVS {
     pub projection: Mat4F,
     pub view: Mat4F,
     pub model: Mat4F,
 }
 
+pub struct DepthImage {
+    pub image: vk::Image,
+    pub view : vk::ImageView,
+    pub memory: vk::DeviceMemory,
+}
 
 
 // Prepare vertex buffer and index buffer for an indexed triangle.
@@ -123,14 +131,14 @@ pub fn prepare_vertices(device: &VkDevice, command_pool: vk::CommandPool) -> VkR
     let vertices_data = [
         Vertex { position: [ 1.0,  1.0, 0.0], color: [1.0, 0.0, 0.0] },
         Vertex { position: [-1.0,  1.0, 0.0], color: [0.0, 1.0, 0.0] },
-        Vertex { position: [ 1.0, -1.0, 0.0], color: [1.0, 0.0, 1.0] },
+        Vertex { position: [ 0.0, -1.0, 0.0], color: [0.0, 0.0, 1.0] },
     ];
     let vertices = allocate_buffer(device, &vertices_data, vk::BufferUsageFlags::VERTEX_BUFFER)?;
 
     let indices_data = [0, 1, 2_u32];
     let indices = allocate_buffer(device, &indices_data, vk::BufferUsageFlags::INDEX_BUFFER)?;
 
-    let copy_command = helper::create_command_buffer(device, pool, true)?;
+    let copy_command = helper::create_command_buffer(device, command_pool, true)?;
 
     unsafe {
 
@@ -202,7 +210,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     // - Delete the host visible (staging) buffer.
     // - Use the device local buffers for rendering.
 
-    let buffer_size = mem::size_of::<D>() * data.len() as vkbytes;
+    let buffer_size = (mem::size_of::<D>() * data.len()) as vkbytes;
 
     let staging_buffer_ci = vk::BufferCreateInfo {
         s_type: vk::StructureType::BUFFER_CREATE_INFO,
@@ -242,11 +250,11 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     unsafe {
 
         // map and copy.
-        let data_ptr = device.logic.handle.map_memory(staging_memory, 0, staging_mem_alloc.allocation_size, vk::MemoryMapFlags::null())
+        let data_ptr = device.logic.handle.map_memory(staging_memory, 0, staging_mem_alloc.allocation_size, vk::MemoryMapFlags::empty())
             .map_err(|_| VkError::device("Map Memory"))?;
 
         let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut D, data.len());
-        mapped_copy_target.copy_from_slice(&vertices_data);
+        mapped_copy_target.copy_from_slice(data);
 
         device.logic.handle.unmap_memory(staging_memory);
 
@@ -262,7 +270,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     };
 
     let target_buffer = unsafe {
-        device.logic.handle.create_buffer(&vertex_buffer_ci, None)
+        device.logic.handle.create_buffer(&target_buffer_ci, None)
             .map_err(|_| VkError::create("Vertex Buffer"))?
     };
     let target_memory_requirement = unsafe {
@@ -289,7 +297,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     Ok(result)
 }
 
-fn prepare_uniform(device: &VkDevice) -> VkResult<UniformBuffer> {
+pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<UniformBuffer> {
 
     // Prepare and initialize a uniform buffer block containing shader uniforms.
     // Single uniforms like in OpenGL are no longer present in Vulkan.
@@ -330,7 +338,7 @@ fn prepare_uniform(device: &VkDevice) -> VkResult<UniformBuffer> {
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT),
     };
     let uniform_memory = unsafe {
-        device.logic.handle.allocate_memory(&staging_mem_alloc, None)
+        device.logic.handle.allocate_memory(&mem_alloc, None)
             .map_err(|_| VkError::create("Memory Allocate"))?
     };
 
@@ -351,31 +359,33 @@ fn prepare_uniform(device: &VkDevice) -> VkResult<UniformBuffer> {
         descriptor: descriptor_info,
     };
 
-    update_uniform_buffers(device, &result);
+    update_uniform_buffers(device, dimension, &result)?;
 
     Ok(result)
 }
 
-fn update_uniform_buffers(device: &VkDevice, uniforms: &UniformBuffer) {
+fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: &UniformBuffer) -> VkResult<()> {
 
-    let screen_aspect = (super::WINDOW_WIDTH as f32) / (super::WINDOW_HEIGHT as f32);
-    let view = nalgebra::Matrix4::new_translation(nalgebra::Vector3::new(0.0, 0.0, 2.5));
-    let model = nalgebra::Matrix4::identity();
+    let screen_aspect = (dimension.width as f32) / (dimension.height as f32);
 
-    let ubo_data = UboVS {
-        projection: nalgebra::Matrix4::new_perspective(screen_aspect, 60.0.to_radians(), 0.1, 256.0),
-        view: nalgebra::Matrix4::new_translation(nalgebra::Vector3::new(0.0, 0.0, 2.5)),
-        model: nalgebra::Matrix4::identity(),
-    };
+    let ubo_data = [
+        UboVS {
+            projection: nalgebra::Matrix4::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
+            view: nalgebra::Matrix4::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
+            model: nalgebra::Matrix4::identity(),
+        },
+    ];
 
     // Map uniform buffer and update it.
     unsafe {
-        let data_ptr = device.logic.handle.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as _, vk::MemoryMapFlags::null())
+        let data_ptr = device.logic.handle.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as _, vk::MemoryMapFlags::empty())
             .map_err(|_| VkError::device("Map Memory"))?;
 
-        let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut UboVS, data.len());
-        mapped_copy_target.copy_from_slice(&[ubo_data]);
+        let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut UboVS, ubo_data.len());
+        mapped_copy_target.copy_from_slice(&ubo_data);
 
         device.logic.handle.unmap_memory(uniforms.memory);
     }
+
+    Ok(())
 }

@@ -1,5 +1,7 @@
 
 use ash::vk;
+use ash::version::DeviceV1_0;
+
 use vkbase::context::VkDevice;
 use vkbase::{VkResult, VkError};
 use vkbase::utils::time::VkTimeDuration;
@@ -99,7 +101,7 @@ pub fn flush_command_buffer(device: &VkDevice, pool: vk::CommandPool, command: v
         p_next: ptr::null(),
         wait_semaphore_count   : 0,
         p_wait_semaphores      : ptr::null(),
-        p_wait_dst_stage_mask  : vk::PipelineStageFlags::empty(),
+        p_wait_dst_stage_mask  : ptr::null(),
         command_buffer_count   : 1,
         p_command_buffers      : &command,
         signal_semaphore_count : 0,
@@ -123,7 +125,8 @@ pub fn flush_command_buffer(device: &VkDevice, pool: vk::CommandPool, command: v
             .map_err(|_| VkError::device("Queue Submit"))?;
 
         // Wait for the fence to signal that command buffer has finished executing.
-        device.logic.handle.wait_for_fences(&[fence], true, VkTimeDuration::Infinite.into());
+        device.logic.handle.wait_for_fences(&[fence], true, VkTimeDuration::Infinite.into())
+            .map_err(|_| VkError::device("Wait for fences"))?;
 
         device.logic.handle.destroy_fence(fence, None);
         device.logic.handle.free_command_buffers(pool, &[command]);

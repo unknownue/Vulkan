@@ -37,30 +37,31 @@ pub struct VkSwapchain {
     handle: vk::SwapchainKHR,
     /// the extension loader provides functions for creation and destruction of `vk::SwapchainKHR` object.
     loader: ash::extensions::khr::Swapchain,
-    /// Image resources of current swapchain.
-    images: Vec<SwapchainImage>,
-    /// the format of presentable images.
-    format: vk::Format,
-    /// the dimension of presentable images.
-    dimension: vk::Extent2D,
+
     /// the queue used to present image.
     present_queue: VkQueue,
+    /// Image resources of current swapchain.
+    pub images: Vec<SwapchainImage>,
+    /// the format of presentable images.
+    pub backend_format: vk::Format,
+    /// the dimension of presentable images.
+    pub dimension: vk::Extent2D,
 
-    frame_in_flight: usize,
+    pub frame_in_flight: usize,
 
     image_acquire_time: vklint,
 
     config: SwapchainConfig,
 }
 
-struct SwapchainImage {
+pub struct SwapchainImage {
 
     /// the presentable image objects associated with the swapchain.
     ///
     /// These images are created in `loader.create_swapchain_khr(..)` call and are destroyed automatically when `vk::SwapchainKHR` is destroyed.
-    image: vk::Image,
+    pub image: vk::Image,
     /// the corresponding image views associated with the presentable images created by swapchain.
-    view : vk::ImageView,
+    pub view : vk::ImageView,
 }
 
 #[derive(Debug, Fail)]
@@ -77,12 +78,12 @@ pub enum SwapchainSyncError {
 
 impl VkSwapchain {
 
-    pub fn new(instance: &VkInstance, device: &VkDevice, surface: &VkSurface, config: SwapchainConfig, dimension: vk::Extent2D) -> VkResult<VkSwapchain> {
+    pub(crate) fn new(instance: &VkInstance, device: &VkDevice, surface: &VkSurface, config: SwapchainConfig, dimension: vk::Extent2D) -> VkResult<VkSwapchain> {
 
         VkSwapchain::build(instance, device, surface, config, dimension, None)
     }
 
-    pub fn rebuild(&mut self, instance: &VkInstance, device: &VkDevice, surface: &VkSurface, dimension: vk::Extent2D) -> VkResult<()> {
+    pub(crate) fn rebuild(&mut self, instance: &VkInstance, device: &VkDevice, surface: &VkSurface, dimension: vk::Extent2D) -> VkResult<()> {
 
         let new_chain = VkSwapchain::build(instance, device, surface, self.config.clone(), dimension, Some(self.handle))?;
         self.discard(device);
@@ -135,7 +136,7 @@ impl VkSwapchain {
         let result = VkSwapchain {
             handle, loader, present_queue, frame_in_flight, image_acquire_time, config,
             images: image_resources,
-            format: swapchain_format.color_format,
+            backend_format: swapchain_format.color_format,
             dimension: swapchain_capability.swapchain_extent,
         };
 
@@ -147,7 +148,7 @@ impl VkSwapchain {
     /// `sign_semaphore` is the semaphore to signal during this function, or None for no semaphore to signal.
     ///
     /// `sign_fence` is the fence to signal during this function, or None for no fence to signal.
-    pub fn next_image(&self, semaphore: Option<vk::Semaphore>, fence: Option<vk::Fence>) -> Result<vkuint, SwapchainSyncError> {
+    pub(crate) fn next_image(&self, semaphore: Option<vk::Semaphore>, fence: Option<vk::Fence>) -> Result<vkuint, SwapchainSyncError> {
 
         let semaphore = semaphore.unwrap_or(vk::Semaphore::null());
         let fence = fence.unwrap_or(vk::Fence::null());
@@ -177,7 +178,7 @@ impl VkSwapchain {
     /// Generally it's a `vk::Queue` that is support `vk::QUEUE_GRAPHICS_BIT`.
     ///
     /// `image_index` is the index of swapchain’s presentable images.
-    pub fn present(&self, wait_semaphores: &[vk::Semaphore], image_index: vkuint) -> Result<(), SwapchainSyncError> {
+    pub(crate) fn present(&self, wait_semaphores: &[vk::Semaphore], image_index: vkuint) -> Result<(), SwapchainSyncError> {
 
         // Currently only support single swapchain and single image index.
         let present_info = vk::PresentInfoKHR {
@@ -210,7 +211,7 @@ impl VkSwapchain {
     /// Destroy the `vk::SwapchainKHR` object.
     ///
     /// The application must not destroy `vk::SwapchainKHR` until after completion of all outstanding operations on images that were acquired from the `vk::SwapchainKHR`.
-    pub fn discard(&self, device: &VkDevice) {
+    pub(crate) fn discard(&self, device: &VkDevice) {
 
         unsafe {
 

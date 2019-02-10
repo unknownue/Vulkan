@@ -30,10 +30,10 @@ fn main() {
     let vk_context = vkbase::context::VulkanContext::new(&window)
         .build().unwrap();
 
-    let mut entry = vkbase::ProcPipeline::new(window, vk_context).unwrap();
-    let frame_in_flight = entry.frame_in_flight();
+    let app = example::VulkanExample::new(&vk_context)
+        .unwrap();
 
-    let app = example::VulkanExample;
+    let mut entry = vkbase::ProcPipeline::new(window, vk_context).unwrap();
 
     match entry.launch(app) {
         | Ok(_) => {},

@@ -1,6 +1,6 @@
 
 pub use self::device::{VkDevice, VulkanObject};
-pub use self::swapchain::SwapchainSyncError;
+pub use self::swapchain::{VkSwapchain, SwapchainSyncError};
 
 pub use self::instance::InstanceConfig;
 pub use self::debug::ValidationConfig;
@@ -34,8 +34,8 @@ pub struct VulkanContext {
     debugger  : debug::VkDebugger,
     surface   : surface::VkSurface,
 
-    pub(super) swapchain: swapchain::VkSwapchain,
-    pub(crate) device: device::VkDevice,
+    pub swapchain: swapchain::VkSwapchain,
+    pub device: device::VkDevice,
 }
 
 impl VulkanContext {

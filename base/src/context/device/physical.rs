@@ -45,13 +45,14 @@ pub struct VkPhysicalDevice {
 
     pub handle: vk::PhysicalDevice,
     pub memories: vk::PhysicalDeviceMemoryProperties,
+    pub depth_format: vk::Format,
 
     config: PhysicalDevConfig,
 }
 
 impl VkPhysicalDevice {
 
-    pub fn new(instance: &VkInstance, config: PhysicalDevConfig) -> VkResult<VkPhysicalDevice> {
+    pub(crate) fn new(instance: &VkInstance, config: PhysicalDevConfig) -> VkResult<VkPhysicalDevice> {
 
         let alternative_devices = VkPhysicalDevice::query_phy_devices(instance, &config)?;
 
@@ -83,9 +84,11 @@ impl VkPhysicalDevice {
                 instance.handle.get_physical_device_memory_properties(phy_device.handle)
             };
 
+            let depth_format = query_depth_format(instance, &phy_device);
+
             let dst_device = VkPhysicalDevice {
                 handle: phy_device.handle,
-                config, memories,
+                config, memories, depth_format,
             };
 
             Ok(dst_device)
@@ -314,5 +317,34 @@ fn is_all_features_support(instance: &VkInstance, phy_device: &PhyDeviceTmp, con
     });
 
     true
+}
+// ----------------------------------------------------------------------------------
+
+
+// ----------------------------------------------------------------------------------
+fn query_depth_format(instance: &VkInstance, phy_device: &PhyDeviceTmp) -> vk::Format {
+
+    // since all depth formats may be optional, we need to find a suitable depth format to use.
+    // start with the highest precision packed format.
+    let candidates = [
+        vk::Format::D32_SFLOAT_S8_UINT,
+        vk::Format::D32_SFLOAT,
+        vk::Format::D24_UNORM_S8_UINT,
+        vk::Format::D16_UNORM_S8_UINT,
+        vk::Format::D16_UNORM,
+    ];
+
+    for &format in candidates.iter() {
+        let format_properties = unsafe {
+            instance.handle.get_physical_device_format_properties(phy_device.handle, format)
+        };
+
+        // Format must support depth stencil attachment for optimal tiling
+        if format_properties.optimal_tiling_features.contains(vk::FormatFeatureFlags::DEPTH_STENCIL_ATTACHMENT) {
+            return format
+        }
+    }
+
+    panic!("Failed to find a supported depth format.")
 }
 // ----------------------------------------------------------------------------------

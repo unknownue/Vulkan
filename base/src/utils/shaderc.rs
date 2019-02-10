@@ -1,6 +1,4 @@
 
-use ash::vk;
-
 use crate::error::{VkResult, VkError};
 
 pub struct ShadercOptions {
@@ -57,7 +55,7 @@ impl VkShaderCompiler {
 
     pub fn new() -> VkResult<VkShaderCompiler> {
 
-        let mut compiler = shaderc::Compiler::new()
+        let compiler = shaderc::Compiler::new()
             .ok_or(VkError::shaderc("Failed to initialize shader compiler."))?;
 
         let target = VkShaderCompiler {

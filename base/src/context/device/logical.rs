@@ -49,7 +49,7 @@ pub struct VkQueue {
 
 impl VkLogicalDevice {
 
-    pub fn new(instance: &VkInstance, phy: &VkPhysicalDevice, config: LogicDevConfig) -> VkResult<VkLogicalDevice> {
+    pub(crate) fn new(instance: &VkInstance, phy: &VkPhysicalDevice, config: LogicDevConfig) -> VkResult<VkLogicalDevice> {
 
         let mut queue_requester = QueueRequester::new(instance, phy, QueueRequestStrategy::ExclusiveQueueCrossFamily);
         let mut queue_requests = QueuesRequestInfo::default();
@@ -109,7 +109,7 @@ impl VkLogicalDevice {
         Ok(device)
     }
 
-    pub fn discard(&self) {
+    pub(crate) fn discard(&self) {
 
         unsafe {
             self.handle.destroy_device(None);

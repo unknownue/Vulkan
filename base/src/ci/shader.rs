@@ -1,6 +1,6 @@
 
 use ash::vk;
-use failure::ResultExt;
+use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
 use crate::utils::shaderc::VkShaderCompiler;
@@ -76,15 +76,13 @@ impl ShaderModuleCI {
 
         let codes = match self.shader_type {
             | ShaderType::GLSLSource => {
-                let source = load_to_str(&self.path)?;
+                let source = load_to_string(self.path)?;
                 let kind = cast_shaderc_kind(self.shader_stage);
-                let tag_name = self.tag_name.as_ref()
-                    .ok_or(VkError::other("Invalid Tag Name."))?;
 
-                compiler.compile_source_into_spirv(&source, kind, tag_name, &self.main)?
+                compiler.compile_source_into_spirv(&source, kind, &self.tag_name, &self.main)?
             },
             | ShaderType::SprivSource => {
-                load_spriv_bytes(&self.path)?
+                load_spriv_bytes(self.path)?
             },
         };
 
@@ -127,13 +125,14 @@ impl ShaderStageCI {
                 p_specialization_info: ptr::null(),
                 stage, module,
             },
-            main: CString::from("main"),
-            specialization: ptr::null(),
+            main: CString::new("main").unwrap(),
+            specialization: None,
         }
     }
 
     pub fn main(mut self, name: impl AsRef<str>) -> ShaderStageCI {
-        self.main = CString::from(name.as_ref().to_owned());
+        self.main = CString::new(name.as_ref().to_owned())
+            .expect("Invalid name of main func in shader.");
         self
     }
 
@@ -144,9 +143,13 @@ impl ShaderStageCI {
 
     pub fn build(&self) -> vk::PipelineShaderStageCreateInfo {
 
+        let specialization = self.specialization
+            .and_then(|s| Some(&s as *const vk::SpecializationInfo))
+            .unwrap_or(ptr::null());
+
         vk::PipelineShaderStageCreateInfo {
             p_name: self.main.as_ptr(),
-            p_specialization_info: self.specialization.and_then(|s| &s).unwrap_or(ptr::null()),
+            p_specialization_info: specialization,
             ..self.ci
         }
     }
@@ -177,10 +180,10 @@ fn cast_shaderc_kind(stage: vk::ShaderStageFlags) -> shaderc::ShaderKind {
     }
 }
 
-fn load_spriv_bytes(path: &PathBuf) -> VkResult<Vec<u8>> {
+fn load_spriv_bytes(path: PathBuf) -> VkResult<Vec<u8>> {
 
-    let file = File::open(path.to_owned())
-        .with_context(|_| VkError::path(path))?;
+    let file = File::open(path.clone())
+        .map_err(|_| VkError::path(path))?;
     let bytes = file.bytes()
         .filter_map(|byte| byte.ok())
         .collect();
@@ -188,13 +191,13 @@ fn load_spriv_bytes(path: &PathBuf) -> VkResult<Vec<u8>> {
     Ok(bytes)
 }
 
-fn load_to_str(path: &PathBuf) -> VkResult<String> {
+fn load_to_string(path: PathBuf) -> VkResult<String> {
 
-    let mut file = File::open(path.to_owned())
-        .with_context(|_| VkError::path(path))?;
+    let mut file = File::open(path.clone())
+        .map_err(|_| VkError::path(path))?;
     let mut contents = String::new();
     let _size = file.read_to_string(&mut contents)
-        .or(Err(VkError::other("Unable to read Shader Source code to spirv.")))?;
+        .or(Err(VkError::other("Unable to shader code.")))?;
 
     Ok(contents)
 }
