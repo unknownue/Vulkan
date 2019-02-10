@@ -11,3 +11,15 @@ pub struct VkDevice {
     pub logic : logical::VkLogicalDevice,
     pub phy   : physical::VkPhysicalDevice,
 }
+
+impl VkDevice {
+
+    pub fn discard(&self, object: impl VulkanObject) {
+        object.discard(self)
+    }
+}
+
+pub trait VulkanObject {
+
+    fn discard(self, device: &VkDevice);
+}

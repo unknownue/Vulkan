@@ -6,8 +6,9 @@ pub use self::utils::frame::FrameAction;
 
 pub mod context;
 pub mod constants;
-pub mod platforms;
+pub mod ci;
 pub mod utils;
+pub mod platforms;
 
 mod error;
 mod workflow;

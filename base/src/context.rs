@@ -1,5 +1,5 @@
 
-pub use self::device::VkDevice;
+pub use self::device::{VkDevice, VulkanObject};
 pub use self::swapchain::SwapchainSyncError;
 
 pub use self::instance::InstanceConfig;

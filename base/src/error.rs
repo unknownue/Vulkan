@@ -50,6 +50,11 @@ impl VkError {
         VkError::from(VkErrorKind::Window { description: description.as_ref().to_string() })
     }
 
+    /// A convenience routine for creating an error associated with a path.
+    pub fn path(path: impl AsRef<Path>)-> VkError {
+        VkError::from(VkErrorKind::Path { path: path.as_ref().to_path_buf() })
+    }
+
     pub fn other(description: impl AsRef<str>) -> VkError {
         VkError::from(VkErrorKind::Other {
             description: description.as_ref().to_string()
@@ -108,14 +113,6 @@ pub enum VkErrorKind {
     /// Other errors.
     #[fail(display = "{}", description)]
     Other { description: String },
-}
-
-impl VkErrorKind {
-
-    /// A convenience routine for creating an error associated with a path.
-    pub fn path(path: impl AsRef<Path>)-> VkErrorKind {
-        VkErrorKind::Path { path: path.as_ref().to_path_buf() }
-    }
 }
 
 impl From<VkErrorKind> for VkError {
