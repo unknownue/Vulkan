@@ -2,13 +2,18 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::command::{VkCommandType, IGraphics};
+use crate::command::VkCommandType;
 use crate::command::recorder::VkCmdRecorder;
 use crate::{vkuint, vkfloat, vksint, vkbytes};
 
 use crate::ci::pipeline::RenderPassBI;
 
-use std::ptr;
+
+struct IGraphics;
+
+impl VkCommandType for IGraphics {
+    const BIND_POINT: vk::PipelineBindPoint = vk::PipelineBindPoint::GRAPHICS;
+}
 
 impl<'a> CmdGraphicsApi for VkCmdRecorder<'a, IGraphics> {
 
