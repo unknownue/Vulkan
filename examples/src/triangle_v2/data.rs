@@ -163,15 +163,11 @@ pub fn prepare_vertices(device: &VkDevice, command_pool: vk::CommandPool) -> VkR
     helper::flush_command_buffer(device, command_pool, copy_command)?;
 
     // Destroy staging buffers
-    // Note: Staging buffer must not be deleted before the copies have been submitted and executed.
-    unsafe {
-        device.logic.handle.destroy_buffer(vertices.staging_buffer, None);
-        device.logic.handle.free_memory(vertices.staging_memory, None);
+    device.discard(vertices.staging_buffer);
+    device.discard(vertices.staging_memory);
 
-        device.logic.handle.destroy_buffer(indices.staging_buffer, None);
-        device.logic.handle.free_memory(indices.staging_memory, None);
-    }
-
+    device.discard(indices.staging_buffer);
+    device.discard(indices.staging_memory);
 
     let vertex_buffer = VertexBuffer {
         buffer: vertices.target_buffer,
@@ -261,7 +257,6 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
 }
 
 pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<UniformBuffer> {
-
 
     let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<UboVS>() as vkbytes, vk::BufferUsageFlags::UNIFORM_BUFFER)
         .build(device)?;

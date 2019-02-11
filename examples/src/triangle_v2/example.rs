@@ -225,10 +225,9 @@ impl VulkanExample {
             for &frame in self.framebuffers.iter() {
                 destructor.destroy_framebuffer(frame, None);
             }
-            destructor.destroy_command_pool(self.command_pool, None);
-
-            destructor.destroy_semaphore(self.await_rendering, None);
         }
+
+        device.discard(self.command_pool);
 
         device.discard(self.depth_image.view);
         device.discard(self.depth_image.image);
@@ -242,26 +241,18 @@ impl VulkanExample {
 
         device.discard(self.uniform_buffer.buffer);
         device.discard(self.uniform_buffer.memory);
+
+        device.discard(self.await_rendering);
     }
 }
 
 
 pub fn create_command_buffer(device: &VkDevice, pool: vk::CommandPool, count: vkuint) -> VkResult<Vec<vk::CommandBuffer>> {
 
-    let command_buffer_ci = vk::CommandBufferAllocateInfo {
-        s_type: vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
-        p_next: ptr::null(),
-        command_pool: pool,
-        level: vk::CommandBufferLevel::PRIMARY,
-        command_buffer_count: count,
-    };
-
-    let buffers = unsafe {
-        device.logic.handle.allocate_command_buffers(&command_buffer_ci)
-            .map_err(|_| VkError::create("Command Buffers"))?
-    };
-
-    Ok(buffers)
+    use vkbase::ci::command::CommandBufferAI;
+    let command_buffers = CommandBufferAI::new(pool, count)
+        .build(device)?;
+    Ok(command_buffers)
 }
 
 fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {

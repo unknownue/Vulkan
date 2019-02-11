@@ -1,6 +1,5 @@
 
 use ash::vk;
-use ash::version::DeviceV1_0;
 
 use failure_derive::Fail;
 
@@ -214,12 +213,11 @@ impl VkSwapchain {
     /// The application must not destroy `vk::SwapchainKHR` until after completion of all outstanding operations on images that were acquired from the `vk::SwapchainKHR`.
     pub(crate) fn discard(&self, device: &VkDevice) {
 
+        self.images.iter().for_each(|swapchain_image| {
+            device.discard(swapchain_image.view);
+        });
+
         unsafe {
-
-            self.images.iter().for_each(|swapchain_image| {
-                device.logic.handle.destroy_image_view(swapchain_image.view, None);
-            });
-
             self.loader.destroy_swapchain(self.handle, None);
         }
     }

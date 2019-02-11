@@ -176,7 +176,6 @@ impl SyncResource {
 
         let await_present = SemaphoreCI::new().build(device)?;
 
-
         let mut sync_fences = Vec::with_capacity(frame_count);
         let fence_ci = FenceCI::new(true);
 
@@ -199,13 +198,10 @@ impl SyncResource {
 
     fn discard(&mut self, device: &VkDevice) {
 
-        unsafe {
+        device.discard(self.await_present);
 
-            device.logic.handle.destroy_semaphore(self.await_present, None);
-
-            for &fence in self.sync_fences.iter() {
-                device.logic.handle.destroy_fence(fence, None);
-            }
+        for &fence in self.sync_fences.iter() {
+            device.discard(fence);
         }
 
         self.sync_fences.clear();

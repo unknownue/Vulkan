@@ -36,18 +36,12 @@ pub fn get_memory_type_index(device: &VkDevice, mut type_bits: vkuint, propertie
 
 pub fn create_command_pool(device: &VkDevice) -> VkResult<vk::CommandPool> {
 
-    let command_pool_ci = vk::CommandPoolCreateInfo {
-        s_type: vk::StructureType::COMMAND_POOL_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
-        queue_family_index: device.logic.queues.graphics.family_index,
-    };
+    use vkbase::ci::command::CommandPoolCI;
 
-    let pool = unsafe {
-        device.logic.handle.create_command_pool(&command_pool_ci, None)
-            .map_err(|_| VkError::create("Command Pool"))?
-    };
-    Ok(pool)
+    let command_pool = CommandPoolCI::new(device.logic.queues.graphics.family_index)
+        .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
+        .build(device)?;
+    Ok(command_pool)
 }
 
 /// Get a new command buffer from the command pool.
@@ -55,21 +49,13 @@ pub fn create_command_pool(device: &VkDevice) -> VkResult<vk::CommandPool> {
 /// If begin is true, the command buffer is also started so we can start adding commands.
 pub fn create_command_buffer(device: &VkDevice, pool: vk::CommandPool, is_begin: bool) -> VkResult<vk::CommandBuffer> {
 
-    let command_buffer_ci = vk::CommandBufferAllocateInfo {
-        s_type: vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
-        p_next: ptr::null(),
-        command_pool: pool,
-        level: vk::CommandBufferLevel::PRIMARY,
-        command_buffer_count: 1,
-    };
+    use vkbase::ci::command::CommandBufferAI;
 
-    let mut buffers = unsafe {
-        device.logic.handle.allocate_command_buffers(&command_buffer_ci)
-            .map_err(|_| VkError::create("Command Buffers"))?
-    };
-    let cmd_buffer = buffers.pop().unwrap();
+    let cmd_buffer = CommandBufferAI::new(pool, 1)
+        .build(device)?
+        .remove(0);
 
-    // If requested, also start the new command buffer
+    // If requested, also start the new command buffer.
     if is_begin {
         let begin_info = vk::CommandBufferBeginInfo {
             s_type: vk::StructureType::COMMAND_BUFFER_BEGIN_INFO,
@@ -88,6 +74,8 @@ pub fn create_command_buffer(device: &VkDevice, pool: vk::CommandPool, is_begin:
 }
 
 pub fn flush_command_buffer(device: &VkDevice, pool: vk::CommandPool, command: vk::CommandBuffer) -> VkResult<()> {
+
+    use vkbase::ci::sync::FenceCI;
 
     debug_assert_ne!(command, vk::CommandBuffer::null());
 
@@ -109,17 +97,9 @@ pub fn flush_command_buffer(device: &VkDevice, pool: vk::CommandPool, command: v
     };
 
     // Create fence to ensure that the command buffer has finished executing.
-    let fence_ci = vk::FenceCreateInfo {
-        s_type: vk::StructureType::FENCE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::FenceCreateFlags::empty(),
-    };
+    let fence = FenceCI::new(false).build(device)?;
 
     unsafe {
-
-        let fence = device.logic.handle.create_fence(&fence_ci, None)
-            .map_err(|_| VkError::create("Fence"))?;
-
         // Submit to the queue.
         device.logic.handle.queue_submit(device.logic.queues.graphics.handle, &[submit_info], fence)
             .map_err(|_| VkError::device("Queue Submit"))?;
@@ -128,9 +108,8 @@ pub fn flush_command_buffer(device: &VkDevice, pool: vk::CommandPool, command: v
         device.logic.handle.wait_for_fences(&[fence], true, VkTimeDuration::Infinite.into())
             .map_err(|_| VkError::device("Wait for fences"))?;
 
-        device.logic.handle.destroy_fence(fence, None);
         device.logic.handle.free_command_buffers(pool, &[command]);
+        device.discard(fence);
     }
-
     Ok(())
 }

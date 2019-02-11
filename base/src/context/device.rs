@@ -14,6 +14,7 @@ pub struct VkDevice {
 
 impl VkDevice {
 
+    #[inline]
     pub fn discard(&self, object: impl VulkanObject) {
         object.discard(self)
     }
