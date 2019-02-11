@@ -11,7 +11,6 @@ use crate::utils::time::VkTimeDuration;
 use crate::utils::frame::{FrameCounter, FrameAction};
 use crate::error::{VkResult, VkError};
 
-use std::ptr;
 
 pub struct ProcPipeline {
 
@@ -173,33 +172,16 @@ impl SyncResource {
 
     pub fn new(device: &VkDevice, frame_count: usize) -> VkResult<SyncResource> {
 
+        use crate::ci::sync::{SemaphoreCI, FenceCI};
+
+        let await_present = SemaphoreCI::new().build(device)?;
+
+
         let mut sync_fences = Vec::with_capacity(frame_count);
-
-        let semaphore_ci = vk::SemaphoreCreateInfo {
-            s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
-            p_next: ptr::null(),
-            // flags is reserved for future use in API version 1.1.82.
-            flags: vk::SemaphoreCreateFlags::empty(),
-        };
-
-        let await_present = unsafe {
-            device.logic.handle.create_semaphore(&semaphore_ci, None)
-                .or(Err(VkError::create("Semaphore")))?
-        };
-
-        let fence_ci = vk::FenceCreateInfo {
-            s_type: vk::StructureType::FENCE_CREATE_INFO,
-            p_next: ptr::null(),
-            flags: vk::FenceCreateFlags::SIGNALED,
-        };
+        let fence_ci = FenceCI::new(true);
 
         for _ in 0..frame_count {
-
-            unsafe {
-                let fence = device.logic.handle.create_fence(&fence_ci, None)
-                    .or(Err(VkError::create("Fence")))?;
-                sync_fences.push(fence);
-            }
+            sync_fences.push(fence_ci.build(device)?);
         }
 
         let syncs = SyncResource { frame_count, await_present, sync_fences };

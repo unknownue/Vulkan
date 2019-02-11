@@ -787,15 +787,7 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
 
 fn setup_sync_primitive(device: &VkDevice) -> VkResult<vk::Semaphore> {
 
-    let semaphore_ci = vk::SemaphoreCreateInfo {
-        s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::SemaphoreCreateFlags::empty(),
-    };
-
-    let semaphore = unsafe {
-        device.logic.handle.create_semaphore(&semaphore_ci, None)
-            .map_err(|_| VkError::create("Semaphore"))?
-    };
+    use vkbase::ci::sync::SemaphoreCI;
+    let semaphore = SemaphoreCI::new().build(device)?;
     Ok(semaphore)
 }
