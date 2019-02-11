@@ -125,19 +125,12 @@ impl ImageCI {
     }
 }
 
-impl crate::context::VulkanObject for vk::Image {
+impl crate::context::VkObjectCreatable for vk::Image {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_image(self, None);
         }
-    }
-}
-
-impl From<ImageCI> for vk::ImageCreateInfo {
-
-    fn from(value: ImageCI) -> vk::ImageCreateInfo {
-        value.ci
     }
 }
 // ----------------------------------------------------------------------------------------------
@@ -222,19 +215,12 @@ impl ImageViewCI {
     }
 }
 
-impl crate::context::VulkanObject for vk::ImageView {
+impl crate::context::VkObjectCreatable for vk::ImageView {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_image_view(self, None)
         }
-    }
-}
-
-impl From<ImageViewCI> for vk::ImageViewCreateInfo {
-
-    fn from(value: ImageViewCI) -> vk::ImageViewCreateInfo {
-        value.ci
     }
 }
 // ----------------------------------------------------------------------------------------------

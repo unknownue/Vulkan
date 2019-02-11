@@ -3,7 +3,6 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use vkbase::context::VkDevice;
-use vkbase::ci::buffer::BufferCI;
 use vkbase::{VkResult, VkError};
 use vkbase::{vkuint, vkbytes};
 
@@ -199,27 +198,21 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
 
     let buffer_size = (mem::size_of::<D>() * data.len()) as vkbytes;
 
-    let (staging_buffer, staging_memory_requirement) = BufferCI::new(buffer_size, vk::BufferUsageFlags::TRANSFER_SRC)
+    use vkbase::ci::buffer::BufferCI;
+    use vkbase::ci::memory::MemoryAI;
+
+    let (staging_buffer, staging_requirement) = BufferCI::new(buffer_size)
+        .usage(vk::BufferUsageFlags::TRANSFER_SRC)
         .build(device)?;
 
-    let staging_mem_alloc = vk::MemoryAllocateInfo {
-        s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
-        p_next: ptr::null(),
-        allocation_size: staging_memory_requirement.size,
-        memory_type_index: helper::get_memory_type_index(
-            device, staging_memory_requirement.memory_type_bits,
-            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT),
-    };
-
-    let staging_memory = unsafe {
-        device.logic.handle.allocate_memory(&staging_mem_alloc, None)
-            .map_err(|_| VkError::create("Memory Allocate"))?
-    };
+    let staging_memory_index = helper::get_memory_type_index(device, staging_requirement.memory_type_bits,
+        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+    let staging_memory = MemoryAI::new(staging_requirement.size, staging_memory_index)
+        .build(device)?;
 
     unsafe {
-
         // map and copy.
-        let data_ptr = device.logic.handle.map_memory(staging_memory, 0, staging_mem_alloc.allocation_size, vk::MemoryMapFlags::empty())
+        let data_ptr = device.logic.handle.map_memory(staging_memory, 0, staging_requirement.size, vk::MemoryMapFlags::empty())
             .map_err(|_| VkError::device("Map Memory"))?;
 
         let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut D, data.len());
@@ -231,21 +224,13 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
             .map_err(|_| VkError::device("Binding Buffer Memory"))?;
     }
 
-
-
-    let (target_buffer, target_memory_requirement) = BufferCI::new(buffer_size, vk::BufferUsageFlags::TRANSFER_DST | buffer_usage)
+    let (target_buffer, target_requirement) = BufferCI::new(buffer_size)
+        .usage(vk::BufferUsageFlags::TRANSFER_DST | buffer_usage)
         .build(device)?;
 
-    let target_mem_alloc = vk::MemoryAllocateInfo {
-        allocation_size: target_memory_requirement.size,
-        memory_type_index: helper::get_memory_type_index(device, target_memory_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL),
-        ..staging_mem_alloc
-    };
-
-    let target_memory = unsafe {
-        device.logic.handle.allocate_memory(&target_mem_alloc, None)
-            .map_err(|_| VkError::create("Memory Allocate"))?
-    };
+    let target_memory_index = helper::get_memory_type_index(device, target_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+    let target_memory = MemoryAI::new(target_requirement.size, target_memory_index)
+        .build(device)?;
 
     unsafe {
         device.logic.handle.bind_buffer_memory(target_buffer, target_memory, 0)
@@ -258,21 +243,17 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
 
 pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<UniformBuffer> {
 
-    let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<UboVS>() as vkbytes, vk::BufferUsageFlags::UNIFORM_BUFFER)
+    use vkbase::ci::buffer::BufferCI;
+    use vkbase::ci::memory::MemoryAI;
+
+    let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<UboVS>() as vkbytes)
+        .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
         .build(device)?;
 
-    let mem_alloc = vk::MemoryAllocateInfo {
-        s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
-        p_next: ptr::null(),
-        allocation_size: memory_requirement.size,
-        memory_type_index: helper::get_memory_type_index(
-            device, memory_requirement.memory_type_bits,
-            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT),
-    };
-    let uniform_memory = unsafe {
-        device.logic.handle.allocate_memory(&mem_alloc, None)
-            .map_err(|_| VkError::create("Memory Allocate"))?
-    };
+    let memory_index = helper::get_memory_type_index(device, memory_requirement.memory_type_bits,
+        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+    let uniform_memory = MemoryAI::new(memory_requirement.size, memory_index)
+        .build(device)?;
 
     unsafe {
         device.logic.handle.bind_buffer_memory(uniform_buffer, uniform_memory, 0)

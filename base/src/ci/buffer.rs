@@ -2,7 +2,7 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::context::{VkDevice, VulkanObject};
+use crate::context::{VkDevice, VkObjectCreatable};
 use crate::ci::VulkanCI;
 use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
@@ -36,11 +36,11 @@ impl VulkanCI<vk::BufferCreateInfo> for BufferCI {
 
 impl BufferCI {
 
-    pub fn new(size: vkbytes, usage: vk::BufferUsageFlags) -> BufferCI {
+    pub fn new(size: vkbytes) -> BufferCI {
 
         BufferCI {
             ci: vk::BufferCreateInfo {
-                size, usage,
+                size,
                 ..BufferCI::default_ci()
             },
             queue_families: Vec::new(),
@@ -65,20 +65,17 @@ impl BufferCI {
         self.ci.flags = flags; self
     }
 
+    pub fn usage(mut self, flags: vk::BufferUsageFlags) -> BufferCI {
+        self.ci.usage = flags; self
+    }
+
     pub fn sharing_queues(mut self, mode: vk::SharingMode, families_indices: Vec<vkuint>) -> BufferCI {
         self.queue_families = families_indices;
         self.ci.sharing_mode = mode; self
     }
 }
 
-impl From<BufferCI> for vk::BufferCreateInfo {
-
-    fn from(value: BufferCI) -> vk::BufferCreateInfo {
-        value.ci
-    }
-}
-
-impl VulkanObject for vk::Buffer {
+impl VkObjectCreatable for vk::Buffer {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

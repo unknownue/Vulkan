@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::context::VulkanObject;
+use crate::context::{VkObjectCreatable, VkObjectAllocatable};
 use crate::ci::VulkanCI;
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
@@ -58,10 +58,23 @@ impl CommandBufferAI {
     }
 }
 
-impl From<CommandBufferAI> for vk::CommandBufferAllocateInfo {
+impl VkObjectAllocatable for vk::CommandBuffer {
+    type AllocatePool = vk::CommandPool;
 
-    fn from(value: CommandBufferAI) -> vk::CommandBufferAllocateInfo {
-        value.ai
+    fn free(self, device: &VkDevice, pool: Self::AllocatePool) {
+        unsafe {
+            device.logic.handle.free_command_buffers(pool, &[self]);
+        }
+    }
+}
+
+impl VkObjectAllocatable for &[vk::CommandBuffer] {
+    type AllocatePool = vk::CommandPool;
+
+    fn free(self, device: &VkDevice, pool: Self::AllocatePool) {
+        unsafe {
+            device.logic.handle.free_command_buffers(pool, self);
+        }
     }
 }
 // ----------------------------------------------------------------------------------------------
@@ -111,19 +124,12 @@ impl CommandPoolCI {
     }
 }
 
-impl VulkanObject for vk::CommandPool {
+impl VkObjectCreatable for vk::CommandPool {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_command_pool(self, None);
         }
-    }
-}
-
-impl From<CommandPoolCI> for vk::CommandPoolCreateInfo {
-
-    fn from(value: CommandPoolCI) -> vk::CommandPoolCreateInfo {
-        value.ci
     }
 }
 // ----------------------------------------------------------------------------------------------

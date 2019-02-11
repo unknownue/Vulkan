@@ -48,13 +48,6 @@ impl VulkanCI<vk::ShaderModuleCreateInfo> for ShaderModuleCI {
     }
 }
 
-impl From<ShaderModuleCI> for vk::ShaderModuleCreateInfo {
-
-    fn from(value: ShaderModuleCI) -> vk::ShaderModuleCreateInfo {
-        value.ci
-    }
-}
-
 impl ShaderModuleCI {
 
     pub fn from_glsl(stage: vk::ShaderStageFlags, path: impl AsRef<Path>, tag_name: &str) -> ShaderModuleCI {
@@ -142,13 +135,6 @@ impl VulkanCI<vk::PipelineShaderStageCreateInfo> for ShaderStageCI {
     }
 }
 
-impl From<ShaderStageCI> for vk::PipelineShaderStageCreateInfo {
-
-    fn from(value: ShaderStageCI) -> vk::PipelineShaderStageCreateInfo {
-        value.ci
-    }
-}
-
 impl ShaderStageCI {
 
     pub fn new(stage: vk::ShaderStageFlags, module: vk::ShaderModule) -> ShaderStageCI {
@@ -190,7 +176,7 @@ impl ShaderStageCI {
     }
 }
 
-impl crate::context::VulkanObject for vk::ShaderModule {
+impl crate::context::VkObjectCreatable for vk::ShaderModule {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

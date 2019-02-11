@@ -70,11 +70,4 @@ impl RenderPassBI {
         }
     }
 }
-
-impl From<RenderPassBI> for vk::RenderPassBeginInfo {
-
-    fn from(value: RenderPassBI) -> vk::RenderPassBeginInfo {
-        value.bi
-    }
-}
 // ----------------------------------------------------------------------------------------------

@@ -121,14 +121,14 @@ impl vkbase::Workflow for VulkanExample {
             destructor.destroy_pipeline(self.pipeline, None);
             destructor.destroy_render_pass(self.render_pass, None);
 
-            destructor.destroy_image_view(self.depth_image.view, None);
-            destructor.destroy_image(self.depth_image.image, None);
-            destructor.free_memory(self.depth_image.memory, None);
-
             for &frame in self.framebuffers.iter() {
                 destructor.destroy_framebuffer(frame, None);
             }
         }
+
+        device.discard(self.depth_image.view);
+        device.discard(self.depth_image.image);
+        device.discard(self.depth_image.memory);
 
         // recreate the resources.
         unsafe {
@@ -215,11 +215,12 @@ impl VulkanExample {
 
         let destructor = &device.logic.handle;
 
+        device.discard(self.descriptor_set_layout);
+        device.discard(self.descriptor_pool);
+
         unsafe {
             destructor.destroy_pipeline(self.pipeline, None);
             destructor.destroy_pipeline_layout(self.pipeline_layout, None);
-            destructor.destroy_descriptor_set_layout(self.descriptor_set_layout, None);
-            destructor.destroy_descriptor_pool(self.descriptor_pool, None);
             destructor.destroy_render_pass(self.render_pass, None);
 
             for &frame in self.framebuffers.iter() {
@@ -257,54 +258,32 @@ pub fn create_command_buffer(device: &VkDevice, pool: vk::CommandPool, count: vk
 
 fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {
 
-    let pool_sizes = vec![
-        vk::DescriptorPoolSize {
-            ty: vk::DescriptorType::UNIFORM_BUFFER,
-            descriptor_count: 1,
-        },
-    ];
+    use vkbase::ci::descriptor::DescriptorPoolCI;
 
-    let descriptor_pool_ci = vk::DescriptorPoolCreateInfo {
-        s_type: vk::StructureType::DESCRIPTOR_POOL_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::DescriptorPoolCreateFlags::empty(),
-        max_sets: 1,
-        pool_size_count: pool_sizes.len() as _,
-        p_pool_sizes: pool_sizes.as_ptr(),
-    };
-
-    let descriptor_pool = unsafe {
-        device.logic.handle.create_descriptor_pool(&descriptor_pool_ci, None)
-            .map_err(|_| VkError::create("Descriptor Pool"))?
-    };
-
+    let descriptor_pool = DescriptorPoolCI::new(1)
+        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER, 1)
+        .build(device)?;
     Ok(descriptor_pool)
 }
 
 fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayout, vk::PipelineLayout)> {
 
-    let layout_bindings = [
-        vk::DescriptorSetLayoutBinding {
-            binding: 0,
-            descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
-            descriptor_count: 1,
-            stage_flags: vk::ShaderStageFlags::VERTEX,
-            p_immutable_samplers: ptr::null(),
-        },
-    ];
+    use vkbase::ci::descriptor::DescriptorSetLayoutCI;
 
-    let descriptor_layout_ci = vk::DescriptorSetLayoutCreateInfo {
-        s_type: vk::StructureType::DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::DescriptorSetLayoutCreateFlags::empty(),
-        binding_count: layout_bindings.len() as _,
-        p_bindings   : layout_bindings.as_ptr(),
+    // Descriptor Set Layout.
+    let uniform_descriptor = vk::DescriptorSetLayoutBinding {
+        binding: 0,
+        descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::VERTEX,
+        p_immutable_samplers: ptr::null(),
     };
 
-    let descriptor_set_layout = unsafe {
-        device.logic.handle.create_descriptor_set_layout(&descriptor_layout_ci, None)
-            .map_err(|_| VkError::create("Descriptor Set Layout"))?
-    };
+    let descriptor_set_layout = DescriptorSetLayoutCI::new()
+        .add_binding(uniform_descriptor)
+        .build(device)?;
+
+    // Pipeline Layout.
     let pipeline_layout_ci = vk::PipelineLayoutCreateInfo {
         s_type: vk::StructureType::PIPELINE_LAYOUT_CREATE_INFO,
         p_next: ptr::null(),
@@ -323,43 +302,20 @@ fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayo
     Ok((descriptor_set_layout, pipeline_layout))
 }
 
-fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, layout: vk::DescriptorSetLayout, uniforms: &UniformBuffer) -> VkResult<vk::DescriptorSet> {
+fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, set_layout: vk::DescriptorSetLayout, uniforms: &UniformBuffer) -> VkResult<vk::DescriptorSet> {
 
-    let set_layouts = [layout];
+    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI};
 
-    let descriptor_set_allot_ci = vk::DescriptorSetAllocateInfo {
-        s_type: vk::StructureType::DESCRIPTOR_SET_ALLOCATE_INFO,
-        p_next: ptr::null(),
-        descriptor_pool: pool,
-        descriptor_set_count: set_layouts.len() as _,
-        p_set_layouts       : set_layouts.as_ptr(),
-    };
+    let descriptor_set = DescriptorSetAI::new(pool)
+        .add_set_layout(set_layout)
+        .build(device)?
+        .remove(0);
 
-    let descriptor_set = unsafe {
-        device.logic.handle.allocate_descriptor_sets(&descriptor_set_allot_ci)
-            .map_err(|_| VkError::create("Allocate Descriptor Set"))?
-    }.remove(0);
-
-
-    let buffer_write_info = [uniforms.descriptor.clone()];
-
-    let write_infos = [
-        vk::WriteDescriptorSet {
-            s_type: vk::StructureType::WRITE_DESCRIPTOR_SET,
-            p_next: ptr::null(),
-            dst_set: descriptor_set,
-            dst_binding: 0,
-            dst_array_element: 0,
-            descriptor_count: 1,
-            descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
-            p_image_info: ptr::null(),
-            p_buffer_info: buffer_write_info.as_ptr(),
-            p_texel_buffer_view: ptr::null(),
-        },
-    ];
+    let write_info = DescriptorBufferSetWI::new(descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
+        .add_buffer(uniforms.descriptor.clone());
 
     unsafe {
-        device.logic.handle.update_descriptor_sets(&write_infos, &[]);
+        device.logic.handle.update_descriptor_sets(&[write_info.build()], &[]);
     }
 
     Ok(descriptor_set)
@@ -369,25 +325,20 @@ fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, layout: vk:
 fn setup_depth_stencil(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<DepthImage> {
 
     use vkbase::ci::image::{ImageCI, ImageViewCI};
+    use vkbase::ci::memory::MemoryAI;
 
     let (image, image_requirement) = ImageCI::new_2d(device.phy.depth_format, dimension)
         .usages(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
         .build(device)?;
 
-    let mem_alloc = vk::MemoryAllocateInfo {
-        s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
-        p_next: ptr::null(),
-        allocation_size: image_requirement.size,
-        memory_type_index: super::helper::get_memory_type_index(device, image_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL),
-    };
+    let memory_index = super::helper::get_memory_type_index(device, image_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+    let memory = MemoryAI::new(image_requirement.size, memory_index)
+        .build(device)?;
 
-    let memory = unsafe {
-        let memory = device.logic.handle.allocate_memory(&mem_alloc, None)
-            .map_err(|_| VkError::create("Allocate Image Memory"))?;
+    unsafe {
         device.logic.handle.bind_image_memory(image, memory, 0)
             .map_err(|_| VkError::device("Bind Image Memory."))?;
-        memory
-    };
+    }
 
     let view = ImageViewCI::new(image, vk::ImageViewType::TYPE_2D, device.phy.depth_format)
         .aspect_mask(vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL)

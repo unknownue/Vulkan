@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::context::VulkanObject;
+use crate::context::VkObjectCreatable;
 use crate::ci::VulkanCI;
 use crate::error::{VkResult, VkError};
 
@@ -51,7 +51,7 @@ impl SemaphoreCI {
     }
 }
 
-impl VulkanObject for vk::Semaphore {
+impl VkObjectCreatable for vk::Semaphore {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
@@ -59,13 +59,7 @@ impl VulkanObject for vk::Semaphore {
         }
     }
 }
-
-impl From<SemaphoreCI> for vk::SemaphoreCreateInfo {
-
-    fn from(value: SemaphoreCI) -> vk::SemaphoreCreateInfo {
-        value.ci
-    }
-}
+// ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::SemaphoreCreateInfo.
@@ -109,19 +103,12 @@ impl FenceCI {
     }
 }
 
-impl VulkanObject for vk::Fence {
+impl VkObjectCreatable for vk::Fence {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_fence(self, None);
         }
-    }
-}
-
-impl From<FenceCI> for vk::FenceCreateInfo {
-
-    fn from(value: FenceCI) -> vk::FenceCreateInfo {
-        value.ci
     }
 }
 // ----------------------------------------------------------------------------------------------
