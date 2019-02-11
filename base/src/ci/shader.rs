@@ -3,6 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
+use crate::ci::VulkanCI;
 use crate::utils::shaderc::VkShaderCompiler;
 use crate::error::{VkResult, VkError};
 
@@ -14,6 +15,7 @@ use std::ptr;
 
 // ---------------------------------------------------------------------------------------------------
 /// Wrapper class for vk::ShaderModuleCreateInfo.
+#[derive(Debug, Clone)]
 pub struct ShaderModuleCI {
 
     ci: vk::ShaderModuleCreateInfo,
@@ -32,6 +34,34 @@ enum ShaderType {
     SprivSource,
 }
 
+impl VulkanCI<vk::ShaderModuleCreateInfo> for ShaderModuleCI {
+
+    fn inner_default() -> ShaderModuleCI {
+
+        ShaderModuleCI {
+            ci: vk::ShaderModuleCreateInfo {
+                s_type    : vk::StructureType::SHADER_MODULE_CREATE_INFO,
+                p_next    : ptr::null(),
+                flags     : vk::ShaderModuleCreateFlags::empty(),
+                code_size : 0,
+                p_code    : ptr::null(),
+            },
+            path: PathBuf::new(),
+            main: String::from("main"),
+            shader_type: ShaderType::GLSLSource,
+            tag_name: String::new(),
+            shader_stage: vk::ShaderStageFlags::ALL,
+        }
+    }
+}
+
+impl From<ShaderModuleCI> for vk::ShaderModuleCreateInfo {
+
+    fn from(value: ShaderModuleCI) -> vk::ShaderModuleCreateInfo {
+        value.ci
+    }
+}
+
 impl ShaderModuleCI {
 
     pub fn from_glsl(stage: vk::ShaderStageFlags, path: impl AsRef<Path>, tag_name: &str) -> ShaderModuleCI {
@@ -47,18 +77,11 @@ impl ShaderModuleCI {
     fn new(stage: vk::ShaderStageFlags, ty: ShaderType, path: impl AsRef<Path>, tag_name: &str) -> ShaderModuleCI {
 
         ShaderModuleCI {
-            ci: vk::ShaderModuleCreateInfo {
-                s_type    : vk::StructureType::SHADER_MODULE_CREATE_INFO,
-                p_next    : ptr::null(),
-                flags     : vk::ShaderModuleCreateFlags::empty(),
-                code_size : 0,
-                p_code    : ptr::null(),
-            },
             path: PathBuf::from(path.as_ref()),
-            main: String::from("main"),
             shader_type: ty,
             tag_name: tag_name.into(),
             shader_stage: stage,
+            ..ShaderModuleCI::inner_default()
         }
     }
 
@@ -102,6 +125,7 @@ impl ShaderModuleCI {
 
 // ---------------------------------------------------------------------------------------------------
 /// Wrapper class for vk::PipelineShaderStageCreateInfo.
+#[derive(Debug, Clone)]
 pub struct ShaderStageCI {
 
     ci: vk::PipelineShaderStageCreateInfo,
@@ -110,9 +134,9 @@ pub struct ShaderStageCI {
     specialization: Option<vk::SpecializationInfo>,
 }
 
-impl ShaderStageCI {
+impl VulkanCI<vk::PipelineShaderStageCreateInfo> for ShaderStageCI {
 
-    pub fn new(stage: vk::ShaderStageFlags, module: vk::ShaderModule) -> ShaderStageCI {
+    fn inner_default() -> ShaderStageCI {
 
         ShaderStageCI {
             ci: vk::PipelineShaderStageCreateInfo {
@@ -121,12 +145,32 @@ impl ShaderStageCI {
                 // flags is reserved for future use in API version 1.1.82.
                 flags  : vk::PipelineShaderStageCreateFlags::empty(),
                 p_name : ptr::null(),
+                stage  : vk::ShaderStageFlags::empty(),
+                module : vk::ShaderModule::null(),
                 p_specialization_info: ptr::null(),
-                stage, module,
             },
             main: CString::new("main").unwrap(),
             specialization: None,
         }
+    }
+}
+
+impl From<ShaderStageCI> for vk::PipelineShaderStageCreateInfo {
+
+    fn from(value: ShaderStageCI) -> vk::PipelineShaderStageCreateInfo {
+        value.ci
+    }
+}
+
+impl ShaderStageCI {
+
+    pub fn new(stage: vk::ShaderStageFlags, module: vk::ShaderModule) -> ShaderStageCI {
+
+        let mut shader_stage_ci = ShaderStageCI::inner_default();
+        shader_stage_ci.ci.stage  = stage;
+        shader_stage_ci.ci.module = module;
+
+        shader_stage_ci
     }
 
     pub fn main(mut self, name: impl AsRef<str>) -> ShaderStageCI {

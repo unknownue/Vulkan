@@ -42,7 +42,7 @@ impl<'a> CmdTransferApi for VkCmdRecorder<'a, ITransfer> {
     fn image_pipeline_barrier(&self, src_stage: vk::PipelineStageFlags, dst_stage: vk::PipelineStageFlags, dependencies: vk::DependencyFlags, image_barriers: Vec<ImageBarrierCI>) -> &Self {
 
         let barriers: Vec<vk::ImageMemoryBarrier> = image_barriers.into_iter()
-            .map(|b| b.build()).collect();
+            .map(|b| b.into()).collect();
 
         unsafe {
             self.device.logic.handle.cmd_pipeline_barrier(self.command, src_stage, dst_stage, dependencies, &[], &[], &barriers);

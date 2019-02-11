@@ -378,35 +378,11 @@ fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, layout: vk:
 
 fn setup_depth_stencil(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<DepthImage> {
 
-    let image_ci = vk::ImageCreateInfo {
-        s_type: vk::StructureType::IMAGE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::ImageCreateFlags::empty(),
-        image_type   : vk::ImageType::TYPE_2D,
-        format       : device.phy.depth_format,
-        extent: vk::Extent3D {
-            width : dimension.width,
-            height: dimension.height,
-            depth : 1,
-        },
-        mip_levels   : 1,
-        array_layers : 1,
-        samples      : vk::SampleCountFlags::TYPE_1,
-        tiling       : vk::ImageTiling::OPTIMAL,
-        usage        : vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
-        sharing_mode : vk::SharingMode::EXCLUSIVE,
-        queue_family_index_count: 0,
-        p_queue_family_indices  : ptr::null(),
-        initial_layout: vk::ImageLayout::UNDEFINED,
-    };
+    use vkbase::ci::image::{ImageCI, ImageViewCI};
 
-    let image = unsafe {
-        device.logic.handle.create_image(&image_ci, None)
-            .map_err(|_| VkError::create("Image"))?
-    };
-    let image_requirement  = unsafe {
-        device.logic.handle.get_image_memory_requirements(image)
-    };
+    let (image, image_requirement) = ImageCI::new_2d(device.phy.depth_format, dimension)
+        .usages(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
+        .build(device)?;
 
     let mem_alloc = vk::MemoryAllocateInfo {
         s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
@@ -423,35 +399,9 @@ fn setup_depth_stencil(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<D
         memory
     };
 
-    // Create a view for the depth stencil image.
-    // Images aren't directly accessed in Vulkan, but rather through views described by a subresource range.
-    // This allows for multiple views of one image with differing ranges (e.g. for different layers)
-    let depth_view_ci = vk::ImageViewCreateInfo {
-        s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::ImageViewCreateFlags::empty(),
-        image,
-        view_type: vk::ImageViewType::TYPE_2D,
-        format: device.phy.depth_format,
-        components: vk::ComponentMapping {
-            r: vk::ComponentSwizzle::R,
-            g: vk::ComponentSwizzle::G,
-            b: vk::ComponentSwizzle::B,
-            a: vk::ComponentSwizzle::A,
-        },
-        subresource_range: vk::ImageSubresourceRange {
-            aspect_mask: vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL,
-            base_mip_level   : 0,
-            level_count      : 1,
-            base_array_layer : 0,
-            layer_count      : 1,
-        },
-    };
-
-    let view = unsafe {
-        device.logic.handle.create_image_view(&depth_view_ci, None)
-            .map_err(|_| VkError::create("Image View"))?
-    };
+    let view = ImageViewCI::new(image, vk::ImageViewType::TYPE_2D, device.phy.depth_format)
+        .aspect_mask(vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL)
+        .build(device)?;
 
     let result = DepthImage { image, view, memory };
     Ok(result)

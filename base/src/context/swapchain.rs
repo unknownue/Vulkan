@@ -7,6 +7,7 @@ use failure_derive::Fail;
 use crate::context::instance::VkInstance;
 use crate::context::device::{VkDevice, VkQueue};
 use crate::context::surface::VkSurface;
+use crate::ci::image::ImageViewCI;
 use crate::error::{VkResult, VkError};
 use crate::utils::time::VkTimeDuration;
 use crate::{vkuint, vklint};
@@ -249,32 +250,9 @@ fn obtain_swapchain_images(device: &VkDevice, swapchain: vk::SwapchainKHR, loade
 
     for image_handle in image_handles.into_iter() {
 
-        let view_ci = vk::ImageViewCreateInfo {
-            s_type     : vk::StructureType::IMAGE_VIEW_CREATE_INFO,
-            p_next     : ptr::null(),
-            flags      : vk::ImageViewCreateFlags::empty(),
-            image      : image_handle,
-            view_type  : vk::ImageViewType::TYPE_2D,
-            format     : format.color_format,
-            components : vk::ComponentMapping {
-                r: vk::ComponentSwizzle::R,
-                g: vk::ComponentSwizzle::G,
-                b: vk::ComponentSwizzle::B,
-                a: vk::ComponentSwizzle::A,
-            },
-            subresource_range: vk::ImageSubresourceRange {
-                aspect_mask: vk::ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            },
-        };
-
-        let image_view = unsafe {
-            device.logic.handle.create_image_view(&view_ci, None)
-                .or(Err(VkError::create("Image View")))
-        }?;
+        let image_view = ImageViewCI::new(image_handle, vk::ImageViewType::TYPE_2D, format.color_format)
+            .aspect_mask(vk::ImageAspectFlags::COLOR)
+            .build(device)?;
 
         let swapchain_image = SwapchainImage {
             image: image_handle,
