@@ -2,7 +2,7 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::context::VkDevice;
+use crate::context::{VkDevice, VulkanObject};
 use crate::ci::VulkanCI;
 use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
@@ -19,20 +19,17 @@ pub struct BufferCI {
 
 impl VulkanCI<vk::BufferCreateInfo> for BufferCI {
 
-    fn inner_default() -> BufferCI {
+    fn default_ci() -> vk::BufferCreateInfo {
 
-        BufferCI {
-            ci: vk::BufferCreateInfo {
-                s_type: vk::StructureType::BUFFER_CREATE_INFO,
-                p_next: ptr::null(),
-                flags : vk::BufferCreateFlags::empty(),
-                size  : 0,
-                usage : vk::BufferUsageFlags::empty(),
-                sharing_mode: vk::SharingMode::EXCLUSIVE,
-                queue_family_index_count: 0,
-                p_queue_family_indices  : ptr::null(),
-            },
-            queue_families: Vec::new(),
+        vk::BufferCreateInfo {
+            s_type: vk::StructureType::BUFFER_CREATE_INFO,
+            p_next: ptr::null(),
+            flags : vk::BufferCreateFlags::empty(),
+            size  : 0,
+            usage : vk::BufferUsageFlags::empty(),
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            queue_family_index_count: 0,
+            p_queue_family_indices  : ptr::null(),
         }
     }
 }
@@ -44,7 +41,7 @@ impl BufferCI {
         BufferCI {
             ci: vk::BufferCreateInfo {
                 size, usage,
-                ..BufferCI::inner_default().ci
+                ..BufferCI::default_ci()
             },
             queue_families: Vec::new(),
         }
@@ -78,6 +75,15 @@ impl From<BufferCI> for vk::BufferCreateInfo {
 
     fn from(value: BufferCI) -> vk::BufferCreateInfo {
         value.ci
+    }
+}
+
+impl VulkanObject for vk::Buffer {
+
+    fn discard(self, device: &VkDevice) {
+        unsafe {
+            device.logic.handle.destroy_buffer(self, None)
+        }
     }
 }
 // ----------------------------------------------------------------------------------------------

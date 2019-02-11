@@ -36,21 +36,14 @@ enum ShaderType {
 
 impl VulkanCI<vk::ShaderModuleCreateInfo> for ShaderModuleCI {
 
-    fn inner_default() -> ShaderModuleCI {
+    fn default_ci() -> vk::ShaderModuleCreateInfo {
 
-        ShaderModuleCI {
-            ci: vk::ShaderModuleCreateInfo {
-                s_type    : vk::StructureType::SHADER_MODULE_CREATE_INFO,
-                p_next    : ptr::null(),
-                flags     : vk::ShaderModuleCreateFlags::empty(),
-                code_size : 0,
-                p_code    : ptr::null(),
-            },
-            path: PathBuf::new(),
-            main: String::from("main"),
-            shader_type: ShaderType::GLSLSource,
-            tag_name: String::new(),
-            shader_stage: vk::ShaderStageFlags::ALL,
+        vk::ShaderModuleCreateInfo {
+            s_type    : vk::StructureType::SHADER_MODULE_CREATE_INFO,
+            p_next    : ptr::null(),
+            flags     : vk::ShaderModuleCreateFlags::empty(),
+            code_size : 0,
+            p_code    : ptr::null(),
         }
     }
 }
@@ -77,22 +70,21 @@ impl ShaderModuleCI {
     fn new(stage: vk::ShaderStageFlags, ty: ShaderType, path: impl AsRef<Path>, tag_name: &str) -> ShaderModuleCI {
 
         ShaderModuleCI {
+            ci: ShaderModuleCI::default_ci(),
             path: PathBuf::from(path.as_ref()),
-            shader_type: ty,
+            main: String::from("main"),
             tag_name: tag_name.into(),
+            shader_type : ty,
             shader_stage: stage,
-            ..ShaderModuleCI::inner_default()
         }
     }
 
     pub fn main(mut self, name: impl AsRef<str>) -> ShaderModuleCI {
-        self.main = String::from(name.as_ref());
-        self
+        self.main = String::from(name.as_ref()); self
     }
 
     pub fn flags(mut self, flags: vk::ShaderModuleCreateFlags) -> ShaderModuleCI {
-        self.ci.flags = flags;
-        self
+        self.ci.flags = flags; self
     }
 
     pub fn build(self, device: &VkDevice, compiler: &mut VkShaderCompiler) -> VkResult<vk::ShaderModule> {
@@ -136,20 +128,16 @@ pub struct ShaderStageCI {
 
 impl VulkanCI<vk::PipelineShaderStageCreateInfo> for ShaderStageCI {
 
-    fn inner_default() -> ShaderStageCI {
+    fn default_ci() -> vk::PipelineShaderStageCreateInfo {
 
-        ShaderStageCI {
-            ci: vk::PipelineShaderStageCreateInfo {
-                s_type : vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
-                p_next : ptr::null(),
-                flags  : vk::PipelineShaderStageCreateFlags::empty(),
-                p_name : ptr::null(),
-                stage  : vk::ShaderStageFlags::empty(),
-                module : vk::ShaderModule::null(),
-                p_specialization_info: ptr::null(),
-            },
-            main: CString::new("main").unwrap(),
-            specialization: None,
+        vk::PipelineShaderStageCreateInfo {
+            s_type : vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
+            p_next : ptr::null(),
+            flags  : vk::PipelineShaderStageCreateFlags::empty(),
+            p_name : ptr::null(),
+            stage  : vk::ShaderStageFlags::empty(),
+            module : vk::ShaderModule::null(),
+            p_specialization_info: ptr::null(),
         }
     }
 }
@@ -165,11 +153,14 @@ impl ShaderStageCI {
 
     pub fn new(stage: vk::ShaderStageFlags, module: vk::ShaderModule) -> ShaderStageCI {
 
-        let mut shader_stage_ci = ShaderStageCI::inner_default();
-        shader_stage_ci.ci.stage  = stage;
-        shader_stage_ci.ci.module = module;
-
-        shader_stage_ci
+        ShaderStageCI {
+            ci: vk::PipelineShaderStageCreateInfo {
+                stage, module,
+                ..ShaderStageCI::default_ci()
+            },
+            main: CString::new("main").unwrap(),
+            specialization: None,
+        }
     }
 
     pub fn main(mut self, name: impl AsRef<str>) -> ShaderStageCI {

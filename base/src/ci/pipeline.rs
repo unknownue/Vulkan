@@ -16,25 +16,22 @@ pub struct RenderPassBI {
 
 impl VulkanCI<vk::RenderPassBeginInfo> for RenderPassBI {
 
-    fn inner_default() -> RenderPassBI {
+    fn default_ci() -> vk::RenderPassBeginInfo {
 
-        RenderPassBI {
-            bi: vk::RenderPassBeginInfo {
-                s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
-                p_next: ptr::null(),
-                render_area: vk::Rect2D {
-                    extent: vk::Extent2D {
-                        width : 0,
-                        height: 0,
-                    },
-                    offset: vk::Offset2D { x: 0, y: 0 },
+        vk::RenderPassBeginInfo {
+            s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
+            p_next: ptr::null(),
+            render_area: vk::Rect2D {
+                extent: vk::Extent2D {
+                    width : 0,
+                    height: 0,
                 },
-                clear_value_count: 0,
-                p_clear_values   : ptr::null(),
-                render_pass: vk::RenderPass::null(),
-                framebuffer: vk::Framebuffer::null(),
+                offset: vk::Offset2D { x: 0, y: 0 },
             },
-            clears: Vec::new(),
+            clear_value_count: 0,
+            p_clear_values   : ptr::null(),
+            render_pass: vk::RenderPass::null(),
+            framebuffer: vk::Framebuffer::null(),
         }
     }
 }
@@ -46,7 +43,7 @@ impl RenderPassBI {
         RenderPassBI {
             bi: vk::RenderPassBeginInfo {
                 render_pass, framebuffer,
-                ..RenderPassBI::inner_default().bi
+                ..RenderPassBI::default_ci()
             },
             clears: Vec::new(),
         }

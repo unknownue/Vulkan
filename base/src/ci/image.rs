@@ -20,27 +20,24 @@ pub struct ImageCI {
 
 impl VulkanCI<vk::ImageCreateInfo> for ImageCI {
 
-    fn inner_default() -> ImageCI {
+    fn default_ci() -> vk::ImageCreateInfo {
 
-        ImageCI {
-            ci: vk::ImageCreateInfo {
-                s_type: vk::StructureType::IMAGE_CREATE_INFO,
-                p_next: ptr::null(),
-                flags : vk::ImageCreateFlags::empty(),
-                image_type: vk::ImageType::TYPE_2D,
-                format: vk::Format::UNDEFINED,
-                extent: Default::default(),
-                mip_levels  : 1,
-                array_layers: 1,
-                samples: vk::SampleCountFlags::TYPE_1,
-                tiling : vk::ImageTiling::OPTIMAL,
-                usage  : vk::ImageUsageFlags::empty(),
-                sharing_mode  : vk::SharingMode::EXCLUSIVE,
-                initial_layout: vk::ImageLayout::UNDEFINED,
-                queue_family_index_count: 0,
-                p_queue_family_indices  : ptr::null(),
-            },
-            queue_families: Vec::new(),
+        vk::ImageCreateInfo {
+            s_type: vk::StructureType::IMAGE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags : vk::ImageCreateFlags::empty(),
+            image_type: vk::ImageType::TYPE_2D,
+            format: vk::Format::UNDEFINED,
+            extent: Default::default(),
+            mip_levels  : 1,
+            array_layers: 1,
+            samples: vk::SampleCountFlags::TYPE_1,
+            tiling : vk::ImageTiling::OPTIMAL,
+            usage  : vk::ImageUsageFlags::empty(),
+            sharing_mode  : vk::SharingMode::EXCLUSIVE,
+            initial_layout: vk::ImageLayout::UNDEFINED,
+            queue_family_index_count: 0,
+            p_queue_family_indices  : ptr::null(),
         }
     }
 }
@@ -49,25 +46,32 @@ impl ImageCI {
 
     pub fn new(r#type: vk::ImageType, format: vk::Format, dimension: vk::Extent3D) -> ImageCI {
 
-        let mut image_ci = ImageCI::inner_default();
-        image_ci.ci.image_type = r#type;
-        image_ci.ci.format = format;
-        image_ci.ci.extent = dimension;
-
-        image_ci
+        ImageCI {
+            ci: vk::ImageCreateInfo {
+                image_type: r#type,
+                format,
+                extent: dimension,
+                ..ImageCI::default_ci()
+            },
+            queue_families: Vec::new(),
+        }
     }
 
     pub fn new_2d(format: vk::Format, dimension: vk::Extent2D) -> ImageCI {
 
-        let mut image_ci = ImageCI::inner_default();
-        image_ci.ci.format = format;
-        image_ci.ci.extent = vk::Extent3D {
-            width : dimension.width,
-            height: dimension.height,
-            depth : 1,
-        };
-
-        image_ci
+        ImageCI {
+            ci: vk::ImageCreateInfo {
+                image_type: vk::ImageType::TYPE_2D,
+                format,
+                extent: vk::Extent3D {
+                    width : dimension.width,
+                    height: dimension.height,
+                    depth : 1,
+                },
+                ..ImageCI::default_ci()
+            },
+            queue_families: Vec::new(),
+        }
     }
 
     pub fn build(mut self, device: &VkDevice) -> VkResult<(vk::Image, vk::MemoryRequirements)> {
@@ -147,29 +151,27 @@ pub struct ImageViewCI {
 
 impl VulkanCI<vk::ImageViewCreateInfo> for ImageViewCI {
 
-    fn inner_default() -> ImageViewCI {
+    fn default_ci() -> vk::ImageViewCreateInfo {
 
-        ImageViewCI {
-            ci: vk::ImageViewCreateInfo {
-                s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
-                p_next: ptr::null(),
-                flags : vk::ImageViewCreateFlags::empty(),
-                image : vk::Image::null(),
-                view_type: vk::ImageViewType::TYPE_2D,
-                format: vk::Format::UNDEFINED,
-                components: vk::ComponentMapping {
-                    r: vk::ComponentSwizzle::R,
-                    g: vk::ComponentSwizzle::G,
-                    b: vk::ComponentSwizzle::B,
-                    a: vk::ComponentSwizzle::A,
-                },
-                subresource_range: vk::ImageSubresourceRange {
-                    aspect_mask      : vk::ImageAspectFlags::COLOR,
-                    base_mip_level   : 0,
-                    level_count      : 1,
-                    base_array_layer : 0,
-                    layer_count      : 1,
-                },
+        vk::ImageViewCreateInfo {
+            s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
+            p_next: ptr::null(),
+            flags : vk::ImageViewCreateFlags::empty(),
+            image : vk::Image::null(),
+            view_type: vk::ImageViewType::TYPE_2D,
+            format: vk::Format::UNDEFINED,
+            components: vk::ComponentMapping {
+                r: vk::ComponentSwizzle::R,
+                g: vk::ComponentSwizzle::G,
+                b: vk::ComponentSwizzle::B,
+                a: vk::ComponentSwizzle::A,
+            },
+            subresource_range: vk::ImageSubresourceRange {
+                aspect_mask      : vk::ImageAspectFlags::COLOR,
+                base_mip_level   : 0,
+                level_count      : 1,
+                base_array_layer : 0,
+                layer_count      : 1,
             },
         }
     }
@@ -179,12 +181,13 @@ impl ImageViewCI {
 
     pub fn new(image: vk::Image, r#type: vk::ImageViewType, format: vk::Format) -> ImageViewCI {
 
-        let mut image_view_ci = ImageViewCI::inner_default();
-        image_view_ci.ci.image = image;
-        image_view_ci.ci.view_type = r#type;
-        image_view_ci.ci.format = format;
-
-        image_view_ci
+        ImageViewCI {
+            ci: vk::ImageViewCreateInfo {
+                image, format,
+                view_type: r#type,
+                ..ImageViewCI::default_ci()
+            },
+        }
     }
 
     pub fn build(self, device: &VkDevice) -> VkResult<vk::ImageView> {
@@ -245,9 +248,9 @@ pub struct ImageBarrierCI {
 
 impl VulkanCI<vk::ImageMemoryBarrier> for ImageBarrierCI {
 
-    fn inner_default() -> ImageBarrierCI {
+    fn default_ci() -> vk::ImageMemoryBarrier {
 
-        let barrier = vk::ImageMemoryBarrier {
+        vk::ImageMemoryBarrier {
             s_type: vk::StructureType::IMAGE_MEMORY_BARRIER,
             p_next: ptr::null(),
             src_access_mask: vk::AccessFlags::empty(),
@@ -258,9 +261,7 @@ impl VulkanCI<vk::ImageMemoryBarrier> for ImageBarrierCI {
             dst_queue_family_index: vk::QUEUE_FAMILY_IGNORED,
             image: vk::Image::null(),
             subresource_range: Default::default(),
-        };
-
-        ImageBarrierCI { ci: barrier }
+        }
     }
 }
 
@@ -268,11 +269,13 @@ impl ImageBarrierCI {
 
     pub fn new(image: vk::Image, subrange: vk::ImageSubresourceRange) -> ImageBarrierCI {
 
-        let mut barrier = ImageBarrierCI::inner_default();
-        barrier.ci.image = image;
-        barrier.ci.subresource_range = subrange;
-
-        barrier
+        ImageBarrierCI {
+            ci: vk::ImageMemoryBarrier {
+                image,
+                subresource_range: subrange,
+                ..ImageBarrierCI::default_ci()
+            },
+        }
     }
 
     pub fn build(&self) -> vk::ImageMemoryBarrier {

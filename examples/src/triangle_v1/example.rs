@@ -68,7 +68,7 @@ pub struct VulkanExample {
     commands: Vec<vk::CommandBuffer>,
 
     // this semaphore is used to ensure that all rendering commands submitted have been finished before presenting the image.
-    render_await: vk::Semaphore,
+    await_rendering: vk::Semaphore,
 }
 
 impl VulkanExample {
@@ -94,14 +94,14 @@ impl VulkanExample {
         let framebuffers = setup_framebuffers(device, &context.swapchain, render_pass, &depth_image)?;
         let pipeline = prepare_pipelines(device, render_pass, pipeline_layout)?;
 
-        let render_await = setup_sync_primitive(device)?;
+        let await_rendering = setup_sync_primitive(device)?;
 
         let target = VulkanExample {
             command_pool, commands,
             descriptor_pool, descriptor_set, descriptor_set_layout,
             pipeline, pipeline_layout, render_pass, framebuffers,
             vertex_buffer, index_buffer, uniform_buffer, depth_image, dimension,
-            render_await,
+            await_rendering,
         };
         Ok(target)
     }
@@ -128,7 +128,7 @@ impl vkbase::Workflow for VulkanExample {
                 command_buffer_count   : 1,
                 p_command_buffers      : &self.commands[image_index],
                 signal_semaphore_count : 1,
-                p_signal_semaphores    : &self.render_await,
+                p_signal_semaphores    : &self.await_rendering,
             },
         ];
 
@@ -138,7 +138,7 @@ impl vkbase::Workflow for VulkanExample {
                 .map_err(|_| VkError::device("Queue Submit"))?;
         }
 
-        Ok(self.render_await)
+        Ok(self.await_rendering)
     }
 
     fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
@@ -316,7 +316,7 @@ impl VulkanExample {
             destructor.destroy_buffer(self.uniform_buffer.buffer, None);
             destructor.free_memory(self.uniform_buffer.memory, None);
 
-            destructor.destroy_semaphore(self.render_await, None);
+            destructor.destroy_semaphore(self.await_rendering, None);
         }
     }
 }

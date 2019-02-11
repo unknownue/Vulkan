@@ -28,7 +28,6 @@ pub struct VulkanExample {
     render_pass: vk::RenderPass,
 
     pipeline_layout: vk::PipelineLayout,
-
     pipeline: vk::Pipeline,
 
     framebuffers: Vec<vk::Framebuffer>,
@@ -40,7 +39,7 @@ pub struct VulkanExample {
     command_pool: vk::CommandPool,
     commands: Vec<vk::CommandBuffer>,
 
-    render_await: vk::Semaphore,
+    await_rendering: vk::Semaphore,
 }
 
 impl VulkanExample {
@@ -66,14 +65,14 @@ impl VulkanExample {
         let framebuffers = setup_framebuffers(device, &context.swapchain, render_pass, &depth_image)?;
         let pipeline = prepare_pipelines(device, render_pass, pipeline_layout)?;
 
-        let render_await = setup_sync_primitive(device)?;
+        let await_rendering = setup_sync_primitive(device)?;
 
         let target = VulkanExample {
             command_pool, commands,
             descriptor_pool, descriptor_set, descriptor_set_layout,
             pipeline, pipeline_layout, render_pass, framebuffers,
             vertex_buffer, index_buffer, uniform_buffer, depth_image, dimension,
-            render_await,
+            await_rendering,
         };
         Ok(target)
     }
@@ -100,7 +99,7 @@ impl vkbase::Workflow for VulkanExample {
                 command_buffer_count   : 1,
                 p_command_buffers      : &self.commands[image_index],
                 signal_semaphore_count : 1,
-                p_signal_semaphores    : &self.render_await,
+                p_signal_semaphores    : &self.await_rendering,
             },
         ];
 
@@ -110,7 +109,7 @@ impl vkbase::Workflow for VulkanExample {
                 .map_err(|_| VkError::device("Queue Submit"))?;
         }
 
-        Ok(self.render_await)
+        Ok(self.await_rendering)
     }
 
     fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
@@ -223,26 +222,26 @@ impl VulkanExample {
             destructor.destroy_descriptor_pool(self.descriptor_pool, None);
             destructor.destroy_render_pass(self.render_pass, None);
 
-            destructor.destroy_command_pool(self.command_pool, None);
             for &frame in self.framebuffers.iter() {
                 destructor.destroy_framebuffer(frame, None);
             }
+            destructor.destroy_command_pool(self.command_pool, None);
 
-            destructor.destroy_image_view(self.depth_image.view, None);
-            destructor.destroy_image(self.depth_image.image, None);
-            destructor.free_memory(self.depth_image.memory, None);
-
-            destructor.destroy_buffer(self.vertex_buffer.buffer, None);
-            destructor.free_memory(self.vertex_buffer.memory, None);
-
-            destructor.destroy_buffer(self.index_buffer.buffer, None);
-            destructor.free_memory(self.index_buffer.memory, None);
-
-            destructor.destroy_buffer(self.uniform_buffer.buffer, None);
-            destructor.free_memory(self.uniform_buffer.memory, None);
-
-            destructor.destroy_semaphore(self.render_await, None);
+            destructor.destroy_semaphore(self.await_rendering, None);
         }
+
+        device.discard(self.depth_image.view);
+        device.discard(self.depth_image.image);
+        device.discard(self.depth_image.memory);
+
+        device.discard(self.vertex_buffer.buffer);
+        device.discard(self.vertex_buffer.memory);
+
+        device.discard(self.index_buffer.buffer);
+        device.discard(self.index_buffer.memory);
+
+        device.discard(self.uniform_buffer.buffer);
+        device.discard(self.uniform_buffer.memory);
     }
 }
 
