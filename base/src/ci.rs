@@ -2,7 +2,7 @@
 pub mod shader;
 pub mod pipeline;
 pub mod image;
-
+pub mod buffer;
 
 trait VulkanCI<T>
     where

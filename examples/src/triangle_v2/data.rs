@@ -3,6 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use vkbase::context::VkDevice;
+use vkbase::ci::buffer::BufferCI;
 use vkbase::{VkResult, VkError};
 use vkbase::{vkuint, vkbytes};
 
@@ -200,38 +201,10 @@ struct BufferResourceTmp {
 
 fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::BufferUsageFlags) -> VkResult<BufferResourceTmp> {
 
-    // Static data like vertex and index buffer should be stored on the device memory for optimal (and fastest) access by the GPU.
-    //
-    // To achieve this we use so-called "staging buffers":
-    // - Create a buffer that's visible to the host (and can be mapped).
-    // - Copy the data to this buffer.
-    // - Create another buffer that's local on the device (VRAM) with the same size.
-    // - Copy the data from the host to the device using a command buffer.
-    // - Delete the host visible (staging) buffer.
-    // - Use the device local buffers for rendering.
-
     let buffer_size = (mem::size_of::<D>() * data.len()) as vkbytes;
 
-    let staging_buffer_ci = vk::BufferCreateInfo {
-        s_type: vk::StructureType::BUFFER_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::BufferCreateFlags::empty(),
-        size: buffer_size,
-        // Buffer is used as the copy source.
-        usage: vk::BufferUsageFlags::TRANSFER_SRC,
-        sharing_mode: vk::SharingMode::EXCLUSIVE,
-        queue_family_index_count: 0,
-        p_queue_family_indices  : ptr::null(),
-    };
-
-    // Create a host-visible buffer to copy the vertex data to (staging buffer).
-    let staging_buffer = unsafe {
-        device.logic.handle.create_buffer(&staging_buffer_ci, None)
-            .map_err(|_| VkError::create("Staging Buffer"))?
-    };
-    let staging_memory_requirement = unsafe {
-        device.logic.handle.get_buffer_memory_requirements(staging_buffer)
-    };
+    let (staging_buffer, staging_memory_requirement) = BufferCI::new(buffer_size, vk::BufferUsageFlags::TRANSFER_SRC)
+        .build(device)?;
 
     let staging_mem_alloc = vk::MemoryAllocateInfo {
         s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
@@ -263,19 +236,9 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     }
 
 
-    // Create a device local buffer to which the (host local) vertex data will be copied and which will be used for rendering.
-    let target_buffer_ci = vk::BufferCreateInfo {
-        usage: buffer_usage | vk::BufferUsageFlags::TRANSFER_DST,
-        ..staging_buffer_ci
-    };
 
-    let target_buffer = unsafe {
-        device.logic.handle.create_buffer(&target_buffer_ci, None)
-            .map_err(|_| VkError::create("Vertex Buffer"))?
-    };
-    let target_memory_requirement = unsafe {
-        device.logic.handle.get_buffer_memory_requirements(target_buffer)
-    };
+    let (target_buffer, target_memory_requirement) = BufferCI::new(buffer_size, vk::BufferUsageFlags::TRANSFER_DST | buffer_usage)
+        .build(device)?;
 
     let target_mem_alloc = vk::MemoryAllocateInfo {
         allocation_size: target_memory_requirement.size,
@@ -299,36 +262,10 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
 
 pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<UniformBuffer> {
 
-    // Prepare and initialize a uniform buffer block containing shader uniforms.
-    // Single uniforms like in OpenGL are no longer present in Vulkan.
-    // All Shader uniforms are passed via uniform buffer blocks.
 
-    // Uniform buffer block in vertex shader.
-    let uniform_buffer_ci = vk::BufferCreateInfo {
-        s_type: vk::StructureType::BUFFER_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::BufferCreateFlags::empty(),
-        size: mem::size_of::<UboVS>() as vkbytes,
-        // This buffer will be used as a uniform buffer
-        usage: vk::BufferUsageFlags::UNIFORM_BUFFER,
-        sharing_mode: vk::SharingMode::EXCLUSIVE,
-        queue_family_index_count: 0,
-        p_queue_family_indices  : ptr::null(),
-    };
+    let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<UboVS>() as vkbytes, vk::BufferUsageFlags::UNIFORM_BUFFER)
+        .build(device)?;
 
-    let uniform_buffer = unsafe {
-        device.logic.handle.create_buffer(&uniform_buffer_ci, None)
-            .map_err(|_| VkError::create("Buffer"))?
-    };
-    // Get memory requirements including size, alignment and memory type.
-    let memory_requirement = unsafe {
-        device.logic.handle.get_buffer_memory_requirements(uniform_buffer)
-    };
-
-    // Get the memory type index that supports host visible memory access.
-    // Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial.
-    // We also want the buffer to be host coherent so we don't have to flush (or sync after every update.
-    // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular base.
     let mem_alloc = vk::MemoryAllocateInfo {
         s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
         p_next: ptr::null(),

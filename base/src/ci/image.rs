@@ -10,7 +10,7 @@ use crate::vkuint;
 use std::ptr;
 
 // ----------------------------------------------------------------------------------------------
-// Wrapper class for vk::ImageCreateInfo.
+/// Wrapper class for vk::ImageCreateInfo.
 #[derive(Debug, Clone)]
 pub struct ImageCI {
 
@@ -139,7 +139,7 @@ impl From<ImageCI> for vk::ImageCreateInfo {
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-// Wrapper class for vk::ImageViewCreateInfo.
+/// Wrapper class for vk::ImageViewCreateInfo.
 #[derive(Debug, Clone)]
 pub struct ImageViewCI {
     ci: vk::ImageViewCreateInfo,
@@ -237,7 +237,7 @@ impl From<ImageViewCI> for vk::ImageViewCreateInfo {
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-// Wrapper class for vk::ImageMemoryBarrier.
+/// Wrapper class for vk::ImageMemoryBarrier.
 #[derive(Debug, Clone)]
 pub struct ImageBarrierCI {
     ci: vk::ImageMemoryBarrier,

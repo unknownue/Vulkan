@@ -142,7 +142,6 @@ impl VulkanCI<vk::PipelineShaderStageCreateInfo> for ShaderStageCI {
             ci: vk::PipelineShaderStageCreateInfo {
                 s_type : vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
                 p_next : ptr::null(),
-                // flags is reserved for future use in API version 1.1.82.
                 flags  : vk::PipelineShaderStageCreateFlags::empty(),
                 p_name : ptr::null(),
                 stage  : vk::ShaderStageFlags::empty(),
@@ -175,13 +174,15 @@ impl ShaderStageCI {
 
     pub fn main(mut self, name: impl AsRef<str>) -> ShaderStageCI {
         self.main = CString::new(name.as_ref().to_owned())
-            .expect("Invalid name of main func in shader.");
-        self
+            .expect("Invalid name of main func in shader."); self
+    }
+
+    pub fn flags(mut self, flags: vk::PipelineShaderStageCreateFlags) -> ShaderStageCI {
+        self.ci.flags = flags; self
     }
 
     pub fn specialization(mut self, info: vk::SpecializationInfo) -> ShaderStageCI {
-        self.specialization = Some(info);
-        self
+        self.specialization = Some(info); self
     }
 
     pub fn build(&self) -> vk::PipelineShaderStageCreateInfo {
