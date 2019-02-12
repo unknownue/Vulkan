@@ -1,5 +1,6 @@
 
 pub use self::renderpass::{RenderPassCI, RenderPassBI};
+pub use self::renderpass::{AttachmentDescCI, SubpassDescCI, SubpassDependencyCI};
 
 pub use self::state::VertexInputSCI;
 pub use self::state::InputAssemblySCI;
@@ -369,3 +370,13 @@ impl GraphicsPipelineCI {
         self.dynamic = sci;
     }
 }
+
+impl VkObjectCreatable for vk::Pipeline {
+
+    fn discard(self, device: &VkDevice) {
+        unsafe {
+            device.logic.handle.destroy_pipeline(self, None);
+        }
+    }
+}
+// ----------------------------------------------------------------------------------------------

@@ -114,10 +114,7 @@ impl vkbase::Workflow for VulkanExample {
 
     fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
-        unsafe {
-            device.logic.handle.destroy_pipeline(self.pipeline, None);
-        }
-
+        device.discard(self.pipeline);
         device.discard(self.render_pass);
         device.discard(&self.framebuffers);
 
@@ -211,10 +208,7 @@ impl VulkanExample {
         device.discard(self.descriptor_set_layout);
         device.discard(self.descriptor_pool);
 
-        unsafe {
-            device.logic.handle.destroy_pipeline(self.pipeline, None);
-        }
-
+        device.discard(self.pipeline);
         device.discard(self.pipeline_layout);
         device.discard(self.render_pass);
         device.discard(&self.framebuffers);
@@ -332,94 +326,36 @@ fn setup_depth_stencil(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<D
 fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::RenderPass> {
 
     use vkbase::ci::pipeline::RenderPassCI;
+    use vkbase::ci::pipeline::{AttachmentDescCI, SubpassDescCI, SubpassDependencyCI};
 
-    let color_attachment = vk::AttachmentDescription {
-        flags: vk::AttachmentDescriptionFlags::empty(),
-        format: swapchain.backend_format,
-        samples: vk::SampleCountFlags::TYPE_1,
-        load_op: vk::AttachmentLoadOp::CLEAR,
-        store_op: vk::AttachmentStoreOp::STORE,
-        stencil_load_op: vk::AttachmentLoadOp::DONT_CARE,
-        stencil_store_op: vk::AttachmentStoreOp::DONT_CARE,
-        initial_layout: vk::ImageLayout::UNDEFINED,
-        final_layout: vk::ImageLayout::PRESENT_SRC_KHR,
-    };
+    let color_attachment = AttachmentDescCI::new(swapchain.backend_format)
+        .op(vk::AttachmentLoadOp::CLEAR, vk::AttachmentStoreOp::STORE)
+        .layout(vk::ImageLayout::UNDEFINED, vk::ImageLayout::PRESENT_SRC_KHR);
 
-    let depth_attachment = vk::AttachmentDescription {
-        flags: vk::AttachmentDescriptionFlags::empty(),
-        format: device.phy.depth_format,
-        samples: vk::SampleCountFlags::TYPE_1,
-        load_op: vk::AttachmentLoadOp::CLEAR,
-        store_op: vk::AttachmentStoreOp::DONT_CARE,
-        stencil_load_op  : vk::AttachmentLoadOp::DONT_CARE,
-        stencil_store_op : vk::AttachmentStoreOp::DONT_CARE,
-        initial_layout: vk::ImageLayout::UNDEFINED,
-        final_layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-    };
+    let depth_attachment = AttachmentDescCI::new(device.phy.depth_format)
+        .op(vk::AttachmentLoadOp::CLEAR, vk::AttachmentStoreOp::DONT_CARE)
+        .layout(vk::ImageLayout::UNDEFINED, vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
+    let subpass_description = SubpassDescCI::new(vk::PipelineBindPoint::GRAPHICS)
+        .add_color_attachment(0, vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL) // Attachment 0 is color.
+        .set_depth_stencil_attachment(1, vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL); // Attachment 1 is depth-stencil.
 
-    let color_refs = [
-        vk::AttachmentReference {
-            attachment: 0, // Attachment 0 is color.
-            layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-        }
-    ];
-    let depth_ref = vk::AttachmentReference {
-        attachment: 1, // Attachment 0 is depth-stencil.
-        layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-    };
+    let dependency0 = SubpassDependencyCI::new(vk::SUBPASS_EXTERNAL, 0)
+        .stage_mask(vk::PipelineStageFlags::BOTTOM_OF_PIPE, vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .access_mask(vk::AccessFlags::MEMORY_READ, vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
+        .flags(vk::DependencyFlags::BY_REGION);
 
-    let subpass_description = vk::SubpassDescription {
-        flags                      : vk::SubpassDescriptionFlags::empty(),
-        pipeline_bind_point        : vk::PipelineBindPoint::GRAPHICS,
-        input_attachment_count     : 0,
-        // Input attachments can be used to sample from contents of a previous subpass.
-        p_input_attachments        : ptr::null(),
-        // Reference to the color attachment in slot 0.
-        color_attachment_count     : color_refs.len() as _,
-        p_color_attachments        : color_refs.as_ptr(),
-        // Resolve attachments are resolved at the end of a sub pass and can be used for e.g. multi sampling.
-        p_resolve_attachments      : ptr::null(),
-        // Reference to the depth attachment in slot 1.
-        p_depth_stencil_attachment : &depth_ref,
-        // Preserved attachments can be used to loop (and preserve) attachments through subpasses.
-        preserve_attachment_count  : 0,
-        p_preserve_attachments     : ptr::null(),
-    };
-
-    let dependencies = [
-        // First dependency at the start of the renderpass does the transition from final to initial layout.
-        vk::SubpassDependency {
-            // Producer of the dependency.
-            src_subpass: vk::SUBPASS_EXTERNAL,
-            // Consumer is our single subpass that will wait for the execution dependency.
-            dst_subpass: 0,
-            src_stage_mask   : vk::PipelineStageFlags::BOTTOM_OF_PIPE,
-            dst_stage_mask   : vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-            src_access_mask  : vk::AccessFlags::MEMORY_READ,
-            dst_access_mask  : vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-            dependency_flags : vk::DependencyFlags::BY_REGION,
-        },
-        // Second dependency at the end the renderpass does the transition from the initial to the final layout.
-        vk::SubpassDependency {
-            // Producer of the dependency is our single subpass.
-            src_subpass: 0,
-            // Consumer are all commands outside of the renderpass.
-            dst_subpass: vk::SUBPASS_EXTERNAL,
-            src_stage_mask   : vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-            dst_stage_mask   : vk::PipelineStageFlags::BOTTOM_OF_PIPE,
-            src_access_mask  : vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-            dst_access_mask  : vk::AccessFlags::MEMORY_READ,
-            dependency_flags : vk::DependencyFlags::BY_REGION,
-        },
-    ];
+    let dependency1 = SubpassDependencyCI::new(0, vk::SUBPASS_EXTERNAL)
+        .stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::PipelineStageFlags::BOTTOM_OF_PIPE)
+        .access_mask(vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE, vk::AccessFlags::MEMORY_READ)
+        .flags(vk::DependencyFlags::BY_REGION);
 
     let render_pass = RenderPassCI::new()
-        .add_attachment(color_attachment)
-        .add_attachment(depth_attachment)
-        .add_subpass(subpass_description)
-        .add_dependency(dependencies[0])
-        .add_dependency(dependencies[1])
+        .add_attachment(color_attachment.value())
+        .add_attachment(depth_attachment.value())
+        .add_subpass(subpass_description.value())
+        .add_dependency(dependency0.value())
+        .add_dependency(dependency1.value())
         .build(device)?;
 
     Ok(render_pass)
