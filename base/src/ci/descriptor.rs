@@ -4,7 +4,7 @@ use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
 use crate::context::{VkObjectCreatable, VkObjectAllocatable};
-use crate::ci::VulkanCI;
+use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
@@ -19,9 +19,10 @@ pub struct DescriptorPoolCI {
     pool_sizes: Vec<vk::DescriptorPoolSize>,
 }
 
-impl VulkanCI<vk::DescriptorPoolCreateInfo> for DescriptorPoolCI {
+impl VulkanCI for DescriptorPoolCI {
+    type CIType = vk::DescriptorPoolCreateInfo;
 
-    fn default_ci() -> vk::DescriptorPoolCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::DescriptorPoolCreateInfo {
             s_type: vk::StructureType::DESCRIPTOR_POOL_CREATE_INFO,
@@ -31,6 +32,25 @@ impl VulkanCI<vk::DescriptorPoolCreateInfo> for DescriptorPoolCI {
             pool_size_count: 0,
             p_pool_sizes   : ptr::null(),
         }
+    }
+}
+
+impl VkObjectBuildableCI for DescriptorPoolCI {
+    type ObjectType = vk::DescriptorPool;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let pool_ci = vk::DescriptorPoolCreateInfo {
+            pool_size_count: self.pool_sizes.len() as _,
+            p_pool_sizes   : self.pool_sizes.as_ptr(),
+            ..self.ci
+        };
+
+        let descriptor_pool = unsafe {
+            device.logic.handle.create_descriptor_pool(&pool_ci, None)
+                .map_err(|_| VkError::create("Descriptor Pool"))?
+        };
+        Ok(descriptor_pool)
     }
 }
 
@@ -58,18 +78,6 @@ impl DescriptorPoolCI {
         };
         self.pool_sizes.push(new_descriptor); self
     }
-
-    pub fn build(mut self, device: &VkDevice) -> VkResult<vk::DescriptorPool> {
-
-        self.ci.pool_size_count = self.pool_sizes.len() as _;
-        self.ci.p_pool_sizes    = self.pool_sizes.as_ptr();
-
-        let descriptor_pool = unsafe {
-            device.logic.handle.create_descriptor_pool(&self.ci, None)
-                .map_err(|_| VkError::create("Descriptor Pool"))?
-        };
-        Ok(descriptor_pool)
-    }
 }
 
 impl VkObjectCreatable for vk::DescriptorPool {
@@ -91,9 +99,10 @@ pub struct DescriptorSetLayoutCI {
     bindings: Vec<vk::DescriptorSetLayoutBinding>,
 }
 
-impl VulkanCI<vk::DescriptorSetLayoutCreateInfo> for DescriptorSetLayoutCI {
+impl VulkanCI for DescriptorSetLayoutCI {
+    type CIType = vk::DescriptorSetLayoutCreateInfo;
 
-    fn default_ci() -> vk::DescriptorSetLayoutCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::DescriptorSetLayoutCreateInfo {
             s_type: vk::StructureType::DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -105,6 +114,25 @@ impl VulkanCI<vk::DescriptorSetLayoutCreateInfo> for DescriptorSetLayoutCI {
     }
 }
 
+impl VkObjectBuildableCI for DescriptorSetLayoutCI {
+    type ObjectType = vk::DescriptorSetLayout;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let set_layout_ci = vk::DescriptorSetLayoutCreateInfo {
+            binding_count: self.bindings.len() as _,
+            p_bindings   : self.bindings.as_ptr(),
+            ..self.ci
+        };
+
+        let descriptor_set_layout = unsafe {
+            device.logic.handle.create_descriptor_set_layout(&set_layout_ci, None)
+                .map_err(|_| VkError::create("Descriptor Set Layout"))?
+        };
+        Ok(descriptor_set_layout)
+    }
+}
+
 impl DescriptorSetLayoutCI {
 
     pub fn new() -> DescriptorSetLayoutCI {
@@ -113,18 +141,6 @@ impl DescriptorSetLayoutCI {
             ci: DescriptorSetLayoutCI::default_ci(),
             bindings: Vec::new(),
         }
-    }
-
-    pub fn build(mut self, device: &VkDevice) -> VkResult<vk::DescriptorSetLayout> {
-
-        self.ci.binding_count = self.bindings.len() as _;
-        self.ci.p_bindings    = self.bindings.as_ptr();
-
-        let descriptor_set_layout = unsafe {
-            device.logic.handle.create_descriptor_set_layout(&self.ci, None)
-                .map_err(|_| VkError::create("Descriptor Set Layout"))?
-        };
-        Ok(descriptor_set_layout)
     }
 
     pub fn add_binding(mut self, binding: vk::DescriptorSetLayoutBinding) -> DescriptorSetLayoutCI {
@@ -154,9 +170,10 @@ pub struct DescriptorSetAI {
     set_layouts: Vec<vk::DescriptorSetLayout>,
 }
 
-impl VulkanCI<vk::DescriptorSetAllocateInfo> for DescriptorSetAI {
+impl VulkanCI for DescriptorSetAI {
+    type CIType = vk::DescriptorSetAllocateInfo;
 
-    fn default_ci() -> vk::DescriptorSetAllocateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::DescriptorSetAllocateInfo {
             s_type: vk::StructureType::DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -165,6 +182,25 @@ impl VulkanCI<vk::DescriptorSetAllocateInfo> for DescriptorSetAI {
             descriptor_set_count: 0,
             p_set_layouts       : ptr::null(),
         }
+    }
+}
+
+impl VkObjectBuildableCI for DescriptorSetAI {
+    type ObjectType = Vec<vk::DescriptorSet>;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let sets_ai = vk::DescriptorSetAllocateInfo {
+            descriptor_set_count: self.set_layouts.len() as _,
+            p_set_layouts       : self.set_layouts.as_ptr(),
+            ..self.ai
+        };
+
+        let descriptor_sets = unsafe {
+            device.logic.handle.allocate_descriptor_sets(&sets_ai)
+                .map_err(|_| VkError::create("Allocate Descriptor Set"))?
+        };
+        Ok(descriptor_sets)
     }
 }
 
@@ -183,18 +219,6 @@ impl DescriptorSetAI {
 
     pub fn add_set_layout(mut self, set_layout: vk::DescriptorSetLayout) -> DescriptorSetAI {
         self.set_layouts.push(set_layout); self
-    }
-
-    pub fn build(mut self, device: &VkDevice) -> VkResult<Vec<vk::DescriptorSet>> {
-
-        self.ai.descriptor_set_count = self.set_layouts.len() as _;
-        self.ai.p_set_layouts        = self.set_layouts.as_ptr();
-
-        let descriptor_sets = unsafe {
-            device.logic.handle.allocate_descriptor_sets(&self.ai)
-                .map_err(|_| VkError::create("Allocate Descriptor Set"))?
-        };
-        Ok(descriptor_sets)
     }
 }
 
@@ -227,9 +251,10 @@ pub struct DescriptorBufferSetWI {
     writes: Vec<vk::DescriptorBufferInfo>,
 }
 
-impl VulkanCI<vk::WriteDescriptorSet> for DescriptorBufferSetWI {
+impl VulkanCI for DescriptorBufferSetWI {
+    type CIType = vk::WriteDescriptorSet;
 
-    fn default_ci() -> vk::WriteDescriptorSet {
+    fn default_ci() -> Self::CIType {
 
         vk::WriteDescriptorSet {
             s_type: vk::StructureType::WRITE_DESCRIPTOR_SET,
@@ -269,7 +294,7 @@ impl DescriptorBufferSetWI {
         self.wi.dst_array_element = array_element; self
     }
 
-    pub fn build(&self) -> vk::WriteDescriptorSet {
+    pub fn value(&self) -> vk::WriteDescriptorSet {
 
         vk::WriteDescriptorSet {
             descriptor_count: self.writes.len() as _,
@@ -288,9 +313,10 @@ pub struct DescriptorImageSetWI {
     writes: Vec<vk::DescriptorImageInfo>,
 }
 
-impl VulkanCI<vk::WriteDescriptorSet> for DescriptorImageSetWI {
+impl VulkanCI for DescriptorImageSetWI {
+    type CIType = vk::WriteDescriptorSet;
 
-    fn default_ci() -> vk::WriteDescriptorSet {
+    fn default_ci() -> Self::CIType {
 
         vk::WriteDescriptorSet {
             s_type: vk::StructureType::WRITE_DESCRIPTOR_SET,
@@ -330,7 +356,7 @@ impl DescriptorImageSetWI {
         self.wi.dst_array_element = array_element; self
     }
 
-    pub fn build(&self) -> vk::WriteDescriptorSet {
+    pub fn value(&self) -> vk::WriteDescriptorSet {
 
         vk::WriteDescriptorSet {
             descriptor_count: self.writes.len() as _,

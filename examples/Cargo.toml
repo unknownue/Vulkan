@@ -13,6 +13,7 @@ An implementaion of SaschaWillems/Vulkan(https://github.com/SaschaWillems/Vulkan
 ash = "0.27.1"
 winit = "0.18.1"
 nalgebra = "0.16"
+shaderc = "0.3.10"
 memoffset = "0.2"
 
 vkbase = { package = "vulkan-base", path = "../base" }

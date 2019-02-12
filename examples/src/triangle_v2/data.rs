@@ -3,6 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use vkbase::context::VkDevice;
+use vkbase::ci::VkObjectBuildableCI;
 use vkbase::{VkResult, VkError};
 use vkbase::{vkuint, vkbytes};
 

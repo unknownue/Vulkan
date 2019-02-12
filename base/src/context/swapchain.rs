@@ -7,6 +7,7 @@ use crate::context::instance::VkInstance;
 use crate::context::device::{VkDevice, VkQueue};
 use crate::context::surface::VkSurface;
 use crate::ci::image::ImageViewCI;
+use crate::ci::VkObjectBuildableCI;
 use crate::error::{VkResult, VkError};
 use crate::utils::time::VkTimeDuration;
 use crate::{vkuint, vklint};

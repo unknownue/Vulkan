@@ -8,9 +8,20 @@ pub mod memory;
 pub mod command;
 pub mod sync;
 
-trait VulkanCI<T>
+
+use crate::context::VkDevice;
+use crate::VkResult;
+
+pub trait VulkanCI
     where
         Self: Sized + Clone {
+    type CIType;
 
-    fn default_ci() -> T;
+    fn default_ci() -> Self::CIType;
+}
+
+pub trait VkObjectBuildableCI: VulkanCI {
+    type ObjectType;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType>;
 }

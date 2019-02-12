@@ -6,6 +6,7 @@ mod queue;
 pub use self::logical::{VkLogicalDevice, VkQueue, LogicDevConfig};
 pub use self::physical::{VkPhysicalDevice, PhysicalDevConfig};
 
+
 pub struct VkDevice {
 
     pub logic : logical::VkLogicalDevice,
@@ -13,6 +14,13 @@ pub struct VkDevice {
 }
 
 impl VkDevice {
+
+    #[inline]
+    pub fn build<T>(&self, ci: T) -> crate::VkResult<T::ObjectType>
+        where
+            T: crate::ci::VkObjectBuildableCI {
+        ci.build(self)
+    }
 
     #[inline]
     pub fn discard(&self, object: impl VkObjectCreatable) {

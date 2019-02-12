@@ -15,9 +15,10 @@ pub struct VertexInputSCI {
     attributes: Vec<vk::VertexInputAttributeDescription>,
 }
 
-impl VulkanCI<vk::PipelineVertexInputStateCreateInfo> for VertexInputSCI {
+impl VulkanCI for VertexInputSCI {
+    type CIType = vk::PipelineVertexInputStateCreateInfo;
 
-    fn default_ci() -> vk::PipelineVertexInputStateCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineVertexInputStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -74,9 +75,10 @@ pub struct InputAssemblySCI {
     sci: vk::PipelineInputAssemblyStateCreateInfo,
 }
 
-impl VulkanCI<vk::PipelineInputAssemblyStateCreateInfo> for InputAssemblySCI {
+impl VulkanCI for InputAssemblySCI {
+    type CIType = vk::PipelineInputAssemblyStateCreateInfo;
 
-    fn default_ci() -> vk::PipelineInputAssemblyStateCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineInputAssemblyStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -129,9 +131,10 @@ pub struct RasterizationSCI {
     sci: vk::PipelineRasterizationStateCreateInfo,
 }
 
-impl VulkanCI<vk::PipelineRasterizationStateCreateInfo> for RasterizationSCI {
+impl VulkanCI for RasterizationSCI {
+    type CIType = vk::PipelineRasterizationStateCreateInfo;
 
-    fn default_ci() -> vk::PipelineRasterizationStateCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineRasterizationStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -210,9 +213,10 @@ pub struct ColorBlendSCI {
     attachments: Vec<vk::PipelineColorBlendAttachmentState>,
 }
 
-impl VulkanCI<vk::PipelineColorBlendStateCreateInfo> for ColorBlendSCI {
+impl VulkanCI for ColorBlendSCI {
+    type CIType = vk::PipelineColorBlendStateCreateInfo;
 
-    fn default_ci() -> vk::PipelineColorBlendStateCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineColorBlendStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -270,9 +274,10 @@ pub struct BlendAttachmentSCI {
     sci: vk::PipelineColorBlendAttachmentState,
 }
 
-impl VulkanCI<vk::PipelineColorBlendAttachmentState> for BlendAttachmentSCI {
+impl VulkanCI for BlendAttachmentSCI {
+    type CIType = vk::PipelineColorBlendAttachmentState;
 
-    fn default_ci() -> vk::PipelineColorBlendAttachmentState {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineColorBlendAttachmentState {
             blend_enable: vk::FALSE,
@@ -338,9 +343,10 @@ pub struct ViewportSCI {
     scissors : Vec<vk::Rect2D>,
 }
 
-impl VulkanCI<vk::PipelineViewportStateCreateInfo> for ViewportSCI {
+impl VulkanCI for ViewportSCI {
+    type CIType = vk::PipelineViewportStateCreateInfo;
 
-    fn default_ci() -> vk::PipelineViewportStateCreateInfo {
+    fn default_ci() -> Self::CIType {
 
             vk::PipelineViewportStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_VIEWPORT_STATE_CREATE_INFO,
@@ -398,9 +404,10 @@ pub struct DepthStencilSCI {
     sci: vk::PipelineDepthStencilStateCreateInfo,
 }
 
-impl VulkanCI<vk::PipelineDepthStencilStateCreateInfo> for DepthStencilSCI {
+impl VulkanCI for DepthStencilSCI {
+    type CIType = vk::PipelineDepthStencilStateCreateInfo;
 
-    fn default_ci() -> vk::PipelineDepthStencilStateCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         let stencil_op = vk::StencilOpState {
             fail_op: vk::StencilOp::KEEP,
@@ -483,9 +490,10 @@ pub struct MultisampleSCI {
     sample_mask: Option<vk::SampleMask>,
 }
 
-impl VulkanCI<vk::PipelineMultisampleStateCreateInfo> for MultisampleSCI {
+impl VulkanCI for MultisampleSCI {
+    type CIType = vk::PipelineMultisampleStateCreateInfo;
 
-    fn default_ci() -> vk::PipelineMultisampleStateCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineMultisampleStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
@@ -559,9 +567,10 @@ pub struct DynamicSCI {
     dynamics: Vec<vk::DynamicState>,
 }
 
-impl VulkanCI<vk::PipelineDynamicStateCreateInfo> for DynamicSCI {
+impl VulkanCI for DynamicSCI {
+    type CIType = vk::PipelineDynamicStateCreateInfo;
 
-    fn default_ci() -> vk::PipelineDynamicStateCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineDynamicStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_DYNAMIC_STATE_CREATE_INFO,

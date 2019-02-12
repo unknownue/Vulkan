@@ -1,11 +1,13 @@
 
-use ash::vk;
-
 use crate::error::{VkResult, VkError};
+
+use std::path::{PathBuf, Path};
+use std::fs::File;
+use std::io::Read;
 
 pub struct ShadercOptions {
 
-    pub optimal_level : shaderc::OptimizationLevel,
+    pub optimal_level   : shaderc::OptimizationLevel,
     pub debug_info      : bool,
     pub suppress_warning: bool,
     pub error_warning   : bool,
@@ -71,12 +73,13 @@ impl VkShaderCompiler {
         self.options = options;
     }
 
-    pub fn compile_source_into_spirv(&mut self, source: &str, stage: vk::ShaderStageFlags, input_name: &str, entry_name: &str) -> VkResult<Vec<u8>> {
+    pub fn compile_from_path(&mut self, path: impl AsRef<Path>, stage: shaderc::ShaderKind, input_name: &str, entry_name: &str) -> VkResult<Vec<u8>> {
 
-        let shader_kind = cast_shaderc_kind(stage);
+        let source_text = load_to_string(PathBuf::from(path.as_ref()))?;
+
         let compile_options = self.options.to_shaderc_options()?;
 
-        let result = self.compiler.compile_into_spirv(source, shader_kind, input_name, entry_name, Some(&compile_options))
+        let result = self.compiler.compile_into_spirv(&source_text, stage, input_name, entry_name, Some(&compile_options))
             .map_err(|e| VkError::shaderc(format!("Failed to compile {}({})", input_name, e)))?;
 
         if result.get_num_warnings() > 0 {
@@ -88,15 +91,13 @@ impl VkShaderCompiler {
     }
 }
 
-fn cast_shaderc_kind(stage: vk::ShaderStageFlags) -> shaderc::ShaderKind {
-    match stage {
-        | vk::ShaderStageFlags::VERTEX                  => shaderc::ShaderKind::Vertex,
-        | vk::ShaderStageFlags::GEOMETRY                => shaderc::ShaderKind::Geometry,
-        | vk::ShaderStageFlags::TESSELLATION_CONTROL    => shaderc::ShaderKind::TessControl,
-        | vk::ShaderStageFlags::TESSELLATION_EVALUATION => shaderc::ShaderKind::TessEvaluation,
-        | vk::ShaderStageFlags::FRAGMENT                => shaderc::ShaderKind::Fragment,
-        | vk::ShaderStageFlags::COMPUTE                 => shaderc::ShaderKind::Compute,
-        | vk::ShaderStageFlags::ALL_GRAPHICS
-        | _ => shaderc::ShaderKind::InferFromSource,
-    }
+fn load_to_string(path: PathBuf) -> VkResult<String> {
+
+    let mut file = File::open(path.clone())
+        .map_err(|_| VkError::path(path))?;
+    let mut contents = String::new();
+    let _size = file.read_to_string(&mut contents)
+        .or(Err(VkError::other("Unable to shader code.")))?;
+
+    Ok(contents)
 }

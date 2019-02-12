@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::ci::VulkanCI;
+use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
@@ -18,9 +18,10 @@ pub struct ImageCI {
     queue_families: Vec<vkuint>,
 }
 
-impl VulkanCI<vk::ImageCreateInfo> for ImageCI {
+impl VulkanCI for ImageCI {
+    type CIType = vk::ImageCreateInfo;
 
-    fn default_ci() -> vk::ImageCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::ImageCreateInfo {
             s_type: vk::StructureType::IMAGE_CREATE_INFO,
@@ -39,6 +40,30 @@ impl VulkanCI<vk::ImageCreateInfo> for ImageCI {
             queue_family_index_count: 0,
             p_queue_family_indices  : ptr::null(),
         }
+    }
+}
+
+impl VkObjectBuildableCI for ImageCI {
+    type ObjectType = (vk::Image, vk::MemoryRequirements);
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let image_ci = vk::ImageCreateInfo {
+            queue_family_index_count: self.queue_families.len() as _,
+            p_queue_family_indices  : self.queue_families.as_ptr(),
+            ..self.ci
+        };
+
+        let image = unsafe {
+            device.logic.handle.create_image(&image_ci, None)
+                .map_err(|_| VkError::create("Image"))?
+        };
+
+        let requirement = unsafe {
+            device.logic.handle.get_image_memory_requirements(image)
+        };
+
+        Ok((image, requirement))
     }
 }
 
@@ -66,23 +91,6 @@ impl ImageCI {
         };
 
         ImageCI::new(vk::ImageType::TYPE_2D, format, extent)
-    }
-
-    pub fn build(mut self, device: &VkDevice) -> VkResult<(vk::Image, vk::MemoryRequirements)> {
-
-        self.ci.queue_family_index_count = self.queue_families.len() as _;
-        self.ci.p_queue_family_indices = self.queue_families.as_ptr();
-
-        let image = unsafe {
-            device.logic.handle.create_image(&self.ci, None)
-                .map_err(|_| VkError::create("Image"))?
-        };
-
-        let requirement = unsafe {
-            device.logic.handle.get_image_memory_requirements(image)
-        };
-
-        Ok((image, requirement))
     }
 
     pub fn flags(mut self, flags: vk::ImageCreateFlags) -> ImageCI {
@@ -136,9 +144,10 @@ pub struct ImageViewCI {
     ci: vk::ImageViewCreateInfo,
 }
 
-impl VulkanCI<vk::ImageViewCreateInfo> for ImageViewCI {
+impl VulkanCI for ImageViewCI {
+    type CIType = vk::ImageViewCreateInfo;
 
-    fn default_ci() -> vk::ImageViewCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::ImageViewCreateInfo {
             s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
@@ -164,6 +173,19 @@ impl VulkanCI<vk::ImageViewCreateInfo> for ImageViewCI {
     }
 }
 
+impl VkObjectBuildableCI for ImageViewCI {
+    type ObjectType = vk::ImageView;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let view = unsafe {
+            device.logic.handle.create_image_view(&self.ci, None)
+                .map_err(|_| VkError::create("Image View"))?
+        };
+        Ok(view)
+    }
+}
+
 impl ImageViewCI {
 
     pub fn new(image: vk::Image, r#type: vk::ImageViewType, format: vk::Format) -> ImageViewCI {
@@ -175,15 +197,6 @@ impl ImageViewCI {
                 ..ImageViewCI::default_ci()
             },
         }
-    }
-
-    pub fn build(self, device: &VkDevice) -> VkResult<vk::ImageView> {
-
-        let view = unsafe {
-            device.logic.handle.create_image_view(&self.ci, None)
-                .map_err(|_| VkError::create("Image View"))?
-        };
-        Ok(view)
     }
 
     pub fn flags(mut self, flags: vk::ImageViewCreateFlags) -> ImageViewCI {
@@ -226,9 +239,10 @@ pub struct ImageBarrierCI {
     ci: vk::ImageMemoryBarrier,
 }
 
-impl VulkanCI<vk::ImageMemoryBarrier> for ImageBarrierCI {
+impl VulkanCI for ImageBarrierCI {
+    type CIType = vk::ImageMemoryBarrier;
 
-    fn default_ci() -> vk::ImageMemoryBarrier {
+    fn default_ci() -> Self::CIType {
 
         vk::ImageMemoryBarrier {
             s_type: vk::StructureType::IMAGE_MEMORY_BARRIER,
@@ -258,7 +272,7 @@ impl ImageBarrierCI {
         }
     }
 
-    pub fn build(&self) -> vk::ImageMemoryBarrier {
+    pub fn value(&self) -> vk::ImageMemoryBarrier {
         self.ci.clone()
     }
 

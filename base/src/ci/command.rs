@@ -4,7 +4,7 @@ use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
 use crate::context::{VkObjectCreatable, VkObjectAllocatable};
-use crate::ci::VulkanCI;
+use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
@@ -17,9 +17,10 @@ pub struct CommandBufferAI {
     ai: vk::CommandBufferAllocateInfo,
 }
 
-impl VulkanCI<vk::CommandBufferAllocateInfo> for CommandBufferAI {
+impl VulkanCI for CommandBufferAI {
+    type CIType = vk::CommandBufferAllocateInfo;
 
-    fn default_ci() -> vk::CommandBufferAllocateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::CommandBufferAllocateInfo {
             s_type: vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
@@ -28,6 +29,19 @@ impl VulkanCI<vk::CommandBufferAllocateInfo> for CommandBufferAI {
             level: vk::CommandBufferLevel::PRIMARY,
             command_buffer_count: 1,
         }
+    }
+}
+
+impl VkObjectBuildableCI for CommandBufferAI {
+    type ObjectType = Vec<vk::CommandBuffer>;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let commands = unsafe {
+            device.logic.handle.allocate_command_buffers(&self.ai)
+                .map_err(|_| VkError::create("Command Buffers"))?
+        };
+        Ok(commands)
     }
 }
 
@@ -46,15 +60,6 @@ impl CommandBufferAI {
 
     pub fn level(mut self, level: vk::CommandBufferLevel) -> CommandBufferAI {
         self.ai.level = level; self
-    }
-
-    pub fn build(&self, device: &VkDevice) -> VkResult<Vec<vk::CommandBuffer>> {
-
-        let commands = unsafe {
-            device.logic.handle.allocate_command_buffers(&self.ai)
-                .map_err(|_| VkError::create("Command Buffers"))?
-        };
-        Ok(commands)
     }
 }
 
@@ -85,9 +90,10 @@ pub struct CommandPoolCI {
     ci: vk::CommandPoolCreateInfo,
 }
 
-impl VulkanCI<vk::CommandPoolCreateInfo> for CommandPoolCI {
+impl VulkanCI for CommandPoolCI {
+    type CIType = vk::CommandPoolCreateInfo;
 
-    fn default_ci() -> vk::CommandPoolCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::CommandPoolCreateInfo {
             s_type: vk::StructureType::COMMAND_POOL_CREATE_INFO,
@@ -95,6 +101,19 @@ impl VulkanCI<vk::CommandPoolCreateInfo> for CommandPoolCI {
             flags : vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
             queue_family_index: 0,
         }
+    }
+}
+
+impl VkObjectBuildableCI for CommandPoolCI {
+    type ObjectType = vk::CommandPool;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let pool = unsafe {
+            device.logic.handle.create_command_pool(&self.ci, None)
+                .map_err(|_| VkError::create("Command Pool"))?
+        };
+        Ok(pool)
     }
 }
 
@@ -112,15 +131,6 @@ impl CommandPoolCI {
 
     pub fn flags(mut self, flags: vk::CommandPoolCreateFlags) -> CommandPoolCI {
         self.ci.flags = flags; self
-    }
-
-    pub fn build(&self, device: &VkDevice) -> VkResult<vk::CommandPool> {
-
-        let pool = unsafe {
-            device.logic.handle.create_command_pool(&self.ci, None)
-                .map_err(|_| VkError::create("Command Pool"))?
-        };
-        Ok(pool)
     }
 }
 

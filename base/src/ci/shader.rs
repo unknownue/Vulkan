@@ -3,8 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::ci::VulkanCI;
-use crate::utils::shaderc::VkShaderCompiler;
+use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 
 use std::path::{Path, PathBuf};
@@ -20,23 +19,21 @@ pub struct ShaderModuleCI {
 
     ci: vk::ShaderModuleCreateInfo,
 
-    path : PathBuf,
     main : String,
-
-    tag_name: String,
     shader_type: ShaderType,
     shader_stage: vk::ShaderStageFlags,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 enum ShaderType {
-    GLSLSource,
-    SprivSource,
+    GLSLSource(Vec<u8>),
+    SprivSource(PathBuf),
 }
 
-impl VulkanCI<vk::ShaderModuleCreateInfo> for ShaderModuleCI {
+impl VulkanCI for ShaderModuleCI {
+    type CIType = vk::ShaderModuleCreateInfo;
 
-    fn default_ci() -> vk::ShaderModuleCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::ShaderModuleCreateInfo {
             s_type    : vk::StructureType::SHADER_MODULE_CREATE_INFO,
@@ -48,25 +45,60 @@ impl VulkanCI<vk::ShaderModuleCreateInfo> for ShaderModuleCI {
     }
 }
 
+impl VkObjectBuildableCI for ShaderModuleCI {
+    type ObjectType = vk::ShaderModule;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        macro_rules! build_module {
+            ($codes:ident) => {
+
+                {
+                    let shader_module_ci = vk::ShaderModuleCreateInfo {
+                        code_size : $codes.len(),
+                        p_code    : $codes.as_ptr() as _,
+                        ..self.ci
+                    };
+
+                    unsafe {
+                        device.logic.handle.create_shader_module(&shader_module_ci, None)
+                            .or(Err(VkError::create("Shader Module")))?
+                    }
+                }
+            };
+        }
+
+        let module = match &self.shader_type {
+            | ShaderType::GLSLSource(codes) => {
+                build_module!(codes)
+            },
+            | ShaderType::SprivSource(path) => {
+                let codes = load_spriv_bytes(path)?;
+                build_module!(codes)
+            },
+        };
+
+        Ok(module)
+    }
+}
+
 impl ShaderModuleCI {
 
-    pub fn from_glsl(stage: vk::ShaderStageFlags, path: impl AsRef<Path>, tag_name: &str) -> ShaderModuleCI {
+    pub fn from_glsl(stage: vk::ShaderStageFlags, codes: Vec<u8>) -> ShaderModuleCI {
 
-        ShaderModuleCI::new(stage, ShaderType::GLSLSource, path, tag_name)
+        ShaderModuleCI::new(stage, ShaderType::GLSLSource(codes))
     }
 
-    pub fn from_spriv(stage: vk::ShaderStageFlags, path: impl AsRef<Path>, tag_name: &str) -> ShaderModuleCI {
+    pub fn from_spriv(stage: vk::ShaderStageFlags, path: impl AsRef<Path>) -> ShaderModuleCI {
 
-        ShaderModuleCI::new(stage, ShaderType::SprivSource, path, tag_name)
+        ShaderModuleCI::new(stage, ShaderType::SprivSource(PathBuf::from(path.as_ref())))
     }
 
-    fn new(stage: vk::ShaderStageFlags, ty: ShaderType, path: impl AsRef<Path>, tag_name: &str) -> ShaderModuleCI {
+    fn new(stage: vk::ShaderStageFlags, ty: ShaderType) -> ShaderModuleCI {
 
         ShaderModuleCI {
             ci: ShaderModuleCI::default_ci(),
-            path: PathBuf::from(path.as_ref()),
             main: String::from("main"),
-            tag_name: tag_name.into(),
             shader_type : ty,
             shader_stage: stage,
         }
@@ -79,31 +111,14 @@ impl ShaderModuleCI {
     pub fn flags(mut self, flags: vk::ShaderModuleCreateFlags) -> ShaderModuleCI {
         self.ci.flags = flags; self
     }
+}
 
-    pub fn build(self, device: &VkDevice, compiler: &mut VkShaderCompiler) -> VkResult<vk::ShaderModule> {
+impl crate::context::VkObjectCreatable for vk::ShaderModule {
 
-        let codes = match self.shader_type {
-            | ShaderType::GLSLSource => {
-
-                let source = load_to_string(self.path)?;
-                compiler.compile_source_into_spirv(&source, self.shader_stage, &self.tag_name, &self.main)?
-            },
-            | ShaderType::SprivSource => {
-                load_spriv_bytes(self.path)?
-            },
-        };
-
-        let shader_module_ci = vk::ShaderModuleCreateInfo {
-            code_size : codes.len(),
-            p_code    : codes.as_ptr() as _,
-            ..self.ci
-        };
-
-        let module = unsafe {
-            device.logic.handle.create_shader_module(&shader_module_ci, None)
-                .or(Err(VkError::create("Shader Module")))?
-        };
-        Ok(module)
+    fn discard(self, device: &VkDevice) {
+        unsafe {
+            device.logic.handle.destroy_shader_module(self, None);
+        }
     }
 }
 // ---------------------------------------------------------------------------------------------------
@@ -119,9 +134,10 @@ pub struct ShaderStageCI {
     specialization: Option<vk::SpecializationInfo>,
 }
 
-impl VulkanCI<vk::PipelineShaderStageCreateInfo> for ShaderStageCI {
+impl VulkanCI for ShaderStageCI {
+    type CIType = vk::PipelineShaderStageCreateInfo;
 
-    fn default_ci() -> vk::PipelineShaderStageCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineShaderStageCreateInfo {
             s_type : vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -175,20 +191,11 @@ impl ShaderStageCI {
         }
     }
 }
-
-impl crate::context::VkObjectCreatable for vk::ShaderModule {
-
-    fn discard(self, device: &VkDevice) {
-        unsafe {
-            device.logic.handle.destroy_shader_module(self, None);
-        }
-    }
-}
 // ---------------------------------------------------------------------------------------------------
 
 
 // helper functions. ---------------------------------------------------------------------------------
-fn load_spriv_bytes(path: PathBuf) -> VkResult<Vec<u8>> {
+fn load_spriv_bytes(path: &PathBuf) -> VkResult<Vec<u8>> {
 
     let file = File::open(path.clone())
         .map_err(|_| VkError::path(path))?;
@@ -197,16 +204,5 @@ fn load_spriv_bytes(path: PathBuf) -> VkResult<Vec<u8>> {
         .collect();
 
     Ok(bytes)
-}
-
-fn load_to_string(path: PathBuf) -> VkResult<String> {
-
-    let mut file = File::open(path.clone())
-        .map_err(|_| VkError::path(path))?;
-    let mut contents = String::new();
-    let _size = file.read_to_string(&mut contents)
-        .or(Err(VkError::other("Unable to shader code.")))?;
-
-    Ok(contents)
 }
 // ---------------------------------------------------------------------------------------------------

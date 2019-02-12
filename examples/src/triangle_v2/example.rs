@@ -3,6 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use vkbase::context::{VkDevice, VkSwapchain};
+use vkbase::ci::VkObjectBuildableCI;
 use vkbase::{VkResult, VkError};
 use vkbase::FrameAction;
 use vkbase::vkuint;
@@ -295,7 +296,7 @@ fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, set_layout:
         .add_buffer(uniforms.descriptor.clone());
 
     unsafe {
-        device.logic.handle.update_descriptor_sets(&[write_info.build()], &[]);
+        device.logic.handle.update_descriptor_sets(&[write_info.value()], &[]);
     }
 
     Ok(descriptor_set)
@@ -488,11 +489,13 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
     use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 
     let mut shader_compiler = vkbase::utils::shaderc::VkShaderCompiler::new()?;
+    let vert_codes = shader_compiler.compile_from_path(Path::new(SHADER_VERTEX_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
+    let frag_codes = shader_compiler.compile_from_path(Path::new(SHADER_FRAGMENT_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
 
-    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, Path::new(SHADER_VERTEX_PATH), "[Vertex Shader]")
-        .build(device, &mut shader_compiler)?;
-    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, Path::new(SHADER_FRAGMENT_PATH), "[Fragment Shader]")
-        .build(device, &mut shader_compiler)?;
+    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+        .build(device)?;
+    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
+        .build(device)?;
 
     let vert_sci = ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module);
     let frag_sci = ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module);

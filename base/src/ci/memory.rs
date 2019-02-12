@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::ci::VulkanCI;
+use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
 
@@ -16,9 +16,10 @@ pub struct MemoryAI {
     ai: vk::MemoryAllocateInfo,
 }
 
-impl VulkanCI<vk::MemoryAllocateInfo> for MemoryAI {
+impl VulkanCI for MemoryAI {
+    type CIType = vk::MemoryAllocateInfo;
 
-    fn default_ci() -> vk::MemoryAllocateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::MemoryAllocateInfo {
             s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
@@ -26,6 +27,19 @@ impl VulkanCI<vk::MemoryAllocateInfo> for MemoryAI {
             allocation_size  : 0,
             memory_type_index: 0,
         }
+    }
+}
+
+impl VkObjectBuildableCI for MemoryAI {
+    type ObjectType = vk::DeviceMemory;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let memory = unsafe {
+            device.logic.handle.allocate_memory(&self.ai, None)
+                .map_err(|_| VkError::create("Memory Allocate"))?
+        };
+        Ok(memory)
     }
 }
 
@@ -39,15 +53,6 @@ impl MemoryAI {
                 ..MemoryAI::default_ci()
             },
         }
-    }
-
-    pub fn build(&self, device: &VkDevice) -> VkResult<vk::DeviceMemory> {
-
-        let memory = unsafe {
-            device.logic.handle.allocate_memory(&self.ai, None)
-                .map_err(|_| VkError::create("Memory Allocate"))?
-        };
-        Ok(memory)
     }
 }
 

@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::{VkDevice, VkObjectCreatable};
-use crate::ci::VulkanCI;
+use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
 
@@ -17,9 +17,10 @@ pub struct BufferCI {
     queue_families: Vec<vkuint>,
 }
 
-impl VulkanCI<vk::BufferCreateInfo> for BufferCI {
+impl VulkanCI for BufferCI {
+    type CIType = vk::BufferCreateInfo;
 
-    fn default_ci() -> vk::BufferCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::BufferCreateInfo {
             s_type: vk::StructureType::BUFFER_CREATE_INFO,
@@ -34,20 +35,10 @@ impl VulkanCI<vk::BufferCreateInfo> for BufferCI {
     }
 }
 
-impl BufferCI {
+impl VkObjectBuildableCI for BufferCI {
+    type ObjectType = (vk::Buffer, vk::MemoryRequirements);
 
-    pub fn new(size: vkbytes) -> BufferCI {
-
-        BufferCI {
-            ci: vk::BufferCreateInfo {
-                size,
-                ..BufferCI::default_ci()
-            },
-            queue_families: Vec::new(),
-        }
-    }
-
-    pub fn build(self, device: &VkDevice) -> VkResult<(vk::Buffer, vk::MemoryRequirements)> {
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let buffer = unsafe {
             device.logic.handle.create_buffer(&self.ci, None)
@@ -59,6 +50,20 @@ impl BufferCI {
         };
 
         Ok((buffer, requirement))
+    }
+}
+
+impl BufferCI {
+
+    pub fn new(size: vkbytes) -> BufferCI {
+
+        BufferCI {
+            ci: vk::BufferCreateInfo {
+                size,
+                ..BufferCI::default_ci()
+            },
+            queue_families: Vec::new(),
+        }
     }
 
     pub fn flags(mut self, flags: vk::BufferCreateFlags) -> BufferCI {

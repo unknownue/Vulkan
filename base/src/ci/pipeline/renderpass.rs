@@ -4,7 +4,7 @@ use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
 use crate::context::VkObjectCreatable;
-use crate::ci::VulkanCI;
+use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 
 use std::ptr;
@@ -18,9 +18,10 @@ pub struct RenderPassBI {
     clears: Vec<vk::ClearValue>,
 }
 
-impl VulkanCI<vk::RenderPassBeginInfo> for RenderPassBI {
+impl VulkanCI for RenderPassBI {
+    type CIType = vk::RenderPassBeginInfo;
 
-    fn default_ci() -> vk::RenderPassBeginInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::RenderPassBeginInfo {
             s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
@@ -88,9 +89,10 @@ pub struct RenderPassCI {
     dependencies: Vec<vk::SubpassDependency>,
 }
 
-impl VulkanCI<vk::RenderPassCreateInfo> for RenderPassCI {
+impl VulkanCI for RenderPassCI {
+    type CIType = vk::RenderPassCreateInfo;
 
-    fn default_ci() -> vk::RenderPassCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::RenderPassCreateInfo {
             s_type: vk::StructureType::RENDER_PASS_CREATE_INFO,
@@ -106,6 +108,29 @@ impl VulkanCI<vk::RenderPassCreateInfo> for RenderPassCI {
     }
 }
 
+impl VkObjectBuildableCI for RenderPassCI {
+    type ObjectType = vk::RenderPass;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let renderpass_ci = vk::RenderPassCreateInfo {
+            attachment_count: self.attachments.len() as _,
+            p_attachments   : self.attachments.as_ptr(),
+            subpass_count   : self.subpasses.len() as _,
+            p_subpasses     : self.subpasses.as_ptr(),
+            dependency_count: self.dependencies.len() as _,
+            p_dependencies  : self.dependencies.as_ptr(),
+            ..self.ci
+        };
+
+        let render_pass = unsafe {
+            device.logic.handle.create_render_pass(&renderpass_ci, None)
+                .map_err(|_| VkError::create("Render Pass"))?
+        };
+        Ok(render_pass)
+    }
+}
+
 impl RenderPassCI {
 
     pub fn new() -> RenderPassCI {
@@ -116,24 +141,6 @@ impl RenderPassCI {
             subpasses   : Vec::new(),
             dependencies: Vec::new(),
         }
-    }
-
-    pub fn build(mut self, device: &VkDevice) -> VkResult<vk::RenderPass> {
-
-        self.ci.attachment_count = self.attachments.len() as _;
-        self.ci.p_attachments    = self.attachments.as_ptr();
-
-        self.ci.subpass_count = self.subpasses.len() as _;
-        self.ci.p_subpasses   = self.subpasses.as_ptr();
-
-        self.ci.dependency_count = self.dependencies.len() as _;
-        self.ci.p_dependencies   = self.dependencies.as_ptr();
-
-        let render_pass = unsafe {
-            device.logic.handle.create_render_pass(&self.ci, None)
-                .map_err(|_| VkError::create("Render Pass"))?
-        };
-        Ok(render_pass)
     }
 
     pub fn add_attachment(mut self, attachment: vk::AttachmentDescription) -> RenderPassCI {

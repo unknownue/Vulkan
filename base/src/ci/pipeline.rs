@@ -21,7 +21,7 @@ use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
 use crate::context::VkObjectCreatable;
-use crate::ci::VulkanCI;
+use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 
 use std::ptr;
@@ -36,9 +36,10 @@ pub struct PipelineLayoutCI {
     push_constants: Vec<vk::PushConstantRange>,
 }
 
-impl VulkanCI<vk::PipelineLayoutCreateInfo> for PipelineLayoutCI {
+impl VulkanCI for PipelineLayoutCI {
+    type CIType = vk::PipelineLayoutCreateInfo;
 
-    fn default_ci() -> vk::PipelineLayoutCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::PipelineLayoutCreateInfo {
             s_type: vk::StructureType::PIPELINE_LAYOUT_CREATE_INFO,
@@ -52,6 +53,27 @@ impl VulkanCI<vk::PipelineLayoutCreateInfo> for PipelineLayoutCI {
     }
 }
 
+impl VkObjectBuildableCI for PipelineLayoutCI {
+    type ObjectType = vk::PipelineLayout;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let pipeline_layout_ci = vk::PipelineLayoutCreateInfo {
+            set_layout_count: self.set_layouts.len() as _,
+            p_set_layouts   : self.set_layouts.as_ptr(),
+            push_constant_range_count: self.push_constants.len() as _,
+            p_push_constant_ranges   : self.push_constants.as_ptr(),
+            ..self.ci
+        };
+
+        let pipeline_layout = unsafe {
+            device.logic.handle.create_pipeline_layout(&pipeline_layout_ci, None)
+                .map_err(|_| VkError::create("Pipeline Layout"))?
+        };
+        Ok(pipeline_layout)
+    }
+}
+
 impl PipelineLayoutCI {
 
     pub fn new() -> PipelineLayoutCI {
@@ -61,21 +83,6 @@ impl PipelineLayoutCI {
             set_layouts    : Vec::new(),
             push_constants : Vec::new(),
         }
-    }
-
-    pub fn build(mut self, device: &VkDevice) -> VkResult<vk::PipelineLayout> {
-
-        self.ci.set_layout_count = self.set_layouts.len() as _;
-        self.ci.p_set_layouts    = self.set_layouts.as_ptr();
-
-        self.ci.push_constant_range_count = self.push_constants.len() as _;
-        self.ci.p_push_constant_ranges    = self.push_constants.as_ptr();
-
-        let pipeline_layout = unsafe {
-            device.logic.handle.create_pipeline_layout(&self.ci, None)
-                .map_err(|_| VkError::create("Pipeline Layout"))?
-        };
-        Ok(pipeline_layout)
     }
 
     pub fn add_set_layout(mut self, set_layout: vk::DescriptorSetLayout) -> PipelineLayoutCI {
@@ -110,9 +117,10 @@ pub struct FramebufferCI {
     attachments: Vec<vk::ImageView>,
 }
 
-impl VulkanCI<vk::FramebufferCreateInfo> for FramebufferCI {
+impl VulkanCI for FramebufferCI {
+    type CIType = vk::FramebufferCreateInfo;
 
-    fn default_ci() -> vk::FramebufferCreateInfo {
+    fn default_ci() -> Self::CIType {
 
         vk::FramebufferCreateInfo {
             s_type: vk::StructureType::FRAMEBUFFER_CREATE_INFO,
@@ -125,6 +133,25 @@ impl VulkanCI<vk::FramebufferCreateInfo> for FramebufferCI {
             layers: 1,
             render_pass: vk::RenderPass::null(),
         }
+    }
+}
+
+impl VkObjectBuildableCI for FramebufferCI {
+    type ObjectType = vk::Framebuffer;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let framebuffer_ci = vk::FramebufferCreateInfo {
+            attachment_count: self.attachments.len() as _,
+            p_attachments   : self.attachments.as_ptr(),
+            ..self.ci
+        };
+
+        let framebuffer = unsafe {
+            device.logic.handle.create_framebuffer(&framebuffer_ci, None)
+                .map_err(|_| VkError::create("Framebuffer"))?
+        };
+        Ok(framebuffer)
     }
 }
 
@@ -154,18 +181,6 @@ impl FramebufferCI {
         FramebufferCI::new(render_pass, extent)
     }
 
-    pub fn build(mut self, device: &VkDevice) -> VkResult<vk::Framebuffer> {
-
-        self.ci.attachment_count = self.attachments.len() as _;
-        self.ci.p_attachments    = self.attachments.as_ptr();
-
-        let framebuffer = unsafe {
-            device.logic.handle.create_framebuffer(&self.ci, None)
-                .map_err(|_| VkError::create("Framebuffer"))?
-        };
-        Ok(framebuffer)
-    }
-
     pub fn add_attachment(mut self, attachment: vk::ImageView) -> FramebufferCI {
         self.attachments.push(attachment); self
     }
@@ -184,11 +199,11 @@ impl VkObjectCreatable for vk::Framebuffer {
     }
 }
 
-impl<T> VkObjectCreatable for &T where T: AsRef<[vk::Framebuffer]> {
+impl VkObjectCreatable for &Vec<vk::Framebuffer> {
 
     fn discard(self, device: &VkDevice) {
 
-        for framebuffer in self.as_ref() {
+        for framebuffer in self {
             device.discard(*framebuffer);
         }
     }
