@@ -51,7 +51,7 @@ impl DescriptorPoolCI {
         self.ci.flags = flags; self
     }
 
-    pub fn add_descriptor(mut self,r#type: vk::DescriptorType, count: vkuint) -> DescriptorPoolCI {
+    pub fn add_descriptor(mut self, r#type: vk::DescriptorType, count: vkuint) -> DescriptorPoolCI {
         let new_descriptor = vk::DescriptorPoolSize {
             ty: r#type,
             descriptor_count: count,

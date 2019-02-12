@@ -115,16 +115,11 @@ impl vkbase::Workflow for VulkanExample {
     fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
         unsafe {
-
-            let destructor = &device.logic.handle;
-
-            destructor.destroy_pipeline(self.pipeline, None);
-            destructor.destroy_render_pass(self.render_pass, None);
-
-            for &frame in self.framebuffers.iter() {
-                destructor.destroy_framebuffer(frame, None);
-            }
+            device.logic.handle.destroy_pipeline(self.pipeline, None);
         }
+
+        device.discard(self.render_pass);
+        device.discard(&self.framebuffers);
 
         device.discard(self.depth_image.view);
         device.discard(self.depth_image.image);
@@ -213,20 +208,16 @@ impl VulkanExample {
 
     fn discard(&self, device: &VkDevice) {
 
-        let destructor = &device.logic.handle;
-
         device.discard(self.descriptor_set_layout);
         device.discard(self.descriptor_pool);
 
         unsafe {
-            destructor.destroy_pipeline(self.pipeline, None);
-            destructor.destroy_pipeline_layout(self.pipeline_layout, None);
-            destructor.destroy_render_pass(self.render_pass, None);
-
-            for &frame in self.framebuffers.iter() {
-                destructor.destroy_framebuffer(frame, None);
-            }
+            device.logic.handle.destroy_pipeline(self.pipeline, None);
         }
+
+        device.discard(self.pipeline_layout);
+        device.discard(self.render_pass);
+        device.discard(&self.framebuffers);
 
         device.discard(self.command_pool);
 
@@ -269,6 +260,7 @@ fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {
 fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayout, vk::PipelineLayout)> {
 
     use vkbase::ci::descriptor::DescriptorSetLayoutCI;
+    use vkbase::ci::pipeline::PipelineLayoutCI;
 
     // Descriptor Set Layout.
     let uniform_descriptor = vk::DescriptorSetLayoutBinding {
@@ -284,20 +276,9 @@ fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayo
         .build(device)?;
 
     // Pipeline Layout.
-    let pipeline_layout_ci = vk::PipelineLayoutCreateInfo {
-        s_type: vk::StructureType::PIPELINE_LAYOUT_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::PipelineLayoutCreateFlags::empty(),
-        set_layout_count: 1,
-        p_set_layouts   : &descriptor_set_layout,
-        push_constant_range_count: 0,
-        p_push_constant_ranges   : ptr::null(),
-    };
-
-    let pipeline_layout = unsafe {
-        device.logic.handle.create_pipeline_layout(&pipeline_layout_ci, None)
-            .map_err(|_| VkError::create("Pipeline Layout"))?
-    };
+    let pipeline_layout = PipelineLayoutCI::new()
+        .add_set_layout(descriptor_set_layout)
+        .build(device)?;
 
     Ok((descriptor_set_layout, pipeline_layout))
 }
@@ -350,51 +331,33 @@ fn setup_depth_stencil(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<D
 
 fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::RenderPass> {
 
-    // Render pass setup:
-    // Render passes are a new concept in Vulkan.
-    // They describe the attachments used during rendering and may contain multiple subpasses with attachment dependencies.
-    // This allows the driver to know up-front what the rendering will look like and is a good opportunity to optimize especially on tile-based renderers (with multiple subpasses).
-    // Using sub pass dependencies also adds implicit layout transitions for the attachment used, so we don't need to add explicit image memory barriers to transform them.
+    use vkbase::ci::pipeline::RenderPassCI;
 
-    // This example will use a single render pass with one subpass.
+    let color_attachment = vk::AttachmentDescription {
+        flags: vk::AttachmentDescriptionFlags::empty(),
+        format: swapchain.backend_format,
+        samples: vk::SampleCountFlags::TYPE_1,
+        load_op: vk::AttachmentLoadOp::CLEAR,
+        store_op: vk::AttachmentStoreOp::STORE,
+        stencil_load_op: vk::AttachmentLoadOp::DONT_CARE,
+        stencil_store_op: vk::AttachmentStoreOp::DONT_CARE,
+        initial_layout: vk::ImageLayout::UNDEFINED,
+        final_layout: vk::ImageLayout::PRESENT_SRC_KHR,
+    };
 
-    // Descriptors for the attachments used by this renderpass.
-    let attachments = [
-        vk::AttachmentDescription {
-            flags: vk::AttachmentDescriptionFlags::empty(),
-            // Use the color format selected by the swapchain.
-            format: swapchain.backend_format,
-            // Don't use multi sampling in this example.
-            samples: vk::SampleCountFlags::TYPE_1,
-            // Clear this attachment at the start of the render pass.
-            load_op: vk::AttachmentLoadOp::CLEAR,
-            // Keep it's contents after the render pass is finished (for displaying it).
-            store_op: vk::AttachmentStoreOp::STORE,
-            // Don't use stencil, so don't care for load.
-            stencil_load_op: vk::AttachmentLoadOp::DONT_CARE,
-            stencil_store_op: vk::AttachmentStoreOp::DONT_CARE,
-            // Layout at render pass start. Initial doesn't matter, so use undefined here.
-            initial_layout: vk::ImageLayout::UNDEFINED,
-            // Layout to which the attachment is transitioned when the render pass is finished.
-            final_layout: vk::ImageLayout::PRESENT_SRC_KHR,
-        },
-        vk::AttachmentDescription {
-            flags: vk::AttachmentDescriptionFlags::empty(),
-            format: device.phy.depth_format,
-            samples: vk::SampleCountFlags::TYPE_1,
-            // Clear depth at start of first subpass.
-            load_op: vk::AttachmentLoadOp::CLEAR,
-            // Don't need depth after render pass has finished (DONT_CARE may result in better performance)
-            store_op: vk::AttachmentStoreOp::DONT_CARE,
-            stencil_load_op  : vk::AttachmentLoadOp::DONT_CARE,
-            stencil_store_op : vk::AttachmentStoreOp::DONT_CARE,
-            initial_layout: vk::ImageLayout::UNDEFINED,
-            // Transition to depth/stencil attachment.
-            final_layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        },
-    ];
+    let depth_attachment = vk::AttachmentDescription {
+        flags: vk::AttachmentDescriptionFlags::empty(),
+        format: device.phy.depth_format,
+        samples: vk::SampleCountFlags::TYPE_1,
+        load_op: vk::AttachmentLoadOp::CLEAR,
+        store_op: vk::AttachmentStoreOp::DONT_CARE,
+        stencil_load_op  : vk::AttachmentLoadOp::DONT_CARE,
+        stencil_store_op : vk::AttachmentStoreOp::DONT_CARE,
+        initial_layout: vk::ImageLayout::UNDEFINED,
+        final_layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    };
 
-    // Setup attachment references.
+
     let color_refs = [
         vk::AttachmentReference {
             attachment: 0, // Attachment 0 is color.
@@ -406,32 +369,24 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
         layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
     };
 
-    // Setup a single subpass reference
-    let subpass_descriptions = [
-        vk::SubpassDescription {
-            flags                      : vk::SubpassDescriptionFlags::empty(),
-            pipeline_bind_point        : vk::PipelineBindPoint::GRAPHICS,
-            input_attachment_count     : 0,
-            // Input attachments can be used to sample from contents of a previous subpass.
-            p_input_attachments        : ptr::null(),
-            // Reference to the color attachment in slot 0.
-            color_attachment_count     : color_refs.len() as _,
-            p_color_attachments        : color_refs.as_ptr(),
-            // Resolve attachments are resolved at the end of a sub pass and can be used for e.g. multi sampling.
-            p_resolve_attachments      : ptr::null(),
-            // Reference to the depth attachment in slot 1.
-            p_depth_stencil_attachment : &depth_ref,
-            // Preserved attachments can be used to loop (and preserve) attachments through subpasses.
-            preserve_attachment_count  : 0,
-            p_preserve_attachments     : ptr::null(),
-        }
-    ];
+    let subpass_description = vk::SubpassDescription {
+        flags                      : vk::SubpassDescriptionFlags::empty(),
+        pipeline_bind_point        : vk::PipelineBindPoint::GRAPHICS,
+        input_attachment_count     : 0,
+        // Input attachments can be used to sample from contents of a previous subpass.
+        p_input_attachments        : ptr::null(),
+        // Reference to the color attachment in slot 0.
+        color_attachment_count     : color_refs.len() as _,
+        p_color_attachments        : color_refs.as_ptr(),
+        // Resolve attachments are resolved at the end of a sub pass and can be used for e.g. multi sampling.
+        p_resolve_attachments      : ptr::null(),
+        // Reference to the depth attachment in slot 1.
+        p_depth_stencil_attachment : &depth_ref,
+        // Preserved attachments can be used to loop (and preserve) attachments through subpasses.
+        preserve_attachment_count  : 0,
+        p_preserve_attachments     : ptr::null(),
+    };
 
-    // Setup subpass dependencies:
-    // These will add the implicit attachment layout transitions specified by the attachment descriptions.
-    // The actual usage layout is preserved through the layout specified in the attachment reference.
-    // Each subpass dependency will introduce a memory and execution dependency between the source and dest subpass described by srcStageMask, dstStageMask, srcAccessMask, dstAccessMask (and dependencyFlags is set).
-    // Note: vk::SUBPASS_EXTERNAL is a special constant that refers to all commands executed outside of the actual renderpass).
     let dependencies = [
         // First dependency at the start of the renderpass does the transition from final to initial layout.
         vk::SubpassDependency {
@@ -459,27 +414,21 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
         },
     ];
 
-    let renderpass_ci = vk::RenderPassCreateInfo {
-        s_type: vk::StructureType::RENDER_PASS_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::RenderPassCreateFlags::empty(),
-        attachment_count: attachments.len() as _,
-        p_attachments   : attachments.as_ptr(),
-        subpass_count   : subpass_descriptions.len() as _,
-        p_subpasses     : subpass_descriptions.as_ptr(),
-        dependency_count: dependencies.len() as _,
-        p_dependencies  : dependencies.as_ptr(),
-    };
+    let render_pass = RenderPassCI::new()
+        .add_attachment(color_attachment)
+        .add_attachment(depth_attachment)
+        .add_subpass(subpass_description)
+        .add_dependency(dependencies[0])
+        .add_dependency(dependencies[1])
+        .build(device)?;
 
-    let render_pass = unsafe {
-        device.logic.handle.create_render_pass(&renderpass_ci, None)
-            .map_err(|_| VkError::create("Render Pass"))?
-    };
     Ok(render_pass)
 }
 
 // Create a frame buffer for each swap chain image.
 fn setup_framebuffers(device: &VkDevice, swapchain: &VkSwapchain, render_pass: vk::RenderPass, depth_image: &DepthImage) -> VkResult<Vec<vk::Framebuffer>> {
+
+    use vkbase::ci::pipeline::FramebufferCI;
 
     // create a frame buffer for every image in the swapchain.
     let mut framebuffers = Vec::with_capacity(swapchain.frame_in_flight());
@@ -487,28 +436,10 @@ fn setup_framebuffers(device: &VkDevice, swapchain: &VkSwapchain, render_pass: v
 
     for i in 0..swapchain.frame_in_flight() {
 
-        let attachments = [
-            swapchain.images[i].view, // color attachment is the view of the swapchain image.
-            depth_image.view, // depth/stencil attachment is the same for all frame buffers.
-        ];
-
-        // All frame buffers use the same renderpass setup.
-        let framebuffer_ci = vk::FramebufferCreateInfo {
-            s_type: vk::StructureType::FRAMEBUFFER_CREATE_INFO,
-            p_next: ptr::null(),
-            flags : vk::FramebufferCreateFlags::empty(),
-            attachment_count: attachments.len() as _,
-            p_attachments   : attachments.as_ptr(),
-            width : dimension.width,
-            height: dimension.height,
-            layers: 1,
-            render_pass,
-        };
-
-        let framebuffer = unsafe {
-            device.logic.handle.create_framebuffer(&framebuffer_ci, None)
-                .map_err(|_| VkError::create("Framebuffers"))?
-        };
+        let framebuffer = FramebufferCI::new_2d(render_pass, dimension)
+            .add_attachment(swapchain.images[i].view) // color attachment is the view of the swapchain image.
+            .add_attachment(depth_image.view) // depth/stencil attachment is the same for all frame buffers.
+            .build(device)?;
         framebuffers.push(framebuffer);
     }
 

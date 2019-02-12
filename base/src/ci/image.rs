@@ -59,19 +59,13 @@ impl ImageCI {
 
     pub fn new_2d(format: vk::Format, dimension: vk::Extent2D) -> ImageCI {
 
-        ImageCI {
-            ci: vk::ImageCreateInfo {
-                image_type: vk::ImageType::TYPE_2D,
-                format,
-                extent: vk::Extent3D {
-                    width : dimension.width,
-                    height: dimension.height,
-                    depth : 1,
-                },
-                ..ImageCI::default_ci()
-            },
-            queue_families: Vec::new(),
-        }
+        let extent = vk::Extent3D {
+            width : dimension.width,
+            height: dimension.height,
+            depth : 1,
+        };
+
+        ImageCI::new(vk::ImageType::TYPE_2D, format, extent)
     }
 
     pub fn build(mut self, device: &VkDevice) -> VkResult<(vk::Image, vk::MemoryRequirements)> {
