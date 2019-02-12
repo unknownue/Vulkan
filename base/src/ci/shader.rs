@@ -162,7 +162,7 @@ impl ShaderStageCI {
         self.specialization = Some(info); self
     }
 
-    pub fn build(&self) -> vk::PipelineShaderStageCreateInfo {
+    pub fn value(&self) -> vk::PipelineShaderStageCreateInfo {
 
         let specialization = self.specialization
             .and_then(|s| Some(&s as *const vk::SpecializationInfo))

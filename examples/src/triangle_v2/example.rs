@@ -9,7 +9,6 @@ use vkbase::vkuint;
 
 use std::ptr;
 use std::path::Path;
-use std::ffi::CString;
 
 use crate::data::{Vertex, VertexBuffer, IndexBuffer, UniformBuffer, DepthImage};
 
@@ -449,179 +448,55 @@ fn setup_framebuffers(device: &VkDevice, swapchain: &VkSwapchain, render_pass: v
 
 fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk::PipelineLayout) -> VkResult<vk::Pipeline> {
 
-    // Create the graphics pipeline used in this example.
-    // Vulkan uses the concept of rendering pipelines to encapsulate fixed states, replacing OpenGL's complex state machine.
-    // A pipeline is then stored and hashed on the GPU making pipeline changes very fast.
-    // Note: There are still a few dynamic states that are not directly part of the pipeline (but the info that they are used is).
+    use vkbase::ci::pipeline::InputAssemblySCI;
+    let input_assembly_state = InputAssemblySCI::new();
+
+    use vkbase::ci::pipeline::RasterizationSCI;
+    let rasterization_state = RasterizationSCI::new();
+
+    use vkbase::ci::pipeline::ViewportSCI;
+    let viewport_state = ViewportSCI::new()
+        .add_viewport(vk::Viewport::default())
+        .add_scissor(vk::Rect2D::default());
+
+    use vkbase::ci::pipeline::{ColorBlendSCI, BlendAttachmentSCI};
+    let blend_attachment = BlendAttachmentSCI::new().value();
+    let blend_state = ColorBlendSCI::new()
+        .add_attachment(blend_attachment);
+
+    use vkbase::ci::pipeline::DepthStencilSCI;
+    let depth_stencil_state = DepthStencilSCI::new()
+        .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);
+
+    use vkbase::ci::pipeline::MultisampleSCI;
+    let multisample_state = MultisampleSCI::new();
+
+    use vkbase::ci::pipeline::DynamicSCI;
+    let dynamic_state = DynamicSCI::new()
+        .add_dynamic(vk::DynamicState::VIEWPORT)
+        .add_dynamic(vk::DynamicState::SCISSOR);
 
 
-    // Construct the different states making up the pipeline
-
-    // Input assembly state describes how primitives are assembled.
-    // This pipeline will assemble vertex data as a triangle lists.
-    let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo {
-        s_type: vk::StructureType::PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::PipelineInputAssemblyStateCreateFlags::empty(),
-        topology: vk::PrimitiveTopology::TRIANGLE_LIST,
-        primitive_restart_enable: vk::FALSE,
-    };
-
-    // Rasterization state
-    let rasterization_state = vk::PipelineRasterizationStateCreateInfo {
-        s_type: vk::StructureType::PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::PipelineRasterizationStateCreateFlags::empty(),
-        depth_clamp_enable         : vk::FALSE,
-        rasterizer_discard_enable  : vk::FALSE,
-        polygon_mode               : vk::PolygonMode::FILL,
-        cull_mode                  : vk::CullModeFlags::NONE,
-        front_face                 : vk::FrontFace::COUNTER_CLOCKWISE,
-        depth_bias_enable          : vk::FALSE,
-        depth_bias_constant_factor : 0.0,
-        depth_bias_clamp           : 0.0,
-        depth_bias_slope_factor    : 0.0,
-        line_width                 : 1.0,
-    };
-
-    // Color blend state describes how blend factors are calculated (if used).
-    // Need one blend attachment state per color attachment (even if blending is not used).
-    let blend_attachments = [
-        vk::PipelineColorBlendAttachmentState {
-            blend_enable: vk::FALSE,
-            src_color_blend_factor: vk::BlendFactor::ONE,
-            dst_color_blend_factor: vk::BlendFactor::ZERO,
-            color_blend_op: vk::BlendOp::ADD,
-            src_alpha_blend_factor: vk::BlendFactor::ONE,
-            dst_alpha_blend_factor: vk::BlendFactor::ZERO,
-            alpha_blend_op: vk::BlendOp::ADD,
-            color_write_mask: vk::ColorComponentFlags::R | vk::ColorComponentFlags::G | vk::ColorComponentFlags::B | vk::ColorComponentFlags::A,
-        },
-    ];
-    let blend_state = vk::PipelineColorBlendStateCreateInfo {
-        s_type: vk::StructureType::PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::PipelineColorBlendStateCreateFlags::empty(),
-        logic_op_enable: vk::FALSE,
-        logic_op       : vk::LogicOp::COPY,
-        attachment_count: blend_attachments.len() as _,
-        p_attachments   : blend_attachments.as_ptr(),
-        blend_constants : [0.0; 4]
-    };
-
-    // Viewport state sets the number of viewports and scissor used in this pipeline.
-    // Note: This is actually overridden by the dynamic states.
-    let viewport_state = vk::PipelineViewportStateCreateInfo {
-        s_type: vk::StructureType::PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::PipelineViewportStateCreateFlags::empty(),
-        viewport_count : 1,
-        p_viewports    : ptr::null(),
-        scissor_count  : 1,
-        p_scissors     : ptr::null(),
-    };
-
-
-    // Depth and stencil state containing depth and stencil compare and test operations.
-    // Here only use depth tests and want depth tests and writes to be enabled and compare with less or equal.
-    let depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo {
-        s_type: vk::StructureType::PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::PipelineDepthStencilStateCreateFlags::empty(),
-        depth_test_enable        : vk::TRUE,
-        depth_write_enable       : vk::TRUE,
-        depth_compare_op         : vk::CompareOp::LESS_OR_EQUAL,
-        depth_bounds_test_enable : vk::FALSE,
-        stencil_test_enable      : vk::FALSE,
-        front: vk::StencilOpState {
-            fail_op: vk::StencilOp::KEEP,
-            pass_op: vk::StencilOp::KEEP,
-            depth_fail_op: vk::StencilOp::KEEP,
-            compare_op   : vk::CompareOp::ALWAYS,
-            compare_mask : 0,
-            write_mask   : 0,
-            reference    : 0,
-        },
-        back: vk::StencilOpState {
-            fail_op: vk::StencilOp::KEEP,
-            pass_op: vk::StencilOp::KEEP,
-            depth_fail_op: vk::StencilOp::KEEP,
-            compare_op   : vk::CompareOp::ALWAYS,
-            compare_mask : 0,
-            write_mask   : 0,
-            reference    : 0,
-        },
-        min_depth_bounds: 0.0,
-        max_depth_bounds: 1.0,
-    };
-
-    // Multi sampling state
-    // the state must still be set and passed to the pipeline if disable.
-    let multisample_state = vk::PipelineMultisampleStateCreateInfo {
-        s_type: vk::StructureType::PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::PipelineMultisampleStateCreateFlags::empty(),
-        rasterization_samples: vk::SampleCountFlags::TYPE_1,
-        sample_shading_enable: vk::FALSE,
-        min_sample_shading: 0.0,
-        p_sample_mask: ptr::null(),
-        alpha_to_coverage_enable: vk::FALSE,
-        alpha_to_one_enable     : vk::FALSE,
-    };
-
-    // Enable dynamic states
-    // Most states are baked into the pipeline, but there are still a few dynamic states that can be changed within a command buffer.
-    // To be able to change these we need do specify which dynamic states will be changed using this pipeline. Their actual states are set later on in the command buffer.
-    // This example will set the viewport and scissor using dynamic states.
-    let dynamics = [
-        vk::DynamicState::VIEWPORT,
-        vk::DynamicState::SCISSOR,
-    ];
-    let dynamic_state = vk::PipelineDynamicStateCreateInfo {
-        s_type: vk::StructureType::PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags : vk::PipelineDynamicStateCreateFlags::empty(),
-        dynamic_state_count: dynamics.len() as _,
-        p_dynamic_states   : dynamics.as_ptr(),
-    };
-
-
-    // Vertex input descriptions
-    // Specifies the vertex input parameters for a pipeline
-    let input_descriptions = Vertex::input_description();
-
+    use vkbase::ci::pipeline::VertexInputSCI;
+    let inputs = Vertex::input_description();
+    let vertex_input_state = VertexInputSCI::new()
+        .add_binding(inputs.binding)
+        .add_attribute(inputs.attributes[0])
+        .add_attribute(inputs.attributes[1]);
 
     // shaders
+    use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
+
     let mut shader_compiler = vkbase::utils::shaderc::VkShaderCompiler::new()?;
 
-    use vkbase::ci::shader::ShaderModuleCI;
     let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, Path::new(SHADER_VERTEX_PATH), "[Vertex Shader]")
         .build(device, &mut shader_compiler)?;
     let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, Path::new(SHADER_FRAGMENT_PATH), "[Fragment Shader]")
         .build(device, &mut shader_compiler)?;
 
-    let main_name = CString::new("main").unwrap();
-
-    let shader_states = [
-        vk::PipelineShaderStageCreateInfo {
-            s_type : vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
-            p_next : ptr::null(),
-            flags  : vk::PipelineShaderStageCreateFlags::empty(),
-            stage  : vk::ShaderStageFlags::VERTEX,
-            module : vert_module,
-            p_name : main_name.as_ptr(), // Main entry point for the shader
-            p_specialization_info: ptr::null(),
-        },
-        vk::PipelineShaderStageCreateInfo {
-            s_type : vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
-            p_next : ptr::null(),
-            flags  : vk::PipelineShaderStageCreateFlags::empty(),
-            stage  : vk::ShaderStageFlags::FRAGMENT,
-            module : frag_module,
-            p_name : main_name.as_ptr(),
-            p_specialization_info: ptr::null(),
-        },
-    ];
+    let vert_sci = ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module);
+    let frag_sci = ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module);
+    let shader_states = [vert_sci.value(), frag_sci.value()];
 
     let pipeline_ci = vk::GraphicsPipelineCreateInfo {
         s_type: vk::StructureType::GRAPHICS_PIPELINE_CREATE_INFO,
@@ -629,15 +504,15 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
         flags: vk::PipelineCreateFlags::empty(),
         stage_count            : shader_states.len() as _,
         p_stages               : shader_states.as_ptr(),
-        p_vertex_input_state   : &input_descriptions.state,
-        p_input_assembly_state : &input_assembly_state,
+        p_vertex_input_state   : &vertex_input_state.value(),
+        p_input_assembly_state : &input_assembly_state.value(),
         p_tessellation_state   : ptr::null(),
-        p_viewport_state       : &viewport_state,
-        p_rasterization_state  : &rasterization_state,
-        p_multisample_state    : &multisample_state,
-        p_depth_stencil_state  : &depth_stencil_state,
-        p_color_blend_state    : &blend_state,
-        p_dynamic_state        : &dynamic_state,
+        p_viewport_state       : &viewport_state.value(),
+        p_rasterization_state  : &rasterization_state.value(),
+        p_multisample_state    : &multisample_state.value(),
+        p_depth_stencil_state  : &depth_stencil_state.value(),
+        p_color_blend_state    : &blend_state.value(),
+        p_dynamic_state        : &dynamic_state.value(),
         subpass: 0,
         base_pipeline_handle: vk::Pipeline::null(),
         base_pipeline_index: -1,
@@ -651,10 +526,10 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
     }.remove(0);
 
     // Shader modules are no longer needed once the graphics pipeline has been created.
-    unsafe {
-        device.logic.handle.destroy_shader_module(vert_module, None);
-        device.logic.handle.destroy_shader_module(frag_module, None);
-    }
+
+    device.discard(vert_module);
+    device.discard(frag_module);
+
     Ok(pipeline)
 }
 

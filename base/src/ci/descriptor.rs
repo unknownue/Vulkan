@@ -334,7 +334,7 @@ impl DescriptorImageSetWI {
 
         vk::WriteDescriptorSet {
             descriptor_count: self.writes.len() as _,
-            p_image_info   : self.writes.as_ptr(),
+            p_image_info    : self.writes.as_ptr(),
             ..self.wi
         }
     }

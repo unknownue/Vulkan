@@ -9,7 +9,6 @@ use vkbase::{vkuint, vkbytes};
 use crate::helper;
 
 use std::mem;
-use std::ptr;
 
 type Mat4F = nalgebra::Matrix4<f32>;
 
@@ -17,39 +16,31 @@ type Mat4F = nalgebra::Matrix4<f32>;
 #[derive(Debug, Clone, Copy)]
 pub struct Vertex {
     position: [f32; 3],
-    color: [f32; 3],
+    color   : [f32; 3],
 }
 
 pub struct InputDescriptionStaff {
-    pub bindings  : Vec<vk::VertexInputBindingDescription>,
-    pub attributes: Vec<vk::VertexInputAttributeDescription>,
-    pub state: vk::PipelineVertexInputStateCreateInfo,
+    pub binding   : vk::VertexInputBindingDescription,
+    pub attributes: [vk::VertexInputAttributeDescription; 2],
 }
 
 impl Vertex {
 
     pub fn input_description() -> InputDescriptionStaff {
 
-        // Vertex input binding
-        // This example uses a single vertex input binding at binding point 0 (see vkCmdBindVertexBuffers).
-        let input_bindings = vec![
-            vk::VertexInputBindingDescription {
-                binding: 0,
-                stride : mem::size_of::<Vertex>() as _,
-                input_rate: vk::VertexInputRate::VERTEX,
-            },
-        ];
+        let input_binding = vk::VertexInputBindingDescription {
+            binding: 0,
+            stride : mem::size_of::<Vertex>() as _,
+            input_rate: vk::VertexInputRate::VERTEX,
+        };
 
-        // Input attribute bindings describe shader attribute locations and memory layouts
-        let vertex_input_attributes = vec![
-            // layout (location = 0) in vec3 inPos;
+        let vertex_input_attributes = [
             vk::VertexInputAttributeDescription {
                 location: 0,
                 binding : 0,
                 format  : vk::Format::R32G32B32_SFLOAT, // three 32 bit signed (SFLOAT) floats (R32 G32 B32).
                 offset  : memoffset::offset_of!(Vertex, position) as _,
             },
-            // layout (location = 1) in vec3 inColor;
             vk::VertexInputAttributeDescription {
                 location: 1,
                 binding : 0,
@@ -58,21 +49,9 @@ impl Vertex {
             },
         ];
 
-        // Vertex input state used for pipeline creation
-        let input_state = vk::PipelineVertexInputStateCreateInfo {
-            s_type: vk::StructureType::PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            p_next: ptr::null(),
-            flags : vk::PipelineVertexInputStateCreateFlags::empty(),
-            vertex_binding_description_count: input_bindings.len() as _,
-            p_vertex_binding_descriptions   : input_bindings.as_ptr(),
-            vertex_attribute_description_count: vertex_input_attributes.len() as _,
-            p_vertex_attribute_descriptions   : vertex_input_attributes.as_ptr(),
-        };
-
         InputDescriptionStaff {
-            bindings   : input_bindings,
+            binding   : input_binding,
             attributes : vertex_input_attributes,
-            state      : input_state,
         }
     }
 }
