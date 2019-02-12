@@ -21,8 +21,10 @@ use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
 use crate::context::VkObjectCreatable;
+use crate::ci::shader::ShaderStageCI;
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
+use crate::vkuint;
 
 use std::ptr;
 
@@ -211,4 +213,159 @@ impl VkObjectCreatable for &Vec<vk::Framebuffer> {
 // ---------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-// Wrapper class for vk::FramebufferCreateInfo.
+// Wrapper class for vk::GraphicsPipelineCreateInfo.
+#[derive(Debug)]
+pub struct GraphicsPipelineCI {
+    ci: vk::GraphicsPipelineCreateInfo,
+
+    shader_stages: Vec<ShaderStageCI>,
+
+    vertex_input   : VertexInputSCI,
+    input_assembly : InputAssemblySCI,
+    rasterization  : RasterizationSCI,
+    color_blend    : ColorBlendSCI,
+    viewport       : ViewportSCI,
+    depth_stencil  : DepthStencilSCI,
+    multisample    : MultisampleSCI,
+    dynamic        : DynamicSCI,
+}
+
+impl VulkanCI for GraphicsPipelineCI {
+    type CIType = vk::GraphicsPipelineCreateInfo;
+
+    fn default_ci() -> Self::CIType {
+
+        vk::GraphicsPipelineCreateInfo {
+            s_type: vk::StructureType::GRAPHICS_PIPELINE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags : vk::PipelineCreateFlags::empty(),
+            layout: vk::PipelineLayout::null(),
+            render_pass: vk::RenderPass::null(),
+            stage_count            : 0,
+            p_stages               : ptr::null(),
+            p_vertex_input_state   : ptr::null(),
+            p_input_assembly_state : ptr::null(),
+            p_tessellation_state   : ptr::null(),
+            p_viewport_state       : ptr::null(),
+            p_rasterization_state  : ptr::null(),
+            p_multisample_state    : ptr::null(),
+            p_depth_stencil_state  : ptr::null(),
+            p_color_blend_state    : ptr::null(),
+            p_dynamic_state        : ptr::null(),
+            subpass: 0,
+            base_pipeline_handle: vk::Pipeline::null(),
+            base_pipeline_index: -1,
+        }
+    }
+}
+
+impl VkObjectBuildableCI for GraphicsPipelineCI {
+    type ObjectType = vk::Pipeline;
+
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let stages: Vec<vk::PipelineShaderStageCreateInfo> = self.shader_stages.iter()
+            .map(|s| s.value()).collect();
+        let vertex_input = self.vertex_input.value();
+        let input_assembly = self.input_assembly.value();
+        let viewport = self.viewport.value();
+        let rasterization = self.rasterization.value();
+        let multisample = self.multisample.value();
+        let depth_stencil = self.depth_stencil.value();
+        let color_blend = self.color_blend.value();
+        let dynamics = self.dynamic.value();
+
+        let pipeline_ci = vk::GraphicsPipelineCreateInfo {
+            stage_count            : stages.len() as _,
+            p_stages               : stages.as_ptr(),
+            p_vertex_input_state   : &vertex_input,
+            p_input_assembly_state : &input_assembly,
+            p_tessellation_state   : ptr::null(), // this field is not cover yet.
+            p_viewport_state       : &viewport,
+            p_rasterization_state  : &rasterization,
+            p_multisample_state    : &multisample,
+            p_depth_stencil_state  : &depth_stencil,
+            p_color_blend_state    : &color_blend,
+            p_dynamic_state        : &dynamics,
+            ..self.ci
+        };
+
+        let pipeline = unsafe {
+            device.logic.handle.create_graphics_pipelines(vk::PipelineCache::null(), &[pipeline_ci], None)
+                .map_err(|_| VkError::create("Graphics Pipeline"))?
+        }.remove(0);
+
+        Ok(pipeline)
+    }
+}
+
+impl GraphicsPipelineCI {
+
+    pub fn new(pass: vk::RenderPass, pipeline_layout: vk::PipelineLayout) -> GraphicsPipelineCI {
+
+        GraphicsPipelineCI {
+            ci: vk::GraphicsPipelineCreateInfo {
+                render_pass: pass,
+                layout: pipeline_layout,
+                ..GraphicsPipelineCI::default_ci()
+            },
+            shader_stages  : Vec::new(),
+            vertex_input   : VertexInputSCI::new(),
+            input_assembly : InputAssemblySCI::new(),
+            rasterization  : RasterizationSCI::new(),
+            color_blend    : ColorBlendSCI::new(),
+            viewport       : ViewportSCI::new(),
+            depth_stencil  : DepthStencilSCI::new(),
+            multisample    : MultisampleSCI::new(),
+            dynamic        : DynamicSCI::new(),
+        }
+    }
+
+    pub fn set_use_subpass(&mut self, subpass: vkuint) {
+        self.ci.subpass = subpass
+    }
+
+    pub fn set_base_pipeline(&mut self, pipeline: vk::Pipeline) {
+        self.ci.base_pipeline_handle = pipeline;
+    }
+
+    pub fn set_flags(&mut self, flags: vk::PipelineCreateFlags) {
+        self.ci.flags = flags;
+    }
+
+    pub fn add_shader_stage(&mut self, ci: ShaderStageCI) {
+        self.shader_stages.push(ci);
+    }
+
+    pub fn set_vertex_input(&mut self, sci: VertexInputSCI) {
+        self.vertex_input = sci;
+    }
+
+    pub fn set_input_assembly(&mut self, sci: InputAssemblySCI) {
+        self.input_assembly = sci;
+    }
+
+    pub fn set_rasterization(&mut self, sci: RasterizationSCI) {
+        self.rasterization = sci;
+    }
+
+    pub fn set_color_blend(&mut self, sci: ColorBlendSCI) {
+        self.color_blend = sci;
+    }
+
+    pub fn set_viewport(&mut self, sci: ViewportSCI) {
+        self.viewport = sci;
+    }
+
+    pub fn set_depth_stencil(&mut self, sci: DepthStencilSCI) {
+        self.depth_stencil = sci;
+    }
+
+    pub fn set_multisample(&mut self, sci: MultisampleSCI) {
+        self.multisample = sci;
+    }
+
+    pub fn set_dynamic(&mut self, sci: DynamicSCI) {
+        self.dynamic = sci;
+    }
+}

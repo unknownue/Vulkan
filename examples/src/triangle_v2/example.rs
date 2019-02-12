@@ -449,36 +449,29 @@ fn setup_framebuffers(device: &VkDevice, swapchain: &VkSwapchain, render_pass: v
 
 fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk::PipelineLayout) -> VkResult<vk::Pipeline> {
 
-    use vkbase::ci::pipeline::InputAssemblySCI;
+    use vkbase::ci::pipeline::*;
+
     let input_assembly_state = InputAssemblySCI::new();
 
-    use vkbase::ci::pipeline::RasterizationSCI;
     let rasterization_state = RasterizationSCI::new();
 
-    use vkbase::ci::pipeline::ViewportSCI;
     let viewport_state = ViewportSCI::new()
         .add_viewport(vk::Viewport::default())
         .add_scissor(vk::Rect2D::default());
 
-    use vkbase::ci::pipeline::{ColorBlendSCI, BlendAttachmentSCI};
     let blend_attachment = BlendAttachmentSCI::new().value();
     let blend_state = ColorBlendSCI::new()
         .add_attachment(blend_attachment);
 
-    use vkbase::ci::pipeline::DepthStencilSCI;
     let depth_stencil_state = DepthStencilSCI::new()
         .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);
 
-    use vkbase::ci::pipeline::MultisampleSCI;
     let multisample_state = MultisampleSCI::new();
 
-    use vkbase::ci::pipeline::DynamicSCI;
     let dynamic_state = DynamicSCI::new()
         .add_dynamic(vk::DynamicState::VIEWPORT)
         .add_dynamic(vk::DynamicState::SCISSOR);
 
-
-    use vkbase::ci::pipeline::VertexInputSCI;
     let inputs = Vertex::input_description();
     let vertex_input_state = VertexInputSCI::new()
         .add_binding(inputs.binding)
@@ -499,36 +492,23 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
 
     let vert_sci = ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module);
     let frag_sci = ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module);
-    let shader_states = [vert_sci.value(), frag_sci.value()];
 
-    let pipeline_ci = vk::GraphicsPipelineCreateInfo {
-        s_type: vk::StructureType::GRAPHICS_PIPELINE_CREATE_INFO,
-        p_next: ptr::null(),
-        flags: vk::PipelineCreateFlags::empty(),
-        stage_count            : shader_states.len() as _,
-        p_stages               : shader_states.as_ptr(),
-        p_vertex_input_state   : &vertex_input_state.value(),
-        p_input_assembly_state : &input_assembly_state.value(),
-        p_tessellation_state   : ptr::null(),
-        p_viewport_state       : &viewport_state.value(),
-        p_rasterization_state  : &rasterization_state.value(),
-        p_multisample_state    : &multisample_state.value(),
-        p_depth_stencil_state  : &depth_stencil_state.value(),
-        p_color_blend_state    : &blend_state.value(),
-        p_dynamic_state        : &dynamic_state.value(),
-        subpass: 0,
-        base_pipeline_handle: vk::Pipeline::null(),
-        base_pipeline_index: -1,
-        layout, render_pass,
-    };
+    let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, layout);
 
-    // Create rendering pipeline using the specified states
-    let pipeline = unsafe {
-        device.logic.handle.create_graphics_pipelines(vk::PipelineCache::null(), &[pipeline_ci], None)
-            .map_err(|_| VkError::create("Graphics Pipeline"))?
-    }.remove(0);
+    pipeline_ci.add_shader_stage(vert_sci);
+    pipeline_ci.add_shader_stage(frag_sci);
 
-    // Shader modules are no longer needed once the graphics pipeline has been created.
+    pipeline_ci.set_vertex_input(vertex_input_state);
+    pipeline_ci.set_input_assembly(input_assembly_state);
+    pipeline_ci.set_viewport(viewport_state);
+    pipeline_ci.set_rasterization(rasterization_state);
+    pipeline_ci.set_multisample(multisample_state);
+    pipeline_ci.set_depth_stencil(depth_stencil_state);
+    pipeline_ci.set_color_blend(blend_state);
+    pipeline_ci.set_dynamic(dynamic_state);
+
+    let pipeline = device.build(pipeline_ci)?;
+
 
     device.discard(vert_module);
     device.discard(frag_module);

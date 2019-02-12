@@ -14,7 +14,7 @@ use crate::VkResult;
 
 pub trait VulkanCI
     where
-        Self: Sized + Clone {
+        Self: Sized {
     type CIType;
 
     fn default_ci() -> Self::CIType;
