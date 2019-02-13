@@ -59,6 +59,10 @@ impl VkError {
         VkError::from(VkErrorKind::Unimplemented { function: function.as_ref().to_string() })
     }
 
+    pub fn serialize(error: bincode::Error) -> VkError {
+        VkError::from(VkErrorKind::Serialize(error))
+    }
+
     pub fn custom(description: impl AsRef<str>) -> VkError {
         VkError::from(VkErrorKind::Custom {
             description: description.as_ref().to_string()
@@ -118,6 +122,8 @@ pub enum VkErrorKind {
     Path { path: PathBuf },
     #[fail(display = "{} is not implemented yet.", function)]
     Unimplemented { function: String },
+    #[fail(display = "Failed to serialize data into bytes: {}", _0)]
+    Serialize(#[cause] bincode::Error),
     /// Other errors.
     #[fail(display = "{}", description)]
     Custom { description: String },

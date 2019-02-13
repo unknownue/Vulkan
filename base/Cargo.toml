@@ -8,14 +8,17 @@ keywords = ["Vulkan", "Rust", "Graphics"]
 description = "A library to provide convenient methods to access vulkan."
 
 [dependencies]
-ash = "0.27.1"
-winit = "0.18.1"
-shaderc = "0.3.10"
-smallvec = "0.6.5"
-gltf = "0.11.2"
-nalgebra = "0.16"
-failure = "0.1.5"
+ash            = "0.27.1"
+winit          = "0.18.1"
+shaderc        = "0.3.10"
+smallvec       = "0.6.5"
+gltf           = "0.11.2"
+nalgebra       = "0.16"
+failure        = "0.1.5"
 failure_derive = "0.1.5"
+serde          = "1.0.80"
+serde_derive   = "1.0.80"
+bincode        = "1.0.1"
 
 # vulkan platform dependencies on macOS.
 [target.'cfg(target_os = "macos")'.dependencies]
