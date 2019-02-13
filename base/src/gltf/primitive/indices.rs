@@ -60,7 +60,9 @@ fn get_indices_range(primitive: &gltf::Primitive) -> VkResult<u64> {
 
     // Get the maximum index of this primitive.
     let index_max = get_index(indices_accessor.max())?;
+    // Get the minimum index of this primitive.
     let index_min = get_index(indices_accessor.min())?;
+    // calculate the range of these indices.
     let indices_range = index_max - index_min + 1;
 
     Ok(indices_range)
