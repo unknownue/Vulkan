@@ -55,6 +55,10 @@ impl VkError {
         VkError::from(VkErrorKind::Path { path: path.as_ref().to_path_buf() })
     }
 
+    pub fn unimplemented(function: impl AsRef<str>) -> VkError {
+        VkError::from(VkErrorKind::Unimplemented { function: function.as_ref().to_string() })
+    }
+
     pub fn custom(description: impl AsRef<str>) -> VkError {
         VkError::from(VkErrorKind::Custom {
             description: description.as_ref().to_string()
@@ -112,6 +116,8 @@ pub enum VkErrorKind {
     /// An error that occurred while working with a file path.
     #[fail(display = "Failed to locate file at: {:?}", path)]
     Path { path: PathBuf },
+    #[fail(display = "{} is not implemented yet.", function)]
+    Unimplemented { function: String },
     /// Other errors.
     #[fail(display = "{}", description)]
     Custom { description: String },
@@ -129,5 +135,15 @@ impl From<Context<VkErrorKind>> for VkError {
     fn from(ctx: Context<VkErrorKind>) -> VkError {
         VkError { ctx }
     }
+}
+// -------------------------------------------------------------------------------------------
+
+
+
+// -------------------------------------------------------------------------------------------
+/// A custom TryFrom Api for this crate.
+pub trait VkTryFrom<T>: Sized {
+    /// Performs the conversion.
+    fn try_from(value: T) -> VkResult<Self>;
 }
 // -------------------------------------------------------------------------------------------
