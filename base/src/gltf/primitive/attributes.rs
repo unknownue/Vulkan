@@ -19,7 +19,7 @@ pub struct AttributesData {
     /// the size of each vertex.
     pub vertex_size: vkbytes,
     /// the vertex attributes data of all primitive.
-    pub content: Box<dyn VertexAttributes>,
+    pub data_content: Box<dyn VertexAttributes>,
 }
 
 impl VkTryFrom<AttributeFlags> for AttributesData {
@@ -31,7 +31,7 @@ impl VkTryFrom<AttributeFlags> for AttributesData {
         let content = flag.new_attributes()
             .ok_or(VkError::unimplemented("Primitive attributes combination"))?;
 
-        let result = AttributesData { vertex_size, content };
+        let result = AttributesData { vertex_size, data_content: content };
         Ok(result)
     }
 }
