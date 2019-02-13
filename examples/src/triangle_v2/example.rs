@@ -6,40 +6,28 @@ use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::{VkResult, VkError};
 use vkbase::FrameAction;
-use vkbase::vkuint;
 
 use std::ptr;
 use std::path::Path;
 
-use crate::data::{Vertex, VertexBuffer, IndexBuffer, UniformBuffer, DepthImage};
+use vkexamples::VkExampleBackendRes;
+use crate::data::{Vertex, VertexBuffer, IndexBuffer, UniformBuffer, DescriptorStaff};
 
 const SHADER_VERTEX_PATH  : &'static str = "examples/src/triangle_v1/triangle.vert.glsl";
 const SHADER_FRAGMENT_PATH: &'static str = "examples/src/triangle_v1/triangle.frag.glsl";
 
 pub struct VulkanExample {
 
-    dimension: vk::Extent2D,
+    backend_res: VkExampleBackendRes,
+
     vertex_buffer: VertexBuffer,
     index_buffer: IndexBuffer,
     uniform_buffer: UniformBuffer,
 
-    depth_image: DepthImage,
-
     render_pass: vk::RenderPass,
-
-    pipeline_layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
 
-    framebuffers: Vec<vk::Framebuffer>,
-
-    descriptor_pool: vk::DescriptorPool,
-    descriptor_set_layout: vk::DescriptorSetLayout,
-    descriptor_set: vk::DescriptorSet,
-
-    command_pool: vk::CommandPool,
-    commands: Vec<vk::CommandBuffer>,
-
-    await_rendering: vk::Semaphore,
+    descriptors: DescriptorStaff,
 }
 
 impl VulkanExample {
@@ -50,29 +38,23 @@ impl VulkanExample {
         let swapchain = &context.swapchain;
         let dimension = swapchain.dimension;
 
-        let command_pool = super::helper::create_command_pool(device)?;
-        let commands = create_command_buffer(device, command_pool, swapchain.frame_in_flight as _)?;
+        let mut backend_res = VkExampleBackendRes::new(device, swapchain)?;
 
-        let (vertex_buffer, index_buffer) = super::data::prepare_vertices(device, command_pool)?;
+        let (vertex_buffer, index_buffer) = super::data::prepare_vertices(device)?;
         let uniform_buffer = super::data::prepare_uniform(device, dimension)?;
 
-        let descriptor_pool = setup_descriptor_pool(device)?;
-        let (descriptor_set_layout, pipeline_layout) = setup_descriptor_layout(device)?;
-        let descriptor_set = setup_descriptor_set(device, descriptor_pool, descriptor_set_layout, &uniform_buffer)?;
+        let descriptors = setup_descriptor(device, &uniform_buffer)?;
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
-        let depth_image = setup_depth_stencil(device, dimension)?;
-        let framebuffers = setup_framebuffers(device, &context.swapchain, render_pass, &depth_image)?;
-        let pipeline = prepare_pipelines(device, render_pass, pipeline_layout)?;
 
-        let await_rendering = setup_sync_primitive(device)?;
+        backend_res.setup_framebuffers(device, swapchain, render_pass)?;
+
+        let pipeline = prepare_pipelines(device, render_pass, descriptors.pipeline_layout)?;
 
         let target = VulkanExample {
-            command_pool, commands,
-            descriptor_pool, descriptor_set, descriptor_set_layout,
-            pipeline, pipeline_layout, render_pass, framebuffers,
-            vertex_buffer, index_buffer, uniform_buffer, depth_image, dimension,
-            await_rendering,
+            backend_res, descriptors,
+            pipeline, render_pass,
+            vertex_buffer, index_buffer, uniform_buffer,
         };
         Ok(target)
     }
@@ -82,7 +64,7 @@ impl vkbase::Workflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
 
-        self.record_commands(device, self.dimension)?;
+        self.record_commands(device, self.backend_res.dimension)?;
         Ok(())
     }
 
@@ -97,9 +79,9 @@ impl vkbase::Workflow for VulkanExample {
                 // Pipeline stage at which the queue submission will wait (via p_wait_semaphores).
                 p_wait_dst_stage_mask  : &vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
                 command_buffer_count   : 1,
-                p_command_buffers      : &self.commands[image_index],
+                p_command_buffers      : &self.backend_res.commands[image_index],
                 signal_semaphore_count : 1,
-                p_signal_semaphores    : &self.await_rendering,
+                p_signal_semaphores    : &self.backend_res.await_rendering,
             },
         ];
 
@@ -109,33 +91,22 @@ impl vkbase::Workflow for VulkanExample {
                 .map_err(|_| VkError::device("Queue Submit"))?;
         }
 
-        Ok(self.await_rendering)
+        Ok(self.backend_res.await_rendering)
     }
 
     fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
         device.discard(self.pipeline);
         device.discard(self.render_pass);
-        device.discard(&self.framebuffers);
 
-        device.discard(self.depth_image.view);
-        device.discard(self.depth_image.image);
-        device.discard(self.depth_image.memory);
+        self.render_pass = setup_renderpass(device, new_chain)?;
+
+        self.backend_res.swapchain_reload(device, new_chain, self.render_pass)?;
 
         // recreate the resources.
-        unsafe {
+        self.pipeline = prepare_pipelines(device, self.render_pass, self.descriptors.pipeline_layout)?;
 
-            self.dimension = new_chain.dimension;
-            self.render_pass = setup_renderpass(device, new_chain)?;
-            self.depth_image = setup_depth_stencil(device, self.dimension)?;
-
-            self.framebuffers = setup_framebuffers(device, new_chain, self.render_pass, &self.depth_image)?;
-            self.pipeline = prepare_pipelines(device, self.render_pass, self.pipeline_layout)?;
-
-            device.logic.handle.reset_command_pool(self.command_pool, vk::CommandPoolResetFlags::RELEASE_RESOURCES)
-                .map_err(|_| VkError::device("Reset Command Poll"))?;
-            self.record_commands(device, self.dimension)?;
-        }
+        self.record_commands(device, self.backend_res.dimension)?;
 
         Ok(())
     }
@@ -176,14 +147,14 @@ impl VulkanExample {
             offset: vk::Offset2D { x: 0, y: 0 },
         };
 
-        for (i, &command) in self.commands.iter().enumerate() {
+        for (i, &command) in self.backend_res.commands.iter().enumerate() {
 
             use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
             use vkbase::ci::pipeline::RenderPassBI;
 
             let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(device, command);
 
-            let render_pass_bi = RenderPassBI::new(self.render_pass, self.framebuffers[i])
+            let render_pass_bi = RenderPassBI::new(self.render_pass, self.backend_res.framebuffers[i])
                 .render_extent(dimension)
                 .clear_values(&clear_values);
 
@@ -191,7 +162,7 @@ impl VulkanExample {
                 .begin_render_pass(render_pass_bi)
                 .set_viewport(0, &[viewport])
                 .set_scissor(0, &[scissor])
-                .bind_descriptor_sets(self.pipeline_layout, 0, &[self.descriptor_set], &[])
+                .bind_descriptor_sets(self.descriptors.pipeline_layout, 0, &[self.descriptors.descriptor_set], &[])
                 .bind_pipeline(self.pipeline)
                 .bind_vertex_buffers(0, &[self.vertex_buffer.buffer], &[0])
                 .bind_index_buffer(self.index_buffer.buffer, vk::IndexType::UINT32, 0)
@@ -205,19 +176,12 @@ impl VulkanExample {
 
     fn discard(&self, device: &VkDevice) {
 
-        device.discard(self.descriptor_set_layout);
-        device.discard(self.descriptor_pool);
+        device.discard(self.descriptors.set_layout);
+        device.discard(self.descriptors.descriptor_pool);
 
         device.discard(self.pipeline);
-        device.discard(self.pipeline_layout);
+        device.discard(self.descriptors.pipeline_layout);
         device.discard(self.render_pass);
-        device.discard(&self.framebuffers);
-
-        device.discard(self.command_pool);
-
-        device.discard(self.depth_image.view);
-        device.discard(self.depth_image.image);
-        device.discard(self.depth_image.memory);
 
         device.discard(self.vertex_buffer.buffer);
         device.discard(self.vertex_buffer.memory);
@@ -228,33 +192,20 @@ impl VulkanExample {
         device.discard(self.uniform_buffer.buffer);
         device.discard(self.uniform_buffer.memory);
 
-        device.discard(self.await_rendering);
+        self.backend_res.discard(device);
     }
 }
 
+fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer) -> VkResult<DescriptorStaff> {
 
-pub fn create_command_buffer(device: &VkDevice, pool: vk::CommandPool, count: vkuint) -> VkResult<Vec<vk::CommandBuffer>> {
+    use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
+    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI};
+    use vkbase::ci::pipeline::PipelineLayoutCI;
 
-    use vkbase::ci::command::CommandBufferAI;
-    let command_buffers = CommandBufferAI::new(pool, count)
-        .build(device)?;
-    Ok(command_buffers)
-}
-
-fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {
-
-    use vkbase::ci::descriptor::DescriptorPoolCI;
-
+    // Descriptor Pool.
     let descriptor_pool = DescriptorPoolCI::new(1)
         .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER, 1)
         .build(device)?;
-    Ok(descriptor_pool)
-}
-
-fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayout, vk::PipelineLayout)> {
-
-    use vkbase::ci::descriptor::DescriptorSetLayoutCI;
-    use vkbase::ci::pipeline::PipelineLayoutCI;
 
     // Descriptor Set Layout.
     let uniform_descriptor = vk::DescriptorSetLayoutBinding {
@@ -265,26 +216,20 @@ fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayo
         p_immutable_samplers: ptr::null(),
     };
 
-    let descriptor_set_layout = DescriptorSetLayoutCI::new()
+    let set_layout = DescriptorSetLayoutCI::new()
         .add_binding(uniform_descriptor)
         .build(device)?;
 
     // Pipeline Layout.
     let pipeline_layout = PipelineLayoutCI::new()
-        .add_set_layout(descriptor_set_layout)
+        .add_set_layout(set_layout)
         .build(device)?;
 
-    Ok((descriptor_set_layout, pipeline_layout))
-}
-
-fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, set_layout: vk::DescriptorSetLayout, uniforms: &UniformBuffer) -> VkResult<vk::DescriptorSet> {
-
-    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI};
-
-    let descriptor_set = DescriptorSetAI::new(pool)
+    // Descriptor set.
+    let mut descriptor_sets = DescriptorSetAI::new(descriptor_pool)
         .add_set_layout(set_layout)
-        .build(device)?
-        .remove(0);
+        .build(device)?;
+    let descriptor_set = descriptor_sets.remove(0);
 
     let write_info = DescriptorBufferSetWI::new(descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
         .add_buffer(uniforms.descriptor.clone());
@@ -293,33 +238,7 @@ fn setup_descriptor_set(device: &VkDevice, pool: vk::DescriptorPool, set_layout:
         device.logic.handle.update_descriptor_sets(&[write_info.value()], &[]);
     }
 
-    Ok(descriptor_set)
-}
-
-
-fn setup_depth_stencil(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<DepthImage> {
-
-    use vkbase::ci::image::{ImageCI, ImageViewCI};
-    use vkbase::ci::memory::MemoryAI;
-
-    let (image, image_requirement) = ImageCI::new_2d(device.phy.depth_format, dimension)
-        .usages(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
-        .build(device)?;
-
-    let memory_index = super::helper::get_memory_type_index(device, image_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-    let memory = MemoryAI::new(image_requirement.size, memory_index)
-        .build(device)?;
-
-    unsafe {
-        device.logic.handle.bind_image_memory(image, memory, 0)
-            .map_err(|_| VkError::device("Bind Image Memory."))?;
-    }
-
-    let view = ImageViewCI::new(image, vk::ImageViewType::TYPE_2D, device.phy.depth_format)
-        .aspect_mask(vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL)
-        .build(device)?;
-
-    let result = DepthImage { image, view, memory };
+    let result = DescriptorStaff { descriptor_pool, descriptor_set, pipeline_layout, set_layout };
     Ok(result)
 }
 
@@ -361,35 +280,9 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
     Ok(render_pass)
 }
 
-// Create a frame buffer for each swap chain image.
-fn setup_framebuffers(device: &VkDevice, swapchain: &VkSwapchain, render_pass: vk::RenderPass, depth_image: &DepthImage) -> VkResult<Vec<vk::Framebuffer>> {
-
-    use vkbase::ci::pipeline::FramebufferCI;
-
-    // create a frame buffer for every image in the swapchain.
-    let mut framebuffers = Vec::with_capacity(swapchain.frame_in_flight());
-    let dimension = swapchain.dimension.clone();
-
-    for i in 0..swapchain.frame_in_flight() {
-
-        let framebuffer = FramebufferCI::new_2d(render_pass, dimension)
-            .add_attachment(swapchain.images[i].view) // color attachment is the view of the swapchain image.
-            .add_attachment(depth_image.view) // depth/stencil attachment is the same for all frame buffers.
-            .build(device)?;
-        framebuffers.push(framebuffer);
-    }
-
-    Ok(framebuffers)
-}
-
-
 fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk::PipelineLayout) -> VkResult<vk::Pipeline> {
 
     use vkbase::ci::pipeline::*;
-
-    let input_assembly_state = InputAssemblySCI::new();
-
-    let rasterization_state = RasterizationSCI::new();
 
     let viewport_state = ViewportSCI::new()
         .add_viewport(vk::Viewport::default())
@@ -401,8 +294,6 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
 
     let depth_stencil_state = DepthStencilSCI::new()
         .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);
-
-    let multisample_state = MultisampleSCI::new();
 
     let dynamic_state = DynamicSCI::new()
         .add_dynamic(vk::DynamicState::VIEWPORT)
@@ -426,35 +317,23 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
     let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
         .build(device)?;
 
-    let vert_sci = ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module);
-    let frag_sci = ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module);
 
     let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, layout);
 
-    pipeline_ci.add_shader_stage(vert_sci);
-    pipeline_ci.add_shader_stage(frag_sci);
+    pipeline_ci.add_shader_stage(ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module));
+    pipeline_ci.add_shader_stage(ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module));
 
     pipeline_ci.set_vertex_input(vertex_input_state);
-    pipeline_ci.set_input_assembly(input_assembly_state);
     pipeline_ci.set_viewport(viewport_state);
-    pipeline_ci.set_rasterization(rasterization_state);
-    pipeline_ci.set_multisample(multisample_state);
     pipeline_ci.set_depth_stencil(depth_stencil_state);
     pipeline_ci.set_color_blend(blend_state);
     pipeline_ci.set_dynamic(dynamic_state);
 
-    let pipeline = device.build(pipeline_ci)?;
+    let pipeline = device.build(&pipeline_ci)?;
 
 
     device.discard(vert_module);
     device.discard(frag_module);
 
     Ok(pipeline)
-}
-
-fn setup_sync_primitive(device: &VkDevice) -> VkResult<vk::Semaphore> {
-
-    use vkbase::ci::sync::SemaphoreCI;
-    let semaphore = SemaphoreCI::new().build(device)?;
-    Ok(semaphore)
 }

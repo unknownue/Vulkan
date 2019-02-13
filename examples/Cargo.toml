@@ -1,6 +1,6 @@
 
 [package]
-name     = "vulkan-examples"
+name     = "vkexamples"
 version  = "0.0.1"
 authors  = ["usami-renko <usami-ssc@protonmail.com>"]
 edition  = "2018"

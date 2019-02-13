@@ -4,12 +4,12 @@ use ash::version::DeviceV1_0;
 
 use vkbase::context::VkDevice;
 use vkbase::ci::VkObjectBuildableCI;
+use vkbase::utils::time::VkTimeDuration;
 use vkbase::{VkResult, VkError};
 use vkbase::{vkuint, vkbytes};
 
-use crate::helper;
-
 use std::mem;
+use std::ptr;
 
 type Mat4F = nalgebra::Matrix4<f32>;
 
@@ -59,9 +59,7 @@ impl Vertex {
 
 /// Vertex buffer.
 pub struct VertexBuffer {
-    /// handle to the device memory of current vertex buffer.
     pub memory: vk::DeviceMemory,
-    /// handle to the vk::Buffer object that the memory is bound to.
     pub buffer: vk::Buffer,
 }
 
@@ -69,7 +67,6 @@ pub struct VertexBuffer {
 pub struct IndexBuffer {
     pub memory: vk::DeviceMemory,
     pub buffer: vk::Buffer,
-    /// The element count of indices used in this index buffer.
     pub count: vkuint,
 }
 
@@ -78,6 +75,14 @@ pub struct UniformBuffer {
     pub memory: vk::DeviceMemory,
     pub buffer: vk::Buffer,
     pub descriptor: vk::DescriptorBufferInfo,
+}
+
+pub struct DescriptorStaff {
+    pub descriptor_pool: vk::DescriptorPool,
+    pub descriptor_set: vk::DescriptorSet,
+
+    pub set_layout: vk::DescriptorSetLayout,
+    pub pipeline_layout: vk::PipelineLayout,
 }
 
 // The uniform data that will be transferred to shader.
@@ -94,19 +99,8 @@ pub struct UboVS {
     pub model: Mat4F,
 }
 
-pub struct DepthImage {
-    pub image: vk::Image,
-    pub view : vk::ImageView,
-    pub memory: vk::DeviceMemory,
-}
-
-
 // Prepare vertex buffer and index buffer for an indexed triangle.
-pub fn prepare_vertices(device: &VkDevice, command_pool: vk::CommandPool) -> VkResult<(VertexBuffer, IndexBuffer)> {
-
-    // A note on memory management in Vulkan in general:
-    // This is a very complex topic and while it's fine for an example application to to small individual memory allocations that is not
-    // what should be done a real-world application, where you should allocate large chunks of memory at once instead.
+pub fn prepare_vertices(device: &VkDevice) -> VkResult<(VertexBuffer, IndexBuffer)> {
 
     let vertices_data = [
         Vertex { position: [ 1.0,  1.0, 0.0], color: [1.0, 0.0, 0.0] },
@@ -118,30 +112,8 @@ pub fn prepare_vertices(device: &VkDevice, command_pool: vk::CommandPool) -> VkR
     let indices_data = [0, 1, 2_u32];
     let indices = allocate_buffer(device, &indices_data, vk::BufferUsageFlags::INDEX_BUFFER)?;
 
-    let copy_command = helper::create_command_buffer(device, command_pool, true)?;
+    transfer_staging_data(device, &vertices, &indices)?;
 
-    unsafe {
-
-        let vertex_copy_region = vk::BufferCopy {
-            src_offset: 0,
-            dst_offset: 0,
-            size: vertices.buffer_size,
-        };
-        device.logic.handle.cmd_copy_buffer(copy_command, vertices.staging_buffer, vertices.target_buffer, &[vertex_copy_region]);
-
-        let index_copy_region = vk::BufferCopy {
-            src_offset: 0,
-            dst_offset: 0,
-            size: indices.buffer_size,
-        };
-        device.logic.handle.cmd_copy_buffer(copy_command, indices.staging_buffer, indices.target_buffer, &[index_copy_region]);
-    }
-
-    // Flushing the command buffer will also submit it to the queue
-    // and uses a fence to ensure that all commands have been executed before returning.
-    helper::flush_command_buffer(device, command_pool, copy_command)?;
-
-    // Destroy staging buffers
     device.discard(vertices.staging_buffer);
     device.discard(vertices.staging_memory);
 
@@ -160,6 +132,67 @@ pub fn prepare_vertices(device: &VkDevice, command_pool: vk::CommandPool) -> VkR
     };
 
     Ok((vertex_buffer, index_buffer))
+}
+
+fn transfer_staging_data(device: &VkDevice, vertices: &BufferResourceTmp, indices: &BufferResourceTmp) -> VkResult<()> {
+
+    use vkbase::ci::command::{CommandBufferAI, CommandPoolCI};
+    use vkbase::command::{VkCmdRecorder, ITransfer, CmdTransferApi};
+
+    let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
+        .build(device)?;
+
+    let copy_command = CommandBufferAI::new(command_pool, 1)
+        .build(device)?
+        .remove(0);
+
+    let cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
+
+    let vertex_copy_region = vk::BufferCopy {
+        src_offset: 0,
+        dst_offset: 0,
+        size: vertices.buffer_size,
+    };
+    let index_copy_region = vk::BufferCopy {
+        src_offset: 0,
+        dst_offset: 0,
+        size: indices.buffer_size,
+    };
+
+    cmd_recorder.begin_record()?
+        .copy_buf2buf(vertices.staging_buffer, vertices.target_buffer, &[vertex_copy_region])
+        .copy_buf2buf(indices.staging_buffer, indices.target_buffer, &[index_copy_region])
+        .end_record()?;
+
+    let submit_info = vk::SubmitInfo {
+        s_type: vk::StructureType::SUBMIT_INFO,
+        p_next: ptr::null(),
+        wait_semaphore_count   : 0,
+        p_wait_semaphores      : ptr::null(),
+        p_wait_dst_stage_mask  : ptr::null(),
+        command_buffer_count   : 1,
+        p_command_buffers      : &copy_command,
+        signal_semaphore_count : 0,
+        p_signal_semaphores    : ptr::null(),
+    };
+
+    use vkbase::ci::sync::FenceCI;
+    let fence = device.build(&FenceCI::new(false))?;
+
+    unsafe {
+        device.logic.handle.queue_submit(device.logic.queues.transfer.handle, &[submit_info], fence)
+            .map_err(|_| VkError::device("Queue Submit"))?;
+
+        device.logic.handle.wait_for_fences(&[fence], true, VkTimeDuration::Infinite.into())
+            .map_err(|_| VkError::device("Wait for fences"))?;
+    }
+
+    // release temporary resource.
+    device.discard(fence);
+    // free the command poll will automatically destroy all command buffers created by this pool.
+    device.discard(command_pool);
+
+    Ok(())
 }
 
 
@@ -185,7 +218,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
         .usage(vk::BufferUsageFlags::TRANSFER_SRC)
         .build(device)?;
 
-    let staging_memory_index = helper::get_memory_type_index(device, staging_requirement.memory_type_bits,
+    let staging_memory_index = vkexamples::get_memory_type_index(device, staging_requirement.memory_type_bits,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
     let staging_memory = MemoryAI::new(staging_requirement.size, staging_memory_index)
         .build(device)?;
@@ -208,7 +241,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
         .usage(vk::BufferUsageFlags::TRANSFER_DST | buffer_usage)
         .build(device)?;
 
-    let target_memory_index = helper::get_memory_type_index(device, target_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+    let target_memory_index = vkexamples::get_memory_type_index(device, target_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
     let target_memory = MemoryAI::new(target_requirement.size, target_memory_index)
         .build(device)?;
 
@@ -230,7 +263,7 @@ pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<U
         .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
         .build(device)?;
 
-    let memory_index = helper::get_memory_type_index(device, memory_requirement.memory_type_bits,
+    let memory_index = vkexamples::get_memory_type_index(device, memory_requirement.memory_type_bits,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
     let uniform_memory = MemoryAI::new(memory_requirement.size, memory_index)
         .build(device)?;

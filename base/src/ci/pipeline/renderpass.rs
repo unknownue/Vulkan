@@ -297,6 +297,10 @@ impl SubpassDescCI {
 
     pub fn value(&self) -> vk::SubpassDescription {
 
+        if self.resolves.is_empty() == false {
+            debug_assert_eq!(self.colors.len(), self.resolves.len(), "The amount of resolve attachments must be equal to color attachments if it is not empty.");
+        }
+
         vk::SubpassDescription {
             input_attachment_count: self.inputs.len() as _,
             p_input_attachments   : self.inputs.as_ptr(),

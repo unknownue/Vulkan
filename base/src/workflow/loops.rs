@@ -5,7 +5,6 @@ use ash::version::DeviceV1_0;
 use crate::context::{VulkanContext, VkDevice, SwapchainSyncError};
 use crate::workflow::Workflow;
 use crate::workflow::window::WindowContext;
-use crate::ci::VkObjectBuildableCI;
 use crate::input::InputController;
 use crate::utils::fps::FpsCounter;
 use crate::utils::time::VkTimeDuration;
@@ -96,7 +95,7 @@ impl ProcPipeline {
             response_feedback!(render_feedback);
 
             input_handler.tick_frame();
-            self.frame_counter.next_frame();
+            self.frame_counter.tick_frame();
             self.fps_counter.tick_frame();
         }
 
@@ -175,13 +174,13 @@ impl SyncResource {
 
         use crate::ci::sync::{SemaphoreCI, FenceCI};
 
-        let await_present = SemaphoreCI::new().build(device)?;
+        let await_present = device.build(&SemaphoreCI::new())?;
 
         let mut sync_fences = Vec::with_capacity(frame_count);
         let fence_ci = FenceCI::new(true);
 
         for _ in 0..frame_count {
-            sync_fences.push(fence_ci.build(device)?);
+            sync_fences.push(device.build(&fence_ci)?);
         }
 
         let syncs = SyncResource { frame_count, await_present, sync_fences };
@@ -200,10 +199,7 @@ impl SyncResource {
     fn discard(&mut self, device: &VkDevice) {
 
         device.discard(self.await_present);
-
-        for &fence in self.sync_fences.iter() {
-            device.discard(fence);
-        }
+        device.discard(&self.sync_fences);
 
         self.sync_fences.clear();
     }

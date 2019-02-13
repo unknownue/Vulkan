@@ -21,7 +21,7 @@ impl FrameCounter {
     }
 
     #[inline]
-    pub fn next_frame(&mut self) {
+    pub fn tick_frame(&mut self) {
 
         self.current = (self.current + 1) % self.frame_in_flight;
     }

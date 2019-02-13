@@ -16,7 +16,7 @@ pub struct VkDevice {
 impl VkDevice {
 
     #[inline]
-    pub fn build<T>(&self, ci: T) -> crate::VkResult<T::ObjectType>
+    pub fn build<T>(&self, ci: &T) -> crate::VkResult<T::ObjectType>
         where
             T: crate::ci::VkObjectBuildableCI {
         ci.build(self)

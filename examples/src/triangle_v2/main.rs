@@ -6,7 +6,6 @@
 
 mod data;
 mod example;
-mod helper;
 
 const WINDOW_WIDTH : u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
@@ -21,13 +20,14 @@ fn main() {
     win_config.dimension.height = WINDOW_HEIGHT;
     win_config.title = WINDOW_TITLE.to_string();
 
-    let window = vkbase::WindowContext::new(win_config).unwrap();
+    let window = vkbase::WindowContext::new(win_config)
+        .expect("Error when creating Window Context");
 
     let vk_context = vkbase::context::VulkanContext::new(&window)
-        .build().unwrap();
+        .build().expect("Error when creating Vulkan Context");
 
     let app = example::VulkanExample::new(&vk_context)
-        .unwrap();
+        .expect("Error when initializing application");
 
     let mut entry = vkbase::ProcPipeline::new(window, vk_context).unwrap();
 
