@@ -1,31 +1,36 @@
 
+use crate::gltf::primitive::MeshAsset;
+use crate::gltf::primitive::AttributeFlags;
 use crate::error::{VkResult, VkTryFrom};
 
 use std::collections::HashMap;
 
-type ReferenceIndex = usize;
-type   StorageIndex = usize;
+pub type ReferenceIndex = usize;
+pub type   StorageIndex = usize;
 
+// --------------------------------------------------------------------------------------
 pub struct GltfDocument {
     pub doc: gltf::Document,
     pub buffers: Vec<gltf::buffer::Data>,
     pub images : Vec<gltf::image::Data>,
 }
+// --------------------------------------------------------------------------------------
 
 
-pub struct AssetRepo<Asset> {
+// --------------------------------------------------------------------------------------
+pub struct AssetLib<Asset> {
 
     indices: HashMap<ReferenceIndex, StorageIndex>,
     asset: Asset,
 }
 
-impl<Asset, Any> VkTryFrom<Any> for AssetRepo<Asset>
+impl<Asset, Any> VkTryFrom<Any> for AssetLib<Asset>
     where
         Asset: VkTryFrom<Any> {
 
-    fn try_from(any: Any) -> VkResult<AssetRepo<Asset>> {
+    fn try_from(any: Any) -> VkResult<AssetLib<Asset>> {
 
-        let result = AssetRepo {
+        let result = AssetLib {
             indices: HashMap::new(),
             asset  : Asset::try_from(any)?,
         };
@@ -33,7 +38,7 @@ impl<Asset, Any> VkTryFrom<Any> for AssetRepo<Asset>
     }
 }
 
-impl<'a, Asset> AssetRepo<Asset>
+impl<'a, Asset> AssetLib<Asset>
     where
         Asset: AssetAbstract<'a> {
 
@@ -53,8 +58,10 @@ impl<'a, Asset> AssetRepo<Asset>
         Ok(result)
     }
 }
+// --------------------------------------------------------------------------------------
 
 
+// --------------------------------------------------------------------------------------
 pub trait AssetAbstract<'a>: Sized {
     const ASSET_NAME: &'static str;
     type DocumentType;
@@ -64,3 +71,22 @@ pub trait AssetAbstract<'a>: Sized {
 
     fn asset_info(&self, at: StorageIndex) -> Self::AssetInfo;
 }
+// --------------------------------------------------------------------------------------
+
+
+// --------------------------------------------------------------------------------------
+pub struct AssetRepository {
+    pub meshes: AssetLib<MeshAsset>,
+}
+
+impl AssetRepository {
+
+    pub fn new(attr_flag: AttributeFlags) -> VkResult<AssetRepository> {
+
+        let repository = AssetRepository {
+            meshes: AssetLib::try_from(attr_flag)?,
+        };
+        Ok(repository)
+    }
+}
+// --------------------------------------------------------------------------------------

@@ -1,4 +1,7 @@
 
+pub use self::asset::MeshAsset;
+pub use self::attributes::AttributeFlags;
+
 mod attributes;
 mod indices;
 mod asset;
