@@ -55,8 +55,8 @@ impl VkError {
         VkError::from(VkErrorKind::Path { path: path.as_ref().to_path_buf() })
     }
 
-    pub fn other(description: impl AsRef<str>) -> VkError {
-        VkError::from(VkErrorKind::Other {
+    pub fn custom(description: impl AsRef<str>) -> VkError {
+        VkError::from(VkErrorKind::Custom {
             description: description.as_ref().to_string()
         })
     }
@@ -104,6 +104,8 @@ pub enum VkErrorKind {
     /// An error that occurred while trying to compile shader code in runtime.
     #[fail(display = "Error occurred during runtime shader compiling: {}.", compile_message)]
     Shaderc { compile_message: String },
+    #[fail(display = "glTF parse error: {}", _0)]
+    ParseGltf(#[cause] gltf::Error),
     /// An error occurred while communicate with Window.
     #[fail(display = "Failed to interact with Window: {}.", description)]
     Window { description: String },
@@ -112,7 +114,7 @@ pub enum VkErrorKind {
     Path { path: PathBuf },
     /// Other errors.
     #[fail(display = "{}", description)]
-    Other { description: String },
+    Custom { description: String },
 }
 
 impl From<VkErrorKind> for VkError {

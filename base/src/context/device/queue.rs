@@ -107,7 +107,7 @@ impl QueueRequester {
 
             Ok(requested_index)
         } else {
-            Err(VkError::other(format!("Request Queue with flags({:?}) is not support on current Vulkan device.", request_queue)))
+            Err(VkError::custom(format!("Request Queue with flags({:?}) is not support on current Vulkan device.", request_queue)))
         }
     }
 

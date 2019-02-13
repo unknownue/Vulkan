@@ -94,7 +94,7 @@ impl VkPhysicalDevice {
             Ok(dst_device)
         } else {
 
-            Err(VkError::other("Failed to find supportive Vulkan device."))
+            Err(VkError::custom("Failed to find supportive Vulkan device."))
         }
     }
 

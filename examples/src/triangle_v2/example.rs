@@ -96,14 +96,12 @@ impl vkbase::Workflow for VulkanExample {
 
     fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
+        // recreate the resources.
         device.discard(self.pipeline);
         device.discard(self.render_pass);
 
         self.render_pass = setup_renderpass(device, new_chain)?;
-
         self.backend_res.swapchain_reload(device, new_chain, self.render_pass)?;
-
-        // recreate the resources.
         self.pipeline = prepare_pipelines(device, self.render_pass, self.descriptors.pipeline_layout)?;
 
         self.record_commands(device, self.backend_res.dimension)?;

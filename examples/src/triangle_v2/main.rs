@@ -13,23 +13,25 @@ const WINDOW_TITLE: &'static str = "Vulkan Example - Basic indexed triangle";
 
 fn main() {
 
-    // TODO: handle unwrap() in some way.
+    use vkbase::{WindowConfig, WindowContext};
+    use vkbase::ProcPipeline;
+    use vkbase::context::VulkanContext;
 
-    let mut win_config = vkbase::WindowConfig::default();
+    let mut win_config = WindowConfig::default();
     win_config.dimension.width  = WINDOW_WIDTH;
     win_config.dimension.height = WINDOW_HEIGHT;
     win_config.title = WINDOW_TITLE.to_string();
 
-    let window = vkbase::WindowContext::new(win_config)
+    let window = WindowContext::new(win_config)
         .expect("Error when creating Window Context");
 
-    let vk_context = vkbase::context::VulkanContext::new(&window)
+    let vk_context = VulkanContext::new(&window)
         .build().expect("Error when creating Vulkan Context");
 
     let app = example::VulkanExample::new(&vk_context)
         .expect("Error when initializing application");
 
-    let mut entry = vkbase::ProcPipeline::new(window, vk_context).unwrap();
+    let mut entry = ProcPipeline::new(window, vk_context).unwrap();
 
     match entry.launch(app) {
         | Ok(_) => {},

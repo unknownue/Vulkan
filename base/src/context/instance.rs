@@ -73,9 +73,9 @@ impl VkInstance {
             .or(Err(VkError::unlink("Entry")))?;
 
         let app_name = CString::new(config.application_name.as_bytes())
-            .map_err(|_| VkError::other("Failed to cast application name to CString."))?;
+            .map_err(|_| VkError::custom("Failed to cast application name to CString."))?;
         let engine_name = CString::new(config.engine_name.as_bytes())
-            .map_err(|_| VkError::other("Failed to cast engine name to CString."))?;
+            .map_err(|_| VkError::custom("Failed to cast engine name to CString."))?;
 
         let application_info = vk::ApplicationInfo {
             s_type              : vk::StructureType::APPLICATION_INFO,
@@ -187,7 +187,7 @@ fn layer_names_to_cstring(layers: &[String]) -> VkResult<Vec<CString>> {
 
     for layer in layers.iter() {
         let name_converted = CString::new(layer.as_bytes())
-            .map_err(|_| VkError::other("Failed to cast instance layer name to CString."))?;
+            .map_err(|_| VkError::custom("Failed to cast instance layer name to CString."))?;
         layer_names.push(name_converted);
     }
 

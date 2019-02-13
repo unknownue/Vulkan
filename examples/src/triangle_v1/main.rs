@@ -18,8 +18,6 @@ const WINDOW_TITLE: &'static str = "Vulkan Example - Basic indexed triangle";
 
 fn main() {
 
-    // TODO: handle unwrap() in some way.
-
     let mut win_config = vkbase::WindowConfig::default();
     win_config.dimension.width  = WINDOW_WIDTH;
     win_config.dimension.height = WINDOW_HEIGHT;

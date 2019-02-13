@@ -96,7 +96,7 @@ impl VkSwapchain {
     fn build(instance: &VkInstance, device: &VkDevice, surface: &VkSurface, config: SwapchainConfig, dimension: vk::Extent2D, old_chain: Option<vk::SwapchainKHR>) -> VkResult<VkSwapchain> {
 
         let present_queue = query_present_queue(device, surface)
-            .ok_or(VkError::other("Graphics Queue is not support to present image to platform's surface."))?;
+            .ok_or(VkError::custom("Graphics Queue is not support to present image to platform's surface."))?;
         let swapchain_format = query_optimal_format(device, surface)?;
         let swapchain_capability = query_swapchain_capability(device, surface, dimension)?;
         let swapchain_present_mode = query_optimal_present_mode(device, surface, &config)?;

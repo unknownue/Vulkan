@@ -120,7 +120,7 @@ impl ProcPipeline {
                 },
                 | SwapchainSyncError::TimeOut
                 | SwapchainSyncError::Unknown => {
-                    return Err(VkError::other(e.to_string()))
+                    return Err(VkError::custom(e.to_string()))
                 },
             }
         };
@@ -148,7 +148,7 @@ impl ProcPipeline {
                 },
                 | SwapchainSyncError::TimeOut
                 | SwapchainSyncError::Unknown => {
-                    return Err(VkError::other(e.to_string()))
+                    return Err(VkError::custom(e.to_string()))
                 },
             },
         }

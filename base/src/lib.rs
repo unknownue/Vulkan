@@ -12,6 +12,7 @@ pub mod command;
 pub mod platforms;
 
 mod error;
+mod gltf;
 mod workflow;
 mod input;
 

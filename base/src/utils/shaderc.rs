@@ -97,7 +97,7 @@ fn load_to_string(path: PathBuf) -> VkResult<String> {
         .map_err(|_| VkError::path(path))?;
     let mut contents = String::new();
     let _size = file.read_to_string(&mut contents)
-        .or(Err(VkError::other("Unable to shader code.")))?;
+        .or(Err(VkError::custom("Unable to shader code.")))?;
 
     Ok(contents)
 }
