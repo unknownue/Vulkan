@@ -1,5 +1,4 @@
 
-use crate::gltf::nodes::node::Node;
 use crate::error::{VkResult, VkError, VkTryFrom};
 use crate::vkbytes;
 
@@ -16,13 +15,17 @@ pub struct NodeAttachments {
     pub content: Box<dyn AttachmentData>,
 }
 
+pub struct AttachmentContent {
+    pub transform: Option<Matrix4F>,
+}
+
 impl VkTryFrom<NodeAttachmentFlags> for NodeAttachments {
 
-    fn try_from(flag: NodeAttachmentFlags) -> VkResult<NodeAttachments> {
+    fn try_from(flags: NodeAttachmentFlags) -> VkResult<NodeAttachments> {
 
-        let element_size = flag.element_size()
+        let element_size = flags.element_size()
             .ok_or(VkError::unimplemented("Node property combination"))?;
-        let content = flag.new_transforms()
+        let content = flags.new_transforms()
             .ok_or(VkError::unimplemented("Node property combination"))?;
 
         let result = NodeAttachments { element_size, content };
@@ -34,18 +37,7 @@ impl VkTryFrom<NodeAttachmentFlags> for NodeAttachments {
 // --------------------------------------------------------------------------------------
 pub trait AttachmentData {
 
-    fn extend(&mut self, node: &Node);
-}
-
-macro_rules! read_transform {
-    ($target:ident, $node:ident, $uniform_type:ident, transform) => {
-        let new_uniforms = $uniform_type {
-            transform: $node.transform().clone(),
-            ..Default::default()
-        };
-        // println!("transform: {:?}", new_uniforms.transform);
-        $target.data.push(new_uniforms);
-    };
+    fn extend(&mut self, attachment: AttachmentContent);
 }
 
 macro_rules! property_type {
@@ -54,6 +46,25 @@ macro_rules! property_type {
 
 macro_rules! property_default {
     (transform) => { Matrix4F::identity() };
+}
+
+macro_rules! read_transform {
+    ($target:ident, $content:ident, $attachment_type:ident, $length:ident, transform) => {
+
+        let transform_data = $content.transform.unwrap_or(property_default!(transform));
+
+        if $target.data.len() == $length {
+
+            let attachment = $attachment_type {
+                transform: transform_data,
+                ..Default::default()
+            };
+            // println!("transform: {:?}", new_uniforms.transform);
+            $target.data.push(attachment);
+        } else {
+            $target.data[$length].transform = transform_data;
+        }
+    };
 }
 
 macro_rules! define_node_attachments {
@@ -91,17 +102,18 @@ macro_rules! define_node_attachments {
 
         impl AttachmentData for $name_transform {
 
-            fn extend(&mut self, node: &Node) {
+            fn extend(&mut self, attachment: AttachmentContent) {
 
+                let length = self.data.len();
                 $(
-                    read_transform!(self, node, $name_uniform, $attribute);
+                    read_transform!(self, attachment, $name_uniform, length, $attribute);
                 )*
             }
         }
     };
 }
 
-define_node_attachments!(NA_T, NAUniform_T, {
+define_node_attachments!(NA_T, NAttachment_T, {
     transform,
 });
 // --------------------------------------------------------------------------------------

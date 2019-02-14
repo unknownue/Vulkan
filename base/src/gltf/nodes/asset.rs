@@ -1,18 +1,14 @@
 
-use crate::gltf::asset::{GltfDocument, AssetAbstract};
-use crate::gltf::asset::{ReferenceIndex, StorageIndex};
+use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetElementList};
 use crate::gltf::nodes::node::Node;
 use crate::gltf::nodes::attachment::{NodeAttachments, NodeAttachmentFlags};
 use crate::error::{VkResult, VkTryFrom};
 
-use std::collections::HashMap;
-
 pub struct NodeAsset {
 
     attachments: NodeAttachments,
-    nodes: Vec<Node>,
 
-    query_table: HashMap<ReferenceIndex, StorageIndex>,
+    nodes: AssetElementList<Node>,
 }
 
 impl VkTryFrom<NodeAttachmentFlags> for NodeAsset {
@@ -21,8 +17,7 @@ impl VkTryFrom<NodeAttachmentFlags> for NodeAsset {
 
         let result = NodeAsset {
             attachments: NodeAttachments::try_from(flag)?,
-            nodes: Vec::new(),
-            query_table: HashMap::new(),
+            nodes: Default::default(),
         };
         Ok(result)
     }
@@ -36,11 +31,9 @@ impl<'a> AssetAbstract<'a> for NodeAsset {
         for doc_node in source.doc.nodes() {
 
             let json_index = doc_node.index();
-            let storage_index = self.nodes.len();
-            self.query_table.insert(json_index, storage_index);
 
             let node = Node::from_doc(doc_node)?;
-            self.nodes.push(node);
+            self.nodes.push(json_index, node);
         }
 
         Ok(())

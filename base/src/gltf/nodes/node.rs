@@ -1,5 +1,6 @@
 
-use crate::gltf::asset::ReferenceIndex;
+use crate::gltf::asset::{ReferenceIndex, AssetElementList};
+use crate::gltf::nodes::attachment::{NodeAttachments, AttachmentContent};
 use crate::error::VkResult;
 
 type Matrix4F = nalgebra::Matrix4<f32>;
@@ -45,16 +46,22 @@ impl Node {
         Ok(result)
     }
 
-    pub fn transform(&self) -> &Matrix4F {
-        &self.local_transform
+    pub fn read_attachment(&self, nodes: &AssetElementList<Node>, attachments: &mut NodeAttachments, parent_transform: &Matrix4F) {
+
+        // apply parent node's transformation to current node level.
+        let node_transform = parent_transform * self.local_transform;
+
+        let attachment = AttachmentContent {
+            transform: Some(node_transform.clone()),
+        };
+        // read the final attachment data.
+        attachments.content.extend(attachment);
+
+        // update child nodes recursively.
+        for child_json_index in self.children.iter().cloned() {
+            let child_node = nodes.asset_at(child_json_index);
+            child_node.read_attachment(nodes, attachments, &node_transform);
+        }
     }
-//    /// Apply parent node's transformation to current node level.
-//    pub fn combine_transform(&mut self, parent_transform: &Matrix4F) {
-//        self.local_transform = parent_transform * self.local_transform;
-//
-//        for child_node in self.children.iter_mut() {
-//            child_node.combine_transform(&self.local_transform);
-//        }
-//    }
 }
 // --------------------------------------------------------------------------------------
