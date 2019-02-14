@@ -1,8 +1,9 @@
 
 use crate::gltf::asset::{GltfDocument, AssetAbstract};
 use crate::gltf::asset::{ReferenceIndex, StorageIndex};
-use crate::gltf::mesh::Mesh;
-use crate::gltf::meshes::{AttributesData, AttributeFlags, IndicesData};
+use crate::gltf::meshes::mesh::Mesh;
+use crate::gltf::meshes::attributes::{AttributesData, AttributeFlags};
+use crate::gltf::meshes::indices::IndicesData;
 use crate::error::{VkResult, VkTryFrom};
 
 use std::collections::HashMap;
@@ -33,8 +34,6 @@ impl VkTryFrom<AttributeFlags> for MeshAsset {
 impl<'a> AssetAbstract<'a> for MeshAsset {
     const ASSET_NAME: &'static str = "Meshes";
 
-    type AssetElement = Mesh;
-
     fn read_doc(&mut self, source: &GltfDocument) -> VkResult<()> {
 
         for doc_mesh in source.doc.meshes() {
@@ -49,8 +48,11 @@ impl<'a> AssetAbstract<'a> for MeshAsset {
 
         Ok(())
     }
+}
 
-    fn asset_at(&mut self, ref_index: ReferenceIndex) -> Option<&Self::AssetElement> {
+impl MeshAsset {
+
+    fn mesh_at(&mut self, ref_index: ReferenceIndex) -> Option<&Mesh> {
 
         if let Some(storage_index) = self.query_table.get(&ref_index).cloned() {
             Some(&self.meshes[storage_index])

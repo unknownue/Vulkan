@@ -45,6 +45,9 @@ impl Node {
         Ok(result)
     }
 
+    pub fn transform(&self) -> &Matrix4F {
+        &self.local_transform
+    }
 //    /// Apply parent node's transformation to current node level.
 //    pub fn combine_transform(&mut self, parent_transform: &Matrix4F) {
 //        self.local_transform = parent_transform * self.local_transform;

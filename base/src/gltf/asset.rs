@@ -1,5 +1,6 @@
 
 use crate::gltf::meshes::{MeshAsset, AttributeFlags};
+use crate::gltf::nodes::{NodeAsset, NodeAttachmentFlags};
 use crate::error::{VkResult, VkTryFrom};
 
 pub type ReferenceIndex = usize;
@@ -16,24 +17,23 @@ pub struct GltfDocument {
 // --------------------------------------------------------------------------------------
 pub trait AssetAbstract<'a>: Sized {
     const ASSET_NAME: &'static str;
-    type AssetElement;
 
     fn read_doc(&mut self, source: &GltfDocument) -> VkResult<()>;
-
-    fn asset_at(&mut self, ref_index: ReferenceIndex) -> Option<&Self::AssetElement>;
 }
 // --------------------------------------------------------------------------------------
 
 // --------------------------------------------------------------------------------------
 pub struct AssetRepository {
+    pub nodes : NodeAsset,
     pub meshes: MeshAsset,
 }
 
 impl AssetRepository {
 
-    pub fn new(attr_flag: AttributeFlags) -> VkResult<AssetRepository> {
+    pub fn new(attr_flag: AttributeFlags, attachment_flag: NodeAttachmentFlags) -> VkResult<AssetRepository> {
 
         let repository = AssetRepository {
+            nodes : NodeAsset::try_from(attachment_flag)?,
             meshes: MeshAsset::try_from(attr_flag)?,
         };
         Ok(repository)

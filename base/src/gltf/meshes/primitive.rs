@@ -1,6 +1,7 @@
 
 use crate::gltf::asset::{GltfDocument, ReferenceIndex};
-use crate::gltf::meshes::{AttributesData, IndicesData};
+use crate::gltf::meshes::attributes::AttributesData;
+use crate::gltf::meshes::indices::IndicesData;
 use crate::{VkResult, VkError};
 use crate::vkuint;
 

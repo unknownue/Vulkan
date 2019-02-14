@@ -1,8 +1,9 @@
 
 pub use self::asset::MeshAsset;
-pub use self::attributes::{AttributesData, AttributeFlags};
-pub use self::indices::IndicesData;
+pub use self::attributes::AttributeFlags;
 
 mod asset;
 mod attributes;
 mod indices;
+mod mesh;
+mod primitive;

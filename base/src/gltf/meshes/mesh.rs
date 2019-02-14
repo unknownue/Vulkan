@@ -1,7 +1,8 @@
 
 use crate::gltf::asset::GltfDocument;
-use crate::gltf::primitive::Primitive;
-use crate::gltf::meshes::{AttributesData, IndicesData};
+use crate::gltf::meshes::primitive::Primitive;
+use crate::gltf::meshes::attributes::AttributesData;
+use crate::gltf::meshes::indices::IndicesData;
 use crate::error::VkResult;
 
 // --------------------------------------------------------------------------------------
