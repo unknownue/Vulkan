@@ -16,67 +16,20 @@ pub struct GltfDocument {
 }
 // --------------------------------------------------------------------------------------
 
-
-// --------------------------------------------------------------------------------------
-pub struct AssetLib<Asset> {
-
-    indices: HashMap<ReferenceIndex, StorageIndex>,
-    asset: Asset,
-}
-
-impl<Asset, Any> VkTryFrom<Any> for AssetLib<Asset>
-    where
-        Asset: VkTryFrom<Any> {
-
-    fn try_from(any: Any) -> VkResult<AssetLib<Asset>> {
-
-        let result = AssetLib {
-            indices: HashMap::new(),
-            asset  : Asset::try_from(any)?,
-        };
-        Ok(result)
-    }
-}
-
-impl<'a, Asset> AssetLib<Asset>
-    where
-        Asset: AssetAbstract<'a> {
-
-    pub fn read_doc(&mut self, doc: Asset::DocumentType, source: &GltfDocument, ref_index: ReferenceIndex) -> VkResult<Asset::AssetInfo> {
-
-        let store_index = if let Some(store_index) = self.indices.get(&ref_index) {
-
-            store_index.clone()
-        } else {
-            let store_index = self.asset.extend(doc, source)?;
-
-            self.indices.insert(ref_index, store_index);
-            store_index
-        };
-
-        let result = self.asset.asset_info(store_index);
-        Ok(result)
-    }
-}
-// --------------------------------------------------------------------------------------
-
-
 // --------------------------------------------------------------------------------------
 pub trait AssetAbstract<'a>: Sized {
     const ASSET_NAME: &'static str;
-    type DocumentType;
-    type AssetInfo;
+    type AssetElement;
 
-    fn extend(&mut self, doc: Self::DocumentType, source: &GltfDocument) -> VkResult<StorageIndex>;
+    fn read_doc(&mut self, source: &GltfDocument) -> VkResult<()>;
 
-    fn asset_info(&self, at: StorageIndex) -> Self::AssetInfo;
+    fn asset_at(&mut self, ref_index: ReferenceIndex) -> Option<&Self::AssetElement>;
 }
 // --------------------------------------------------------------------------------------
 
-
 // --------------------------------------------------------------------------------------
 pub struct AssetRepository {
-    pub meshes: AssetLib<MeshAsset>,
+    pub meshes: MeshAsset,
 }
 
 impl AssetRepository {
@@ -84,7 +37,7 @@ impl AssetRepository {
     pub fn new(attr_flag: AttributeFlags) -> VkResult<AssetRepository> {
 
         let repository = AssetRepository {
-            meshes: AssetLib::try_from(attr_flag)?,
+            meshes: MeshAsset::try_from(attr_flag)?,
         };
         Ok(repository)
     }
