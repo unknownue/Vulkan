@@ -1,6 +1,7 @@
 
 use crate::gltf::meshes::{MeshAsset, AttributeFlags};
 use crate::gltf::nodes::{NodeAsset, NodeAttachmentFlags};
+use crate::gltf::material::MaterialAsset;
 use crate::error::{VkResult, VkTryFrom};
 
 use std::collections::HashMap;
@@ -49,7 +50,7 @@ impl<T> AssetElementList<T> {
         self.list.push(element);
     }
 
-    pub fn asset_at(&self, ref_index: ReferenceIndex) -> &T {
+    pub fn get(&self, ref_index: ReferenceIndex) -> &T {
 
         debug_assert!(self.query_table.contains_key(&ref_index));
 
@@ -63,6 +64,7 @@ impl<T> AssetElementList<T> {
 pub struct AssetRepository {
     pub nodes : NodeAsset,
     pub meshes: MeshAsset,
+    pub materials: MaterialAsset,
 }
 
 impl AssetRepository {
@@ -72,6 +74,7 @@ impl AssetRepository {
         let repository = AssetRepository {
             nodes : NodeAsset::try_from(attachment_flag)?,
             meshes: MeshAsset::try_from(attr_flag)?,
+            materials: MaterialAsset::new()?,
         };
         Ok(repository)
     }

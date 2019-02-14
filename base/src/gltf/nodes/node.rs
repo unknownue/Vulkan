@@ -4,7 +4,6 @@ use crate::gltf::nodes::attachment::{NodeAttachments, AttachmentContent};
 use crate::error::VkResult;
 
 type Matrix4F = nalgebra::Matrix4<f32>;
-type NodeIndex = usize;
 
 // --------------------------------------------------------------------------------------
 /// A wrapper class for node level in glTF, containing the render parameters read from glTF file.
@@ -15,7 +14,7 @@ pub struct Node {
     /// the reference to MeshEntity.
     local_mesh: Option<ReferenceIndex>,
     /// the json index of children nodes.
-    children: Vec<NodeIndex>,
+    children: Vec<ReferenceIndex>,
     /// the transform property of current node.
     local_transform: Matrix4F,
 }
@@ -59,7 +58,7 @@ impl Node {
 
         // update child nodes recursively.
         for child_json_index in self.children.iter().cloned() {
-            let child_node = nodes.asset_at(child_json_index);
+            let child_node = nodes.get(child_json_index);
             child_node.read_attachment(nodes, attachments, &node_transform);
         }
     }
