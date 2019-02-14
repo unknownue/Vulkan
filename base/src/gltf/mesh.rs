@@ -1,8 +1,7 @@
 
-use crate::gltf::asset::{AssetRepository, GltfDocument};
-use crate::gltf::primitive::{Primitive, RenderParams};
-use crate::gltf::primitive::{AttributesData, AttributeFlags};
-use crate::gltf::primitive::IndicesData;
+use crate::gltf::asset::GltfDocument;
+use crate::gltf::primitive::Primitive;
+use crate::gltf::meshes::{AttributesData, IndicesData};
 use crate::error::VkResult;
 
 // --------------------------------------------------------------------------------------

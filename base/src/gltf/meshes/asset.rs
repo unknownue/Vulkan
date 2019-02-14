@@ -2,9 +2,7 @@
 use crate::gltf::asset::{GltfDocument, AssetAbstract};
 use crate::gltf::asset::{ReferenceIndex, StorageIndex};
 use crate::gltf::mesh::Mesh;
-use crate::gltf::primitive::RenderParams;
-use crate::gltf::primitive::attributes::{AttributesData, AttributeFlags};
-use crate::gltf::primitive::indices::IndicesData;
+use crate::gltf::meshes::{AttributesData, AttributeFlags, IndicesData};
 use crate::error::{VkResult, VkTryFrom};
 
 use std::collections::HashMap;

@@ -1,14 +1,6 @@
 
-pub use self::asset::MeshAsset;
-pub use self::attributes::{AttributesData, AttributeFlags};
-pub use self::indices::IndicesData;
-
-mod attributes;
-mod indices;
-mod asset;
-
-
 use crate::gltf::asset::{GltfDocument, ReferenceIndex};
+use crate::gltf::meshes::{AttributesData, IndicesData};
 use crate::{VkResult, VkError};
 use crate::vkuint;
 

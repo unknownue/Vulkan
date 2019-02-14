@@ -1,7 +1,5 @@
 
-use crate::gltf::asset::{AssetRepository, GltfDocument, ReferenceIndex};
-use crate::gltf::primitive::AttributeFlags;
-use crate::gltf::mesh::Mesh;
+use crate::gltf::asset::ReferenceIndex;
 use crate::error::VkResult;
 
 type Matrix4F = nalgebra::Matrix4<f32>;
@@ -23,7 +21,7 @@ pub struct Node {
 
 impl Node {
 
-    pub fn from_doc(node: gltf::Node, assets: &mut AssetRepository) -> VkResult<Node> {
+    pub fn from_doc(node: gltf::Node) -> VkResult<Node> {
 
         // read the name of Node.
         let name = node.name().and_then(|n| Some(n.to_string()));

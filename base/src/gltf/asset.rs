@@ -1,9 +1,6 @@
 
-use crate::gltf::primitive::MeshAsset;
-use crate::gltf::primitive::AttributeFlags;
+use crate::gltf::meshes::{MeshAsset, AttributeFlags};
 use crate::error::{VkResult, VkTryFrom};
-
-use std::collections::HashMap;
 
 pub type ReferenceIndex = usize;
 pub type   StorageIndex = usize;
