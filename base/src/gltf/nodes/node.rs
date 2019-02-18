@@ -54,7 +54,7 @@ impl Node {
             transform: Some(node_transform.clone()),
         };
         // read the final attachment data.
-        attachments.content.extend(attachment);
+        attachments.data_content.extend(attachment);
 
         // update child nodes recursively.
         for child_json_index in self.children.iter().cloned() {

@@ -47,6 +47,8 @@ pub struct VkPhysicalDevice {
     pub memories: vk::PhysicalDeviceMemoryProperties,
     pub depth_format: vk::Format,
 
+    pub limits: vk::PhysicalDeviceLimits,
+
     config: PhysicalDevConfig,
 }
 
@@ -88,6 +90,7 @@ impl VkPhysicalDevice {
 
             let dst_device = VkPhysicalDevice {
                 handle: phy_device.handle,
+                limits: phy_device.property.limits,
                 config, memories, depth_format,
             };
 

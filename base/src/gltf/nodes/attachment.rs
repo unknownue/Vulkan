@@ -1,6 +1,6 @@
 
 use crate::error::{VkResult, VkError, VkTryFrom};
-use crate::vkbytes;
+use crate::{vkbytes, vkptr};
 
 use std::ops::{ BitAnd, BitOr, BitOrAssign, BitAndAssign };
 
@@ -9,10 +9,10 @@ type Matrix4F = nalgebra::Matrix4<f32>;
 // --------------------------------------------------------------------------------------
 pub struct NodeAttachments {
 
-    /// the element size of each transform(including the padding).
+    /// the element size of each node attachments(including the padding).
     pub element_size: vkbytes,
-    /// the transform data of this Node.
-    pub content: Box<dyn AttachmentData>,
+    /// the attachment data of this Node.
+    pub data_content: Box<dyn AttachmentData>,
 }
 
 pub struct AttachmentContent {
@@ -28,7 +28,7 @@ impl VkTryFrom<NodeAttachmentFlags> for NodeAttachments {
         let content = flags.new_transforms()
             .ok_or(VkError::unimplemented("Node property combination"))?;
 
-        let result = NodeAttachments { element_size, content };
+        let result = NodeAttachments { element_size, data_content: content };
         Ok(result)
     }
 }
@@ -38,6 +38,10 @@ impl VkTryFrom<NodeAttachmentFlags> for NodeAttachments {
 pub trait AttachmentData {
 
     fn extend(&mut self, attachment: AttachmentContent);
+
+    fn length(&self) -> usize;
+
+    fn map_data(&self, memory_ptr: vkptr, block_size: vkbytes, alignment: vkbytes);
 }
 
 macro_rules! property_type {
@@ -108,6 +112,19 @@ macro_rules! define_node_attachments {
                 $(
                     read_transform!(self, attachment, $name_uniform, length, $attribute);
                 )*
+            }
+
+            fn length(&self) -> usize {
+                self.data.len()
+            }
+
+            fn map_data(&self, memory_ptr: vkptr, block_size: vkbytes, alignment: vkbytes) {
+
+                let mut vert_align = unsafe {
+                    ash::util::Align::new(memory_ptr, alignment, block_size)
+                };
+
+                vert_align.copy_from_slice(&self.data);
             }
         }
     };

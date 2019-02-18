@@ -1,6 +1,6 @@
 
 pub use self::device::VkDevice;
-pub use self::device::{VkObjectCreatable, VkObjectAllocatable};
+pub use self::device::{VkObjectCreatable, VkObjectAllocatable, VkObjectBindable};
 pub use self::swapchain::{VkSwapchain, SwapchainSyncError};
 
 pub use self::instance::InstanceConfig;

@@ -2,10 +2,10 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::context::VkDevice;
+use crate::context::{VkDevice, VkObjectCreatable, VkObjectBindable};
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
-use crate::vkuint;
+use crate::{vkbytes, vkuint};
 
 use std::ptr;
 
@@ -127,11 +127,21 @@ impl ImageCI {
     }
 }
 
-impl crate::context::VkObjectCreatable for vk::Image {
+impl VkObjectCreatable for vk::Image {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_image(self, None);
+        }
+    }
+}
+
+impl VkObjectBindable for vk::Image {
+
+    fn bind(self, device: &VkDevice, memory: vk::DeviceMemory, offset: vkbytes) -> VkResult<()> {
+        unsafe {
+            device.logic.handle.bind_image_memory(self, memory, offset)
+                .map_err(|_| VkError::device("Binding Image Memory"))
         }
     }
 }

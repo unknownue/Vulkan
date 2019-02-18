@@ -27,7 +27,7 @@ pub struct MeshAsset {
     meshes: AssetElementList<Mesh>,
 }
 
-pub struct MeshBlock {
+pub struct MeshAssetBlock {
 
     vertex: (vk::Buffer, vkbytes),
     index: Option<(vk::Buffer, vkbytes)>,
@@ -67,7 +67,7 @@ impl AssetAbstract for MeshAsset {
 
 impl MeshAsset {
 
-    fn allocate(self, device: &VkDevice) -> VkResult<MeshBlock> {
+    fn allocate(self, device: &VkDevice) -> VkResult<MeshAssetBlock> {
 
         // allocate staging buffer.
         let staging_block = self.allocate_staging(device)?;
@@ -83,7 +83,7 @@ impl MeshAsset {
         Ok(mesh_block)
     }
 
-    fn allocate_mesh(&self, device: &VkDevice) -> VkResult<MeshBlock> {
+    fn allocate_mesh(&self, device: &VkDevice) -> VkResult<MeshAssetBlock> {
 
         // create buffer and allocate memory for glTF mesh.
         let (vertex_buffer, vertex_requirement) = self.attributes.buffer_ci()
@@ -99,7 +99,7 @@ impl MeshAsset {
             let mesh_memory = MemoryAI::new(vertex_requirement.size + index_requirement.size, memory_type)
                 .build(device)?;
 
-            MeshBlock {
+            MeshAssetBlock {
                 vertex: (vertex_buffer, vertex_requirement.size),
                 index: Some((index_buffer, index_requirement.size)),
                 memory: mesh_memory,
@@ -109,7 +109,7 @@ impl MeshAsset {
             let mesh_memory = MemoryAI::new(vertex_requirement.size, memory_type)
                 .build(device)?;
 
-            MeshBlock {
+            MeshAssetBlock {
                 vertex: (vertex_buffer, vertex_requirement.size),
                 index: None,
                 memory: mesh_memory,
@@ -119,7 +119,7 @@ impl MeshAsset {
         Ok(mesh_block)
     }
 
-    fn allocate_staging(&self, device: &VkDevice) -> VkResult<MeshBlock> {
+    fn allocate_staging(&self, device: &VkDevice) -> VkResult<MeshAssetBlock> {
 
         // create staging buffer and allocate memory.
         let (vertex_buffer, vertex_requirement) = self.attributes.buffer_ci()
@@ -135,7 +135,7 @@ impl MeshAsset {
             let mesh_memory = MemoryAI::new(vertex_requirement.size + index_requirement.size, memory_type)
                 .build(device)?;
 
-            MeshBlock {
+            MeshAssetBlock {
                 vertex: (vertex_buffer, vertex_requirement.size),
                 index: Some((index_buffer, index_requirement.size)),
                 memory: mesh_memory,
@@ -146,7 +146,7 @@ impl MeshAsset {
             let mesh_memory = MemoryAI::new(vertex_requirement.size, memory_type)
                 .build(device)?;
 
-            MeshBlock {
+            MeshAssetBlock {
                 vertex: (vertex_buffer, vertex_requirement.size),
                 index: None,
                 memory: mesh_memory,
@@ -170,22 +170,19 @@ impl MeshAsset {
 
             // unmap the memory.
             device.logic.handle.unmap_memory(mesh_block.memory);
+        }
 
-            // bind vertex buffer to memory.
-            device.logic.handle.bind_buffer_memory(mesh_block.vertex.0, mesh_block.memory, 0)
-                .map_err(|_| VkError::device("Binding Buffer Memory"))?;
-
-            // bind index buffer to memory.
-            if let Some(ref index_buffer) = mesh_block.index {
-                device.logic.handle.bind_buffer_memory(index_buffer.0, mesh_block.memory, mesh_block.vertex.1)
-                    .map_err(|_| VkError::device("Binding Buffer Memory"))?;
-            }
+        // bind vertex buffer to memory.
+        device.bind(mesh_block.vertex.0, mesh_block.memory, 0)?;
+        // bind index buffer to memory.
+        if let Some(ref index_buffer) = mesh_block.index {
+            device.bind(index_buffer.0, mesh_block.memory, mesh_block.vertex.1)?;
         }
 
         Ok(mesh_block)
     }
 
-    fn copy_staging2mesh(device: &VkDevice, staging: &MeshBlock, mesh: &MeshBlock) -> VkResult<()> {
+    fn copy_staging2mesh(device: &VkDevice, staging: &MeshAssetBlock, mesh: &MeshAssetBlock) -> VkResult<()> {
 
         use crate::ci::command::{CommandBufferAI, CommandPoolCI};
         use crate::command::{VkCmdRecorder, ITransfer, CmdTransferApi};
@@ -253,7 +250,7 @@ impl MeshAsset {
     }
 }
 
-impl MeshBlock {
+impl MeshAssetBlock {
 
     fn discard(&self, device: &VkDevice) {
 

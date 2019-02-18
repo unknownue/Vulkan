@@ -2,7 +2,7 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::context::{VkDevice, VkObjectCreatable};
+use crate::context::{VkDevice, VkObjectCreatable, VkObjectBindable};
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
@@ -85,6 +85,16 @@ impl VkObjectCreatable for vk::Buffer {
     fn discard(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_buffer(self, None)
+        }
+    }
+}
+
+impl VkObjectBindable for vk::Buffer {
+
+    fn bind(self, device: &VkDevice, memory: vk::DeviceMemory, offset: vkbytes) -> VkResult<()> {
+        unsafe {
+            device.logic.handle.bind_buffer_memory(self, memory, offset)
+                .map_err(|_| VkError::device("Binding Buffer Memory"))
         }
     }
 }

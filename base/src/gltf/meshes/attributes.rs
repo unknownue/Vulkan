@@ -41,7 +41,7 @@ impl AttributesData {
 
     pub fn buffer_ci(&self) -> BufferCI {
 
-        let vertices_size = (self.data_content.vertex_count() as vkbytes) * self.vertex_size;
+        let vertices_size = (self.data_content.length() as vkbytes) * self.vertex_size;
         BufferCI::new(vertices_size)
     }
 }
@@ -149,7 +149,7 @@ pub trait VertexAttributes {
 
     fn extend(&mut self, primitive: &gltf::Primitive, source: &GltfDocument) -> AttributeExtendInfo;
 
-    fn vertex_count(&self) -> usize;
+    fn length(&self) -> usize;
 
     fn map_data(&self, memory_ptr: vkptr);
 }
@@ -366,7 +366,7 @@ macro_rules! define_attributes {
                 }
             }
 
-            fn vertex_count(&self) -> usize {
+            fn length(&self) -> usize {
                 self.data.len()
             }
 
