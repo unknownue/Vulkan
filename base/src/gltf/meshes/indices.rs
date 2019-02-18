@@ -1,8 +1,9 @@
 
 use crate::gltf::asset::GltfDocument;
+use crate::ci::buffer::BufferCI;
 use crate::error::{VkResult, VkError};
 
-use crate::vkuint;
+use crate::{vkuint, vkbytes, vkptr};
 
 pub struct IndicesData {
 
@@ -40,6 +41,26 @@ impl IndicesData {
         self.start_index += indices_range as u32;
 
         Ok(result)
+    }
+
+    pub fn buffer_ci(&self) -> Option<BufferCI> {
+
+        if self.start_index > 0 {
+
+            let indices_size = (self.data_content.len() * ::std::mem::size_of::<vkuint>()) as vkbytes;
+            Some(BufferCI::new(indices_size))
+        } else {
+            None
+        }
+    }
+
+    pub fn map_data(&self, memory_ptr: vkptr) {
+
+        unsafe {
+
+            let mapped_copy_target = ::std::slice::from_raw_parts_mut(memory_ptr as *mut vkuint, self.data_content.len());
+            mapped_copy_target.copy_from_slice(&self.data_content);
+        }
     }
 }
 

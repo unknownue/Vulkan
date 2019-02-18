@@ -1,4 +1,6 @@
 
+mod loader;
+
 mod scene;
 mod material;
 

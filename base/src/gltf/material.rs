@@ -2,6 +2,7 @@
 use serde_derive::Serialize;
 
 use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetElementList};
+use crate::gltf::scene::Scene;
 use crate::error::{VkResult, VkError};
 use crate::vkfloat;
 
@@ -74,10 +75,10 @@ impl MaterialAsset {
     }
 }
 
-impl<'a> AssetAbstract<'a> for MaterialAsset {
+impl AssetAbstract for MaterialAsset {
     const ASSET_NAME: &'static str = "Materials";
 
-    fn read_doc(&mut self, source: &GltfDocument) -> VkResult<()> {
+    fn read_doc(&mut self, source: &GltfDocument, _scene: &Scene) -> VkResult<()> {
 
         for doc_material in source.doc.materials() {
 

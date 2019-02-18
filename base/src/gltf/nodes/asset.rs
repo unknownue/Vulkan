@@ -1,5 +1,6 @@
 
 use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetElementList};
+use crate::gltf::scene::Scene;
 use crate::gltf::nodes::node::Node;
 use crate::gltf::nodes::attachment::{NodeAttachments, NodeAttachmentFlags};
 use crate::error::{VkResult, VkTryFrom};
@@ -23,10 +24,10 @@ impl VkTryFrom<NodeAttachmentFlags> for NodeAsset {
     }
 }
 
-impl<'a> AssetAbstract<'a> for NodeAsset {
+impl AssetAbstract for NodeAsset {
     const ASSET_NAME: &'static str = "Nodes";
 
-    fn read_doc(&mut self, source: &GltfDocument) -> VkResult<()> {
+    fn read_doc(&mut self, source: &GltfDocument, scene: &Scene) -> VkResult<()> {
 
         for doc_node in source.doc.nodes() {
 
@@ -35,6 +36,8 @@ impl<'a> AssetAbstract<'a> for NodeAsset {
             let node = Node::from_doc(doc_node)?;
             self.nodes.push(json_index, node);
         }
+
+        scene.read_node_attachment(&self.nodes, &mut self.attachments);
 
         Ok(())
     }

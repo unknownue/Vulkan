@@ -2,6 +2,7 @@
 use crate::gltf::meshes::{MeshAsset, AttributeFlags};
 use crate::gltf::nodes::{NodeAsset, NodeAttachmentFlags};
 use crate::gltf::material::MaterialAsset;
+use crate::gltf::scene::Scene;
 use crate::error::{VkResult, VkTryFrom};
 
 use std::collections::HashMap;
@@ -18,10 +19,10 @@ pub struct GltfDocument {
 // --------------------------------------------------------------------------------------
 
 // --------------------------------------------------------------------------------------
-pub trait AssetAbstract<'a>: Sized {
+pub trait AssetAbstract: Sized {
     const ASSET_NAME: &'static str;
 
-    fn read_doc(&mut self, source: &GltfDocument) -> VkResult<()>;
+    fn read_doc(&mut self, source: &GltfDocument, scene: &Scene) -> VkResult<()>;
 }
 
 pub struct AssetElementList<T> {

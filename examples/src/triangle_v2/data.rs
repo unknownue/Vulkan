@@ -213,12 +213,13 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
 
     use vkbase::ci::buffer::BufferCI;
     use vkbase::ci::memory::MemoryAI;
+    use vkbase::utils::memory::get_memory_type_index;
 
     let (staging_buffer, staging_requirement) = BufferCI::new(buffer_size)
         .usage(vk::BufferUsageFlags::TRANSFER_SRC)
         .build(device)?;
 
-    let staging_memory_index = vkexamples::get_memory_type_index(device, staging_requirement.memory_type_bits,
+    let staging_memory_index = get_memory_type_index(device, staging_requirement.memory_type_bits,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
     let staging_memory = MemoryAI::new(staging_requirement.size, staging_memory_index)
         .build(device)?;
@@ -241,7 +242,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
         .usage(vk::BufferUsageFlags::TRANSFER_DST | buffer_usage)
         .build(device)?;
 
-    let target_memory_index = vkexamples::get_memory_type_index(device, target_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+    let target_memory_index = get_memory_type_index(device, target_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
     let target_memory = MemoryAI::new(target_requirement.size, target_memory_index)
         .build(device)?;
 
@@ -258,12 +259,13 @@ pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<U
 
     use vkbase::ci::buffer::BufferCI;
     use vkbase::ci::memory::MemoryAI;
+    use vkbase::utils::memory::get_memory_type_index;
 
     let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<UboVS>() as vkbytes)
         .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
         .build(device)?;
 
-    let memory_index = vkexamples::get_memory_type_index(device, memory_requirement.memory_type_bits,
+    let memory_index = get_memory_type_index(device, memory_requirement.memory_type_bits,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
     let uniform_memory = MemoryAI::new(memory_requirement.size, memory_index)
         .build(device)?;

@@ -1,7 +1,8 @@
 
 use crate::gltf::asset::GltfDocument;
+use crate::ci::buffer::BufferCI;
 use crate::error::{VkTryFrom, VkResult, VkError};
-use crate::vkbytes;
+use crate::{vkbytes, vkptr};
 
 use std::ops::{ BitAnd, BitOr, BitOrAssign, BitAndAssign };
 
@@ -33,6 +34,15 @@ impl VkTryFrom<AttributeFlags> for AttributesData {
 
         let result = AttributesData { vertex_size, data_content: content };
         Ok(result)
+    }
+}
+
+impl AttributesData {
+
+    pub fn buffer_ci(&self) -> BufferCI {
+
+        let vertices_size = (self.data_content.vertex_count() as vkbytes) * self.vertex_size;
+        BufferCI::new(vertices_size)
     }
 }
 
@@ -140,6 +150,8 @@ pub trait VertexAttributes {
     fn extend(&mut self, primitive: &gltf::Primitive, source: &GltfDocument) -> AttributeExtendInfo;
 
     fn vertex_count(&self) -> usize;
+
+    fn map_data(&self, memory_ptr: vkptr);
 }
 
 macro_rules! attribute_type {
@@ -356,6 +368,15 @@ macro_rules! define_attributes {
 
             fn vertex_count(&self) -> usize {
                 self.data.len()
+            }
+
+            fn map_data(&self, memory_ptr: vkptr) {
+
+                unsafe {
+
+                    let mapped_copy_target = ::std::slice::from_raw_parts_mut(memory_ptr as *mut $name_vertex, self.data.len());
+                    mapped_copy_target.copy_from_slice(&self.data);
+                }
             }
         }
     };
