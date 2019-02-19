@@ -4,12 +4,14 @@ use ash::version::DeviceV1_0;
 
 use vkbase::context::VkDevice;
 use vkbase::ci::VkObjectBuildableCI;
+use vkbase::ci::buffer::BufferCI;
+use vkbase::ci::memory::MemoryAI;
+use vkbase::utils::memory::get_memory_type_index;
 use vkbase::utils::time::VkTimeDuration;
 use vkbase::{VkResult, VkError};
 use vkbase::{vkuint, vkbytes};
 
 use std::mem;
-use std::ptr;
 
 type Mat4F = nalgebra::Matrix4<f32>;
 
@@ -164,28 +166,13 @@ fn transfer_staging_data(device: &VkDevice, vertices: &BufferResourceTmp, indice
         .copy_buf2buf(indices.staging_buffer, indices.target_buffer, &[index_copy_region])
         .end_record()?;
 
-    let submit_info = vk::SubmitInfo {
-        s_type: vk::StructureType::SUBMIT_INFO,
-        p_next: ptr::null(),
-        wait_semaphore_count   : 0,
-        p_wait_semaphores      : ptr::null(),
-        p_wait_dst_stage_mask  : ptr::null(),
-        command_buffer_count   : 1,
-        p_command_buffers      : &copy_command,
-        signal_semaphore_count : 0,
-        p_signal_semaphores    : ptr::null(),
-    };
-
     use vkbase::ci::sync::FenceCI;
     let fence = device.build(&FenceCI::new(false))?;
 
-    unsafe {
-        device.logic.handle.queue_submit(device.logic.queues.transfer.handle, &[submit_info], fence)
-            .map_err(|_| VkError::device("Queue Submit"))?;
-
-        device.logic.handle.wait_for_fences(&[fence], true, VkTimeDuration::Infinite.into())
-            .map_err(|_| VkError::device("Wait for fences"))?;
-    }
+    let submit_ci = vkbase::ci::device::SubmitCI::new()
+        .add_command(copy_command);
+    device.submit(submit_ci, device.logic.queues.transfer.handle, fence)?;
+    device.wait(fence, VkTimeDuration::Infinite)?;
 
     // release temporary resource.
     device.discard(fence);
@@ -210,10 +197,6 @@ struct BufferResourceTmp {
 fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::BufferUsageFlags) -> VkResult<BufferResourceTmp> {
 
     let buffer_size = (mem::size_of::<D>() * data.len()) as vkbytes;
-
-    use vkbase::ci::buffer::BufferCI;
-    use vkbase::ci::memory::MemoryAI;
-    use vkbase::utils::memory::get_memory_type_index;
 
     let (staging_buffer, staging_requirement) = BufferCI::new(buffer_size)
         .usage(vk::BufferUsageFlags::TRANSFER_SRC)
@@ -251,10 +234,6 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
 }
 
 pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<UniformBuffer> {
-
-    use vkbase::ci::buffer::BufferCI;
-    use vkbase::ci::memory::MemoryAI;
-    use vkbase::utils::memory::get_memory_type_index;
 
     let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<UboVS>() as vkbytes)
         .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)

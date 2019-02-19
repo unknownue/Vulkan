@@ -7,6 +7,7 @@ pub use self::logical::{VkLogicalDevice, VkQueue, LogicDevConfig};
 pub use self::physical::{VkPhysicalDevice, PhysicalDevConfig};
 
 use ash::vk;
+use crate::utils::time::VkTimeDuration;
 use crate::VkResult;
 use crate::vkbytes;
 
@@ -28,6 +29,16 @@ impl VkDevice {
     #[inline]
     pub fn bind(&self, object: impl VkObjectBindable, memory: vk::DeviceMemory, offset: vkbytes) -> VkResult<()> {
         object.bind(self, memory, offset)
+    }
+
+    #[inline]
+    pub fn submit(&self, ci: impl VkSubmitCI, queue: vk::Queue, wait_fence: vk::Fence) -> VkResult<()> {
+        ci.submit(self, queue, wait_fence)
+    }
+
+    #[inline]
+    pub fn wait(&self, object: impl VkObjectWaitable, time: VkTimeDuration) -> VkResult<()> {
+        object.wait(self, time)
     }
 
     #[inline]
@@ -58,4 +69,14 @@ pub trait VkObjectAllocatable: Copy {
 pub trait VkObjectBindable: Copy {
 
     fn bind(self, device: &VkDevice, memory: vk::DeviceMemory, offset: vkbytes) -> VkResult<()>;
+}
+
+pub trait VkObjectWaitable: Copy {
+
+    fn wait(self, device: &VkDevice, time: VkTimeDuration) -> VkResult<()>;
+}
+
+pub trait VkSubmitCI {
+
+    fn submit(self, device: &VkDevice, queue: vk::Queue, wait_fence: vk::Fence) -> VkResult<()>;
 }

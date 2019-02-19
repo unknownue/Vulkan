@@ -4,7 +4,7 @@ use ash::version::DeviceV1_0;
 
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
-use vkbase::{VkResult, VkError};
+use vkbase::VkResult;
 use vkbase::FrameAction;
 
 use std::ptr;
@@ -70,26 +70,13 @@ impl vkbase::Workflow for VulkanExample {
 
     fn render_frame(&mut self, device: &VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
 
-        let submit_infos = [
-            vk::SubmitInfo {
-                s_type: vk::StructureType::SUBMIT_INFO,
-                p_next: ptr::null(),
-                wait_semaphore_count   : 1,
-                p_wait_semaphores      : &await_present,
-                // Pipeline stage at which the queue submission will wait (via p_wait_semaphores).
-                p_wait_dst_stage_mask  : &vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                command_buffer_count   : 1,
-                p_command_buffers      : &self.backend_res.commands[image_index],
-                signal_semaphore_count : 1,
-                p_signal_semaphores    : &self.backend_res.await_rendering,
-            },
-        ];
+        let submit_ci = vkbase::ci::device::SubmitCI::new()
+            .add_wait(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, await_present)
+            .add_command(self.backend_res.commands[image_index])
+            .add_signal(self.backend_res.await_rendering);
 
         // Submit to the graphics queue passing a wait fence.
-        unsafe {
-            device.logic.handle.queue_submit(device.logic.queues.graphics.handle, &submit_infos, device_available)
-                .map_err(|_| VkError::device("Queue Submit"))?;
-        }
+        device.submit(submit_ci, device.logic.queues.graphics.handle, device_available)?;
 
         Ok(self.backend_res.await_rendering)
     }

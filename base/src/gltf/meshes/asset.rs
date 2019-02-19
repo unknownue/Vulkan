@@ -9,6 +9,7 @@ use crate::gltf::meshes::attributes::{AttributesData, AttributeFlags};
 use crate::gltf::meshes::indices::IndicesData;
 
 use crate::ci::VkObjectBuildableCI;
+use crate::ci::device::SubmitCI;
 use crate::ci::memory::MemoryAI;
 
 use crate::context::VkDevice;
@@ -16,7 +17,6 @@ use crate::utils::memory::get_memory_type_index;
 use crate::error::{VkResult, VkError, VkTryFrom};
 use crate::vkbytes;
 
-use std::ptr;
 
 pub struct MeshAsset {
 
@@ -236,29 +236,15 @@ impl MeshAsset {
 
         cmd_recorder.end_record()?;
 
-        let submit_info = vk::SubmitInfo {
-            s_type: vk::StructureType::SUBMIT_INFO,
-            p_next: ptr::null(),
-            wait_semaphore_count   : 0,
-            p_wait_semaphores      : ptr::null(),
-            p_wait_dst_stage_mask  : ptr::null(),
-            command_buffer_count   : 1,
-            p_command_buffers      : &copy_command,
-            signal_semaphore_count : 0,
-            p_signal_semaphores    : ptr::null(),
-        };
 
         use crate::ci::sync::FenceCI;
         use crate::utils::time::VkTimeDuration;
         let fence = device.build(&FenceCI::new(false))?;
 
-        unsafe {
-            device.logic.handle.queue_submit(device.logic.queues.transfer.handle, &[submit_info], fence)
-                .map_err(|_| VkError::device("Queue Submit"))?;
-
-            device.logic.handle.wait_for_fences(&[fence], true, VkTimeDuration::Infinite.into())
-                .map_err(|_| VkError::device("Wait for fences"))?;
-        }
+        let submit_ci = SubmitCI::new()
+            .add_command(copy_command);
+        device.submit(submit_ci, device.logic.queues.transfer.handle, fence)?;
+        device.wait(fence, VkTimeDuration::Infinite)?;
 
         // release temporary resource.
         device.discard(fence);

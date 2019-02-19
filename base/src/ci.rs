@@ -1,6 +1,7 @@
 
 pub mod shader;
 pub mod pipeline;
+pub mod device;
 pub mod image;
 pub mod buffer;
 pub mod descriptor;

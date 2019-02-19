@@ -2,12 +2,14 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
+use std::ptr;
+
 use crate::context::VkDevice;
-use crate::context::VkObjectCreatable;
+use crate::context::{VkObjectCreatable, VkObjectWaitable};
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
+use crate::utils::time::VkTimeDuration;
 
-use std::ptr;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::SemaphoreCreateInfo.
@@ -128,6 +130,16 @@ impl VkObjectCreatable for &Vec<vk::Fence> {
 
         for fence in self {
             device.discard(*fence);
+        }
+    }
+}
+
+impl VkObjectWaitable for vk::Fence {
+
+    fn wait(self, device: &VkDevice, time: VkTimeDuration) -> VkResult<()> {
+        unsafe {
+            device.logic.handle.wait_for_fences(&[self], true, time.into())
+                .map_err(|_| VkError::device("Wait for fences"))
         }
     }
 }
