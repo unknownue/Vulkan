@@ -18,7 +18,6 @@ use crate::vkbytes;
 
 use std::ptr;
 
-
 pub struct MeshAsset {
 
     attributes: AttributesData,
@@ -27,12 +26,26 @@ pub struct MeshAsset {
     meshes: AssetElementList<Mesh>,
 }
 
-pub struct MeshAssetBlock {
+struct MeshAssetBlock {
 
-    vertex: (vk::Buffer, vkbytes),
-    index: Option<(vk::Buffer, vkbytes)>,
+    vertex: BufferBlock,
+    index: Option<BufferBlock>,
 
     memory: vk::DeviceMemory,
+}
+
+pub struct MeshResource {
+
+    vertex: BufferBlock,
+    index : Option<BufferBlock>,
+    memory: vk::DeviceMemory,
+
+    list: AssetElementList<Mesh>,
+}
+
+pub struct BufferBlock {
+    pub buffer: vk::Buffer,
+    pub size: vkbytes,
 }
 
 impl VkTryFrom<AttributeFlags> for MeshAsset {
@@ -67,7 +80,7 @@ impl AssetAbstract for MeshAsset {
 
 impl MeshAsset {
 
-    fn allocate(self, device: &VkDevice) -> VkResult<MeshAssetBlock> {
+    pub fn allocate(self, device: &VkDevice) -> VkResult<MeshResource> {
 
         // allocate staging buffer.
         let staging_block = self.allocate_staging(device)?;
@@ -80,7 +93,13 @@ impl MeshAsset {
         // discard staging resource.
         staging_block.discard(device);
 
-        Ok(mesh_block)
+        let result = MeshResource {
+            vertex: mesh_block.vertex,
+            index : mesh_block.index,
+            memory: mesh_block.memory,
+            list  : self.meshes,
+        };
+        Ok(result)
     }
 
     fn allocate_mesh(&self, device: &VkDevice) -> VkResult<MeshAssetBlock> {
@@ -100,17 +119,17 @@ impl MeshAsset {
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: (vertex_buffer, vertex_requirement.size),
-                index: Some((index_buffer, index_requirement.size)),
+                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_requirement.size },
+                index: Some(BufferBlock { buffer: index_buffer, size: index_requirement.size }),
                 memory: mesh_memory,
             }
         } else {
-            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL | vk::MemoryPropertyFlags::HOST_COHERENT);
+            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let mesh_memory = MemoryAI::new(vertex_requirement.size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: (vertex_buffer, vertex_requirement.size),
+                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_requirement.size },
                 index: None,
                 memory: mesh_memory,
             }
@@ -131,13 +150,13 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC)
                 .build(device)?;
 
-            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits & index_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let mesh_memory = MemoryAI::new(vertex_requirement.size + index_requirement.size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: (vertex_buffer, vertex_requirement.size),
-                index: Some((index_buffer, index_requirement.size)),
+                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_requirement.size },
+                index: Some(BufferBlock { buffer: index_buffer, size: index_requirement.size }),
                 memory: mesh_memory,
             }
 
@@ -147,7 +166,7 @@ impl MeshAsset {
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: (vertex_buffer, vertex_requirement.size),
+                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_requirement.size },
                 index: None,
                 memory: mesh_memory,
             }
@@ -157,13 +176,13 @@ impl MeshAsset {
         unsafe {
 
             // map vertex data.
-            let vertex_data_ptr = device.logic.handle.map_memory(mesh_block.memory, 0, mesh_block.vertex.1, vk::MemoryMapFlags::empty())
+            let vertex_data_ptr = device.logic.handle.map_memory(mesh_block.memory, 0, mesh_block.vertex.size, vk::MemoryMapFlags::empty())
                 .map_err(|_| VkError::device("Map Memory"))?;
             self.attributes.data_content.map_data(vertex_data_ptr);
 
             // map index data.
             if let Some(ref index_buffer) = mesh_block.index {
-                let index_data_ptr = device.logic.handle.map_memory(mesh_block.memory, mesh_block.vertex.1, index_buffer.1.clone(), vk::MemoryMapFlags::empty())
+                let index_data_ptr = device.logic.handle.map_memory(mesh_block.memory, mesh_block.vertex.size, index_buffer.size, vk::MemoryMapFlags::empty())
                     .map_err(|_| VkError::device("Map Memory"))?;
                 self.indices.map_data(index_data_ptr);
             }
@@ -173,10 +192,10 @@ impl MeshAsset {
         }
 
         // bind vertex buffer to memory.
-        device.bind(mesh_block.vertex.0, mesh_block.memory, 0)?;
+        device.bind(mesh_block.vertex.buffer, mesh_block.memory, 0)?;
         // bind index buffer to memory.
         if let Some(ref index_buffer) = mesh_block.index {
-            device.bind(index_buffer.0, mesh_block.memory, mesh_block.vertex.1)?;
+            device.bind(index_buffer.buffer, mesh_block.memory, mesh_block.vertex.size)?;
         }
 
         Ok(mesh_block)
@@ -199,20 +218,20 @@ impl MeshAsset {
         let vertex_copy_region = vk::BufferCopy {
             src_offset: 0,
             dst_offset: 0,
-            size: staging.vertex.1,
+            size: staging.vertex.size,
         };
 
         cmd_recorder.begin_record()?
-            .copy_buf2buf(staging.vertex.0, mesh.vertex.0, &[vertex_copy_region]);
+            .copy_buf2buf(staging.vertex.buffer, mesh.vertex.buffer, &[vertex_copy_region]);
 
 
         if let Some(ref index_buffer) = staging.index {
             let index_copy_region = vk::BufferCopy {
-                src_offset: staging.vertex.1,
-                dst_offset: staging.vertex.1,
-                size: index_buffer.1,
+                src_offset: staging.vertex.size,
+                dst_offset: staging.vertex.size,
+                size: index_buffer.size,
             };
-            cmd_recorder.copy_buf2buf(index_buffer.0, mesh.index.unwrap().0, &[index_copy_region]);
+            cmd_recorder.copy_buf2buf(index_buffer.buffer, mesh.index.as_ref().unwrap().buffer, &[index_copy_region]);
         }
 
         cmd_recorder.end_record()?;
@@ -254,9 +273,9 @@ impl MeshAssetBlock {
 
     fn discard(&self, device: &VkDevice) {
 
-        device.discard(self.vertex.0);
+        device.discard(self.vertex.buffer);
         if let Some(ref index_buffer) = self.index {
-            device.discard(index_buffer.0);
+            device.discard(index_buffer.buffer);
         }
         device.discard(self.memory);
     }

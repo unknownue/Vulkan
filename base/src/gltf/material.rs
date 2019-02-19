@@ -62,6 +62,11 @@ pub struct MaterialAsset {
     materials: AssetElementList<MatSerializedData>,
 }
 
+pub struct MaterialResource {
+
+    list: AssetElementList<MatSerializedData>,
+}
+
 impl MaterialAsset {
 
     pub fn new() -> VkResult<MaterialAsset> {
@@ -92,6 +97,15 @@ impl AssetAbstract for MaterialAsset {
         }
 
         Ok(())
+    }
+}
+
+impl MaterialAsset {
+
+    pub fn allocate(self) -> MaterialResource {
+        MaterialResource {
+            list: self.materials,
+        }
     }
 }
 // ------------------------------------------------------------------------------------

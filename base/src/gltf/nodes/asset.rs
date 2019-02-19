@@ -17,7 +17,10 @@ pub struct NodeAsset {
     nodes: AssetElementList<Node>,
 }
 
-pub struct NodeAssetBlock {
+pub struct NodeResource {
+
+    nodes: AssetElementList<Node>,
+
     buffer: vk::Buffer,
     memory: vk::DeviceMemory,
 }
@@ -55,7 +58,7 @@ impl AssetAbstract for NodeAsset {
 
 impl NodeAsset {
 
-    fn allocate(self, device: &VkDevice) -> VkResult<NodeAssetBlock> {
+    pub fn allocate(self, device: &VkDevice) -> VkResult<NodeResource> {
 
         use crate::ci::buffer::BufferCI;
         use crate::ci::memory::MemoryAI;
@@ -87,7 +90,8 @@ impl NodeAsset {
         // bind vertex buffer to memory.
         device.bind(uniform_buffer, uniform_memory, 0)?;
 
-        let result = NodeAssetBlock {
+        let result = NodeResource {
+            nodes : self.nodes,
             buffer: uniform_buffer,
             memory: uniform_memory,
         };

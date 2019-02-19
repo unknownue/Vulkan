@@ -1,8 +1,9 @@
 
-use crate::gltf::meshes::{MeshAsset, AttributeFlags};
-use crate::gltf::nodes::{NodeAsset, NodeAttachmentFlags};
-use crate::gltf::material::MaterialAsset;
+use crate::gltf::meshes::{MeshAsset, MeshResource, AttributeFlags};
+use crate::gltf::nodes::{NodeAsset, NodeResource, NodeAttachmentFlags};
+use crate::gltf::material::{MaterialAsset, MaterialResource};
 use crate::gltf::scene::Scene;
+use crate::context::VkDevice;
 use crate::error::{VkResult, VkTryFrom};
 
 use std::collections::HashMap;
@@ -68,6 +69,14 @@ pub struct AssetRepository {
     pub materials: MaterialAsset,
 }
 
+pub struct VkglTFModel {
+
+    scene: Scene,
+    meshes: MeshResource,
+    nodes : NodeResource,
+    materials: MaterialResource,
+}
+
 impl AssetRepository {
 
     pub fn new(attr_flag: AttributeFlags, attachment_flag: NodeAttachmentFlags) -> VkResult<AssetRepository> {
@@ -78,6 +87,17 @@ impl AssetRepository {
             materials: MaterialAsset::new()?,
         };
         Ok(repository)
+    }
+
+    pub fn allocate(self, device: &VkDevice, scene: Scene) -> VkResult<VkglTFModel> {
+
+        let result = VkglTFModel {
+            scene,
+            meshes: self.meshes.allocate(device)?,
+            nodes : self.nodes.allocate(device)?,
+            materials: self.materials.allocate(),
+        };
+        Ok(result)
     }
 }
 // --------------------------------------------------------------------------------------

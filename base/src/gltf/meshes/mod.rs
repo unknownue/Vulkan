@@ -1,5 +1,5 @@
 
-pub use self::asset::MeshAsset;
+pub use self::asset::{MeshAsset, MeshResource};
 pub use self::attributes::AttributeFlags;
 
 mod asset;

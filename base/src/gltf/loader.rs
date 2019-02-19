@@ -1,11 +1,14 @@
 
+use std::path::Path;
+
 use crate::gltf::scene::Scene;
 use crate::gltf::nodes::NodeAttachmentFlags;
 use crate::gltf::meshes::AttributeFlags;
 use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetRepository};
+use crate::gltf::asset::VkglTFModel;
 use crate::error::{VkResult, VkError, VkErrorKind};
+use crate::context::VkDevice;
 
-use std::path::Path;
 
 pub struct GltfModelInfo<'a> {
     pub path: &'a Path,
@@ -13,7 +16,7 @@ pub struct GltfModelInfo<'a> {
     pub node: NodeAttachmentFlags,
 }
 
-fn load_gltf(info: GltfModelInfo) -> VkResult<()> {
+fn load_gltf(info: GltfModelInfo, device: &VkDevice) -> VkResult<VkglTFModel> {
 
     let (doc, buffers, images) = gltf::import(info.path)
         .map_err(VkErrorKind::ParseGltf)?;
@@ -30,5 +33,6 @@ fn load_gltf(info: GltfModelInfo) -> VkResult<()> {
     asset_repo.nodes.read_doc(&document, &scene)?;
     asset_repo.materials.read_doc(&document, &scene)?;
 
-    unimplemented!()
+    let result = asset_repo.allocate(device, scene)?;
+    Ok(result)
 }
