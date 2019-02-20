@@ -334,8 +334,8 @@ impl GraphicsPipelineCI {
         self.ci.flags = flags;
     }
 
-    pub fn add_shader_stage(&mut self, ci: ShaderStageCI) {
-        self.shader_stages.push(ci);
+    pub fn set_shaders(&mut self, cis: Vec<ShaderStageCI>) {
+        self.shader_stages = cis;
     }
 
     pub fn set_vertex_input(&mut self, sci: VertexInputSCI) {

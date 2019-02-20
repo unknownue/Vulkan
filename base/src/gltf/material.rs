@@ -4,7 +4,7 @@ use serde_derive::Serialize;
 use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetElementList};
 use crate::gltf::scene::Scene;
 use crate::error::{VkResult, VkError};
-use crate::vkfloat;
+use crate::{vkfloat, vkuint};
 
 pub type MatSerializedData = Vec<u8>;
 const DEFAULT_MATERIAL_INDEX: usize = usize::max_value();
@@ -64,6 +64,7 @@ pub struct MaterialAsset {
 
 pub struct MaterialResource {
 
+    material_size: vkuint,
     list: AssetElementList<MatSerializedData>,
 }
 
@@ -77,6 +78,13 @@ impl MaterialAsset {
 
         let result = MaterialAsset { materials };
         Ok(result)
+    }
+
+    pub fn allocate(self) -> MaterialResource {
+        MaterialResource {
+            material_size: ::std::mem::size_of::<MaterialData>() as vkuint,
+            list: self.materials,
+        }
     }
 }
 
@@ -100,12 +108,10 @@ impl AssetAbstract for MaterialAsset {
     }
 }
 
-impl MaterialAsset {
+impl MaterialResource {
 
-    pub fn allocate(self) -> MaterialResource {
-        MaterialResource {
-            list: self.materials,
-        }
+    pub fn material_size(&self) -> vkuint {
+        self.material_size
     }
 }
 // ------------------------------------------------------------------------------------

@@ -6,8 +6,8 @@ use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
+use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 use vkbase::utils::memory::get_memory_type_index;
-use vkbase::utils::time::VkTimeDuration;
 use vkbase::gltf::VkglTFModel;
 use vkbase::context::VulkanContext;
 use vkbase::{FrameAction, vkbytes};
@@ -60,22 +60,16 @@ impl VulkanExample {
 
         let mut backend_res = VkExampleBackendRes::new(device, swapchain)?;
 
-        let (vertex_buffer, index_buffer) = super::data::prepare_model(device)?;
-        let uniform_buffer = super::data::prepare_uniform(device, dimension)?;
-
-        let descriptors = setup_descriptor(device, &uniform_buffer)?;
+        let model = prepare_model(device)?;
+        let uniform_buffer = prepare_uniform(device, dimension)?;
+        let descriptors = setup_descriptor(device, &uniform_buffer, &model)?;
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
-
         backend_res.setup_framebuffers(device, swapchain, render_pass)?;
 
-        let pipeline = prepare_pipelines(device, render_pass, descriptors.pipeline_layout)?;
+        let pipelines = prepare_pipelines(device, &model, render_pass, descriptors.layout)?;
 
-        let target = VulkanExample {
-            backend_res, descriptors,
-            pipeline, render_pass,
-            vertex_buffer, index_buffer, uniform_buffer,
-        };
+        let target = VulkanExample { backend_res, model, uniform_buffer, descriptors, pipelines };
         Ok(target)
     }
 }
@@ -104,12 +98,14 @@ impl vkbase::Workflow for VulkanExample {
     fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
         // recreate the resources.
-        device.discard(self.pipeline);
-        device.discard(self.render_pass);
+        device.discard(self.pipelines.phong);
+        device.discard(self.pipelines.toon);
+        device.discard(self.pipelines.wireframe);
+        device.discard(self.pipelines.render_pass);
 
-        self.render_pass = setup_renderpass(device, new_chain)?;
-        self.backend_res.swapchain_reload(device, new_chain, self.render_pass)?;
-        self.pipeline = prepare_pipelines(device, self.render_pass, self.descriptors.pipeline_layout)?;
+        let renderpass = setup_renderpass(device, new_chain)?;
+        self.backend_res.swapchain_reload(device, new_chain, self.pipelines.render_pass)?;
+        self.pipelines = prepare_pipelines(device, &self.model, renderpass, self.descriptors.layout)?;
 
         self.record_commands(device, self.backend_res.dimension)?;
 
@@ -141,7 +137,7 @@ impl VulkanExample {
             vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
         ];
 
-        let viewport = vk::Viewport {
+        let mut viewport = vk::Viewport {
             x: 0.0, y: 0.0,
             width: dimension.width as f32, height: dimension.height as f32,
             min_depth: 0.0, max_depth: 1.0,
@@ -157,21 +153,42 @@ impl VulkanExample {
             use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
             use vkbase::ci::pipeline::RenderPassBI;
 
+            let render_params = vkbase::gltf::ModelRenderParams {
+                descriptor_set : self.descriptors.set,
+                pipeline_layout: self.pipelines.layout,
+            };
+
             let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(device, command);
 
-            let render_pass_bi = RenderPassBI::new(self.render_pass, self.backend_res.framebuffers[i])
+            let render_pass_bi = RenderPassBI::new(self.pipelines.render_pass, self.backend_res.framebuffers[i])
                 .render_extent(dimension)
                 .clear_values(&clear_values);
 
             recorder.begin_record()?
                 .begin_render_pass(render_pass_bi)
-                .set_viewport(0, &[viewport])
-                .set_scissor(0, &[scissor])
-                .bind_descriptor_sets(self.descriptors.pipeline_layout, 0, &[self.descriptors.descriptor_set], &[])
-                .bind_pipeline(self.pipeline)
-                .bind_vertex_buffers(0, &[self.vertex_buffer.buffer], &[0])
-                .bind_index_buffer(self.index_buffer.buffer, vk::IndexType::UINT32, 0)
-                .draw_indexed(self.index_buffer.count, 1, 0, 0, 1)
+                .set_scissor(0, &[scissor]);
+
+            { // Left: Solid colored
+                viewport.width = dimension.width as f32 / 3.0;
+                recorder.set_viewport(0, &[viewport]);
+                self.model.record_command(&recorder, &render_params);
+            }
+
+            { // Center: Toon
+                viewport.x = dimension.width as f32 / 3.0;
+                recorder.set_viewport(0, &[viewport]);
+                self.model.record_command(&recorder, &render_params);
+            }
+
+            { // Right: Wireframe
+                if device.phy.enable_features().fill_mode_non_solid == vk::TRUE {
+                    viewport.x = dimension.width as f32 / 3.0 * 2.0;
+                    recorder.set_viewport(0, &[viewport]);
+                    self.model.record_command(&recorder, &render_params);
+                }
+            }
+
+            recorder
                 .end_render_pass()
                 .end_record()?;
         }
@@ -299,11 +316,10 @@ struct DescriptorStaff {
     layout : vk::DescriptorSetLayout,
 }
 
-fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer) -> VkResult<DescriptorStaff> {
+fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
     use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI};
-    use vkbase::ci::pipeline::PipelineLayoutCI;
 
     // Descriptor Pool.
     let descriptor_pool = DescriptorPoolCI::new(1)
@@ -326,6 +342,7 @@ fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer) -> VkResult<Des
         stage_flags: vk::ShaderStageFlags::VERTEX,
         p_immutable_samplers: ptr::null(),
     };
+
     // node_descriptor represent shader codes as follows:
     // layout (set = 0, binding = 1) uniform NodeAttachments {
     //     mat4 transform;
@@ -352,7 +369,7 @@ fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer) -> VkResult<Des
     let ubo_write_info = DescriptorBufferSetWI::new(descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
         .add_buffer(uniforms.descriptor.clone());
     let node_write_info = DescriptorBufferSetWI::new(descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
-        .add_buffer();
+        .add_buffer(model.nodes.node_descriptor());
 
     unsafe {
         device.logic.handle.update_descriptor_sets(&[ubo_write_info.value(), node_write_info.value()], &[]);
@@ -404,7 +421,7 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
     Ok(render_pass)
 }
 
-fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, set_layout: vk::DescriptorSetLayout) -> VkResult<PipelineStaff> {
+fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::RenderPass, set_layout: vk::DescriptorSetLayout) -> VkResult<PipelineStaff> {
 
     use vkbase::ci::pipeline::*;
 
@@ -412,7 +429,7 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, set_layout:
         .add_viewport(vk::Viewport::default())
         .add_scissor(vk::Rect2D::default());
 
-    let rasterization_state = RasterizationSCI::new()
+    let mut rasterization_state = RasterizationSCI::new()
         .polygon(vk::PolygonMode::FILL)
         .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::COUNTER_CLOCKWISE);
 
@@ -431,47 +448,123 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, set_layout:
         dynamic_state = dynamic_state.add_dynamic(vk::DynamicState::LINE_WIDTH)
     };
 
-
-    let inputs = Vertex::input_description();
-    let vertex_input_state = VertexInputSCI::new()
-        .add_binding(inputs.binding)
-        .add_attribute(inputs.attributes[0])
-        .add_attribute(inputs.attributes[1]);
-
-    // shaders
-    use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
-
-    let mut shader_compiler = vkbase::utils::shaderc::VkShaderCompiler::new()?;
-    let vert_codes = shader_compiler.compile_from_path(Path::new(PHONG_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
-    let frag_codes = shader_compiler.compile_from_path(Path::new(PHONG_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
-
-    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
-        .build(device)?;
-    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-        .build(device)?;
+    let material_range = vk::PushConstantRange {
+        stage_flags: vk::ShaderStageFlags::VERTEX,
+        offset: 0,
+        size: model.materials.material_size(),
+    };
 
     // Pipeline Layout.
     let pipeline_layout = PipelineLayoutCI::new()
         .add_set_layout(set_layout)
+        .add_push_constants(material_range)
         .build(device)?;
 
-    let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, layout);
+    // base pipeline.
+    let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, pipeline_layout);
 
-    pipeline_ci.add_shader_stage(ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module));
-    pipeline_ci.add_shader_stage(ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module));
-
-    pipeline_ci.set_vertex_input(vertex_input_state);
+    pipeline_ci.set_vertex_input(model.meshes.vertex_input.clone());
     pipeline_ci.set_viewport(viewport_state);
-    pipeline_ci.set_rasterization(rasterization_state);
+    pipeline_ci.set_rasterization(rasterization_state.clone());
     pipeline_ci.set_depth_stencil(depth_stencil_state);
     pipeline_ci.set_color_blend(blend_state);
     pipeline_ci.set_dynamic(dynamic_state);
 
-    let pipeline = device.build(&pipeline_ci)?;
+
+    let mut shader_compiler = vkbase::utils::shaderc::VkShaderCompiler::new()?;
+
+    let phong_pipeline = {
+
+        let vert_codes = shader_compiler.compile_from_path(Path::new(PHONG_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
+        let frag_codes = shader_compiler.compile_from_path(Path::new(PHONG_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
+
+        let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+            .build(device)?;
+        let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
+            .build(device)?;
+
+        pipeline_ci.set_shaders(vec![
+            ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
+            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
+        ]);
+
+        // Using this pipeline as the base for the other pipelines (derivatives).
+        // Pipeline derivatives can be used for pipelines that share most of their state
+        // depending on the implementation this may result in better performance for pipeline switching and faster creation time.
+        pipeline_ci.set_flags(vk::PipelineCreateFlags::ALLOW_DERIVATIVES);
+
+        let pipeline = device.build(&pipeline_ci)?;
+
+        device.discard(vert_module);
+        device.discard(frag_module);
+
+        pipeline
+    };
+
+    let toon_pipeline = {
+
+        let vert_codes = shader_compiler.compile_from_path(Path::new(TOON_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
+        let frag_codes = shader_compiler.compile_from_path(Path::new(TOON_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
+
+        let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+            .build(device)?;
+        let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
+            .build(device)?;
+
+        pipeline_ci.set_shaders(vec![
+            ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
+            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
+        ]);
+        // Base pipeline will be our first created pipeline.
+        pipeline_ci.set_base_pipeline(phong_pipeline);
+        // All pipelines created after the base pipeline will be derivatives.
+        pipeline_ci.set_flags(vk::PipelineCreateFlags::DISPATCH_BASE);
+
+        let pipeline = device.build(&pipeline_ci)?;
+
+        device.discard(vert_module);
+        device.discard(frag_module);
+
+        pipeline
+    };
+
+    let wireframe_pipeline = {
+
+        let vert_codes = shader_compiler.compile_from_path(Path::new(WIREFRAME_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
+        let frag_codes = shader_compiler.compile_from_path(Path::new(WIREFRAME_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
+
+        let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+            .build(device)?;
+        let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
+            .build(device)?;
+
+        pipeline_ci.set_shaders(vec![
+            ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
+            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
+        ]);
+
+        // Non solid rendering is not a mandatory Vulkan feature.
+        if device.phy.enable_features().fill_mode_non_solid == vk::TRUE {
+            rasterization_state = rasterization_state.polygon(vk::PolygonMode::LINE);
+            pipeline_ci.set_rasterization(rasterization_state);
+        }
+
+        let pipeline = device.build(&pipeline_ci)?;
+
+        device.discard(vert_module);
+        device.discard(frag_module);
+
+        pipeline
+    };
 
 
-    device.discard(vert_module);
-    device.discard(frag_module);
+    let result = PipelineStaff {
+        phong: phong_pipeline,
+        toon : toon_pipeline,
+        wireframe: wireframe_pipeline,
 
-    Ok(pipeline)
+        layout: pipeline_layout,
+        render_pass,
+    };
+    Ok(result)
 }

@@ -1,8 +1,11 @@
 
+use ash::vk;
+
 use crate::gltf::meshes::{MeshAsset, MeshResource, AttributeFlags};
 use crate::gltf::nodes::{NodeAsset, NodeResource, NodeAttachmentFlags};
 use crate::gltf::material::{MaterialAsset, MaterialResource};
 use crate::gltf::scene::Scene;
+use crate::command::{IGraphics, VkCmdRecorder};
 use crate::context::VkDevice;
 use crate::error::{VkResult, VkTryFrom};
 
@@ -98,9 +101,24 @@ impl AssetRepository {
 // --------------------------------------------------------------------------------------
 pub struct VkglTFModel {
 
+    pub meshes: MeshResource,
+    pub nodes : NodeResource,
+    pub materials: MaterialResource,
+
     scene: Scene,
-    meshes: MeshResource,
-    nodes : NodeResource,
-    materials: MaterialResource,
+}
+
+pub struct ModelRenderParams {
+
+    pub descriptor_set : vk::DescriptorSet,
+    pub pipeline_layout: vk::PipelineLayout,
+}
+
+impl VkglTFModel {
+
+    pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>, params: &ModelRenderParams) {
+
+        unimplemented!()
+    }
 }
 // --------------------------------------------------------------------------------------

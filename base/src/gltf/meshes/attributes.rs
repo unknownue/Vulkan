@@ -1,6 +1,9 @@
 
+use ash::vk;
+
 use crate::gltf::asset::GltfDocument;
 use crate::ci::buffer::BufferCI;
+use crate::ci::pipeline::VertexInputSCI;
 use crate::error::{VkTryFrom, VkResult, VkError};
 use crate::{vkbytes, vkptr};
 
@@ -25,11 +28,11 @@ pub struct AttributesData {
 
 impl VkTryFrom<AttributeFlags> for AttributesData {
 
-    fn try_from(flag: AttributeFlags) -> VkResult<AttributesData> {
+    fn try_from(flags: AttributeFlags) -> VkResult<AttributesData> {
 
-        let vertex_size = flag.vertex_size()
+        let vertex_size = flags.vertex_size()
             .ok_or(VkError::unimplemented("Primitive attributes combination"))?;
-        let content = flag.new_attributes()
+        let content = flags.new_attributes()
             .ok_or(VkError::unimplemented("Primitive attributes combination"))?;
 
         let result = AttributesData { vertex_size, data_content: content };
@@ -43,6 +46,36 @@ impl AttributesData {
 
         let vertices_size = (self.data_content.length() as vkbytes) * self.vertex_size;
         BufferCI::new(vertices_size)
+    }
+
+    // TODO: Implement this function in macros.
+    pub fn input_descriptions(&self) -> VertexInputSCI {
+
+        let input_binding = vk::VertexInputBindingDescription {
+            binding: 0,
+            stride : ::std::mem::size_of::<Attr_PN>() as _,
+            input_rate: vk::VertexInputRate::VERTEX,
+        };
+
+        let vertex_input_attributes = [
+            vk::VertexInputAttributeDescription {
+                location: 0,
+                binding : 0,
+                format  : vk::Format::R32G32B32_SFLOAT,
+                offset  : memoffset::offset_of!(AttrVertexPN, position) as _,
+            },
+            vk::VertexInputAttributeDescription {
+                location: 1,
+                binding : 0,
+                format  : vk::Format::R32G32B32_SFLOAT,
+                offset  : memoffset::offset_of!(AttrVertexPN, normal) as _,
+            },
+        ];
+
+        VertexInputSCI::new()
+            .add_binding(input_binding)
+            .add_attribute(vertex_input_attributes[0])
+            .add_attribute(vertex_input_attributes[1])
     }
 }
 

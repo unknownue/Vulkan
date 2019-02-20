@@ -9,6 +9,7 @@ use crate::gltf::meshes::attributes::{AttributesData, AttributeFlags};
 use crate::gltf::meshes::indices::IndicesData;
 
 use crate::ci::VkObjectBuildableCI;
+use crate::ci::pipeline::VertexInputSCI;
 use crate::ci::device::SubmitCI;
 use crate::ci::memory::MemoryAI;
 use crate::ci::sync::FenceCI;
@@ -43,6 +44,8 @@ pub struct MeshResource {
     memory: vk::DeviceMemory,
 
     list: AssetElementList<Mesh>,
+
+    pub vertex_input: VertexInputSCI,
 }
 
 pub struct BufferBlock {
@@ -100,6 +103,7 @@ impl MeshAsset {
             index : mesh_block.index,
             memory: mesh_block.memory,
             list  : self.meshes,
+            vertex_input: self.attributes.input_descriptions(),
         };
         Ok(result)
     }

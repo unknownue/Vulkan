@@ -305,9 +305,10 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
 
     let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, layout);
 
-    pipeline_ci.add_shader_stage(ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module));
-    pipeline_ci.add_shader_stage(ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module));
-
+    pipeline_ci.set_shaders(vec![
+        ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
+        ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
+    ]);
     pipeline_ci.set_vertex_input(vertex_input_state);
     pipeline_ci.set_viewport(viewport_state);
     pipeline_ci.set_depth_stencil(depth_stencil_state);

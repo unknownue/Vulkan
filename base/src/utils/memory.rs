@@ -2,7 +2,7 @@
 use ash::vk;
 
 use crate::context::VkDevice;
-use crate::vkuint;
+use crate::{vkuint, vkbytes};
 
 pub fn get_memory_type_index(device: &VkDevice, mut type_bits: vkuint, properties: vk::MemoryPropertyFlags) -> vkuint {
 
@@ -19,4 +19,11 @@ pub fn get_memory_type_index(device: &VkDevice, mut type_bits: vkuint, propertie
     }
 
     panic!("Could not find a suitable memory type")
+}
+
+#[inline]
+pub fn bound_to_alignment(bound_value: vkbytes, alignment: vkbytes) -> vkbytes {
+
+    // `!` operator will make 1 to 0 or make 0 to 1 for each bit for any integer type.
+    (bound_value + alignment - 1) & !(alignment - 1)
 }
