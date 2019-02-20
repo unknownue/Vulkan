@@ -21,6 +21,8 @@ fn main() {
     win_config.dimension.width  = WINDOW_WIDTH;
     win_config.dimension.height = WINDOW_HEIGHT;
     win_config.title = WINDOW_TITLE.to_string();
+    win_config.is_cursor_hide = true;
+    win_config.is_cursor_grap = true;
 
     let window = WindowContext::new(win_config)
         .expect("Error when creating Window Context");

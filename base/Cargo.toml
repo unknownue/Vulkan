@@ -20,6 +20,7 @@ serde          = "1.0.80"
 serde_derive   = "1.0.80"
 bincode        = "1.0.1"
 memoffset      = "0.2"
+num            = "0.2"
 
 # vulkan platform dependencies on macOS.
 [target.'cfg(target_os = "macos")'.dependencies]

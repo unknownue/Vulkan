@@ -4,6 +4,7 @@ pub use self::workflow::ProcPipeline;
 pub use self::error::{VkResult, VkError};
 pub use self::utils::frame::FrameAction;
 pub use self::input::InputController;
+pub use self::camera::FlightCamera;
 
 pub mod context;
 pub mod ci;
@@ -13,6 +14,7 @@ pub mod platforms;
 pub mod gltf;
 
 mod error;
+mod camera;
 mod workflow;
 mod input;
 

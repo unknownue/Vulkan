@@ -96,6 +96,11 @@ impl WindowContext {
                 .map_err(|e| VkError::window(e.to_string()))?,
             event_loop,
         };
+
+        window.handle.grab_cursor(config.is_cursor_grap)
+            .map_err(|e| VkError::window(e.to_string()))?;
+        window.handle.hide_cursor(config.is_cursor_hide);
+
         Ok(window)
     }
 

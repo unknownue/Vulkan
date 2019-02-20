@@ -10,7 +10,8 @@ use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 use vkbase::utils::memory::get_memory_type_index;
 use vkbase::gltf::VkglTFModel;
 use vkbase::context::VulkanContext;
-use vkbase::{FrameAction, vkbytes};
+use vkbase::{FlightCamera, FrameAction};
+use vkbase::{vkbytes, vkptr};
 use vkbase::VkResult;
 
 use std::ptr;
@@ -18,6 +19,7 @@ use std::mem;
 use std::path::Path;
 
 use vkexamples::VkExampleBackendRes;
+type Point3F  = nalgebra::Point3<f32>;
 type Matrix4F = nalgebra::Matrix4<f32>;
 type Vector4F = nalgebra::Vector4<f32>;
 
@@ -39,6 +41,11 @@ pub struct VulkanExample {
 
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
+
+    ubo_data: [UboVS; 1],
+    camera: FlightCamera,
+
+    is_toggle_event: bool,
 }
 
 struct PipelineStaff {
@@ -58,10 +65,27 @@ impl VulkanExample {
         let swapchain = &context.swapchain;
         let dimension = swapchain.dimension;
 
+        let mut camera = FlightCamera::new()
+            .place_at(Point3F::new(0.25, 6.25, 8.75))
+            .screen_aspect_ratio((dimension.width as f32 / 3.0) / dimension.height as f32)
+            .pitch(-45.0)
+            .build();
+        camera.set_move_speed(50.0);
+
+        let ubo_data = [
+            UboVS {
+                projection   : camera.proj_matrix(),
+                view         : camera.view_matrix(),
+                model        : Matrix4F::identity(),
+                y_correction : vkexamples::Y_CORRECTION.clone(),
+                light_pos    : Vector4F::new(0.0, 2.0, 1.0, 0.0),
+            },
+        ];
+
         let mut backend_res = VkExampleBackendRes::new(device, swapchain)?;
 
         let model = prepare_model(device)?;
-        let uniform_buffer = prepare_uniform(device, dimension)?;
+        let uniform_buffer = prepare_uniform(device, &ubo_data)?;
         let descriptors = setup_descriptor(device, &uniform_buffer, &model)?;
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
@@ -69,7 +93,10 @@ impl VulkanExample {
 
         let pipelines = prepare_pipelines(device, &model, render_pass, descriptors.layout)?;
 
-        let target = VulkanExample { backend_res, model, uniform_buffer, descriptors, pipelines };
+        let target = VulkanExample {
+            backend_res, model, uniform_buffer, descriptors, pipelines, camera, ubo_data,
+            is_toggle_event: false,
+        };
         Ok(target)
     }
 }
@@ -83,6 +110,10 @@ impl vkbase::Workflow for VulkanExample {
     }
 
     fn render_frame(&mut self, device: &VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
+
+        if self.is_toggle_event {
+            self.update_uniforms(device)?;
+        }
 
         let submit_ci = vkbase::ci::device::SubmitCI::new()
             .add_wait(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, await_present)
@@ -112,10 +143,18 @@ impl vkbase::Workflow for VulkanExample {
         Ok(())
     }
 
-    fn receive_input(&mut self, inputer: &vkbase::InputController, _delta_time: f32) -> FrameAction {
+    fn receive_input(&mut self, inputer: &vkbase::InputController, delta_time: f32) -> FrameAction {
 
-        if inputer.key.is_key_pressed(winit::VirtualKeyCode::Escape) {
-            return FrameAction::Terminal
+        if inputer.is_key_active() || inputer.is_cursor_active() {
+
+            if inputer.key.is_key_pressed(winit::VirtualKeyCode::Escape) {
+                return FrameAction::Terminal
+            }
+
+            self.is_toggle_event = true;
+            self.camera.receive_input(inputer, delta_time);
+        } else {
+            self.is_toggle_event = false;
         }
 
         FrameAction::Rendering
@@ -203,6 +242,14 @@ impl VulkanExample {
         Ok(())
     }
 
+    fn update_uniforms(&mut self, device: &VkDevice) -> VkResult<()> {
+
+        self.ubo_data[0].view = self.camera.view_matrix();
+        device.copy_from_ptr(self.uniform_buffer.data_ptr, &self.ubo_data);
+
+        Ok(())
+    }
+
     fn discard(&self, device: &VkDevice) {
 
         device.discard(self.descriptors.layout);
@@ -214,6 +261,7 @@ impl VulkanExample {
         device.discard(self.pipelines.render_pass);
         device.discard(self.pipelines.layout);
 
+        device.unmap_memory(self.uniform_buffer.memory);
         device.discard(self.uniform_buffer.buffer);
         device.discard(self.uniform_buffer.memory);
 
@@ -240,10 +288,12 @@ pub fn prepare_model(device: &VkDevice) -> VkResult<VkglTFModel> {
 
 
 /// Uniform buffer block object.
-pub struct UniformBuffer {
-    pub memory: vk::DeviceMemory,
-    pub buffer: vk::Buffer,
-    pub descriptor: vk::DescriptorBufferInfo,
+struct UniformBuffer {
+
+    data_ptr: vkptr,
+    memory: vk::DeviceMemory,
+    buffer: vk::Buffer,
+    descriptor: vk::DescriptorBufferInfo,
 }
 
 // The uniform data that will be transferred to shader.
@@ -264,7 +314,7 @@ struct UboVS {
     light_pos    : Vector4F,
 }
 
-fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<UniformBuffer> {
+fn prepare_uniform(device: &VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<UniformBuffer> {
 
     let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<UboVS>() as vkbytes)
         .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
@@ -275,7 +325,13 @@ fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<Unifo
         .build(device)?;
     device.bind_memory(uniform_buffer, uniform_memory, 0)?;
 
+    // Map uniform buffer and update it.
+    // keep the uniform memory map during the program running.
+    let data_ptr = device.map_memory(uniform_memory, 0, mem::size_of::<[UboVS; 1]>() as vkbytes)?;
+    device.copy_from_ptr(data_ptr, ubo_data);
+
     let uniforms = UniformBuffer {
+        data_ptr,
         buffer: uniform_buffer,
         memory: uniform_memory,
         descriptor: vk::DescriptorBufferInfo {
@@ -285,31 +341,7 @@ fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<Unifo
         },
     };
 
-    update_uniform_buffers(device, dimension, &uniforms)?;
-
     Ok(uniforms)
-}
-
-fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: &UniformBuffer) -> VkResult<()> {
-
-    let screen_aspect = (dimension.width as f32) / (dimension.height as f32);
-
-    let ubo_data = [
-        UboVS {
-            projection   : Matrix4F::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
-            view         : Matrix4F::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
-            model        : Matrix4F::identity(),
-            y_correction : vkexamples::Y_CORRECTION.clone(),
-            light_pos    : Vector4F::new(0.0, 2.0, 1.0, 0.0),
-        },
-    ];
-
-    // Map uniform buffer and update it.
-    let data_ptr = device.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as vkbytes)?;
-    device.copy_from_ptr(data_ptr, &ubo_data);
-    device.unmap_memory(uniforms.memory);
-
-    Ok(())
 }
 
 struct DescriptorStaff {
@@ -433,7 +465,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
 
     let mut rasterization_state = RasterizationSCI::new()
         .polygon(vk::PolygonMode::FILL)
-        .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::COUNTER_CLOCKWISE);
+        .cull_face(vk::CullModeFlags::NONE, vk::FrontFace::COUNTER_CLOCKWISE);
 
     let blend_attachment = BlendAttachmentSCI::new().value();
     let blend_state = ColorBlendSCI::new()
@@ -520,7 +552,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         // Base pipeline will be our first created pipeline.
         pipeline_ci.set_base_pipeline(phong_pipeline);
         // All pipelines created after the base pipeline will be derivatives.
-        pipeline_ci.set_flags(vk::PipelineCreateFlags::DISPATCH_BASE);
+        pipeline_ci.set_flags(vk::PipelineCreateFlags::DERIVATIVE);
 
         let pipeline = device.build(&pipeline_ci)?;
 
