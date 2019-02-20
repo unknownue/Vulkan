@@ -1,6 +1,5 @@
 
 use ash::vk;
-use ash::version::DeviceV1_0;
 
 use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetElementList};
 use crate::gltf::scene::Scene;
@@ -18,7 +17,7 @@ use crate::context::VkDevice;
 use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi};
 use crate::utils::time::VkTimeDuration;
 use crate::utils::memory::{get_memory_type_index, bound_to_alignment};
-use crate::error::{VkResult, VkError, VkTryFrom};
+use crate::error::{VkResult, VkTryFrom};
 use crate::vkbytes;
 
 
@@ -198,31 +197,26 @@ impl MeshAsset {
         }
 
         // map and bind staging buffer to memory.
-        unsafe {
 
-            if let Some(ref index_buffer) = mesh_block.index {
+        if let Some(ref index_buffer) = mesh_block.index {
 
-                // get the starting pointer of host memory.
-                let data_ptr = device.logic.handle.map_memory(mesh_block.memory, 0, mesh_block.vertex.size + index_buffer.size, vk::MemoryMapFlags::empty())
-                    .map_err(|_| VkError::device("Map Memory"))?;
+            // get the starting pointer of host memory.
+            let data_ptr = device.map_memory(mesh_block.memory, 0, mesh_block.vertex.size + index_buffer.size)?;
+            // map vertex data.
+            self.attributes.data_content.map_data(data_ptr);
 
-                // map vertex data.
-                self.attributes.data_content.map_data(data_ptr);
+            let data_ptr = unsafe { data_ptr.offset(mesh_block.vertex.size as _) };
+            // map index data.
+            self.indices.map_data(data_ptr);
+        } else {
 
-                let data_ptr = data_ptr.offset(mesh_block.vertex.size as _);
-                // map index data.
-                self.indices.map_data(data_ptr);
-            } else {
-
-                let data_ptr = device.logic.handle.map_memory(mesh_block.memory, 0, mesh_block.vertex.size, vk::MemoryMapFlags::empty())
-                    .map_err(|_| VkError::device("Map Memory"))?;
-                // map vertex data.
-                self.attributes.data_content.map_data(data_ptr);
-            }
-
-            // unmap the memory.
-            device.logic.handle.unmap_memory(mesh_block.memory);
+            // map vertex data.
+            let data_ptr = device.map_memory(mesh_block.memory, 0, mesh_block.vertex.size)?;
+            self.attributes.data_content.map_data(data_ptr);
         }
+
+        // unmap the memory.
+        device.unmap_memory(mesh_block.memory);
 
         Ok(mesh_block)
     }

@@ -11,7 +11,7 @@ use vkbase::utils::memory::get_memory_type_index;
 use vkbase::gltf::VkglTFModel;
 use vkbase::context::VulkanContext;
 use vkbase::{FrameAction, vkbytes};
-use vkbase::{VkResult, VkError};
+use vkbase::VkResult;
 
 use std::ptr;
 use std::mem;
@@ -305,15 +305,9 @@ fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: 
     ];
 
     // Map uniform buffer and update it.
-    unsafe {
-        let data_ptr = device.logic.handle.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as vkbytes, vk::MemoryMapFlags::empty())
-            .map_err(|_| VkError::device("Map Memory"))?;
-
-        let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut UboVS, ubo_data.len());
-        mapped_copy_target.copy_from_slice(&ubo_data);
-
-        device.logic.handle.unmap_memory(uniforms.memory);
-    }
+    let data_ptr = device.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as vkbytes)?;
+    device.copy_from_ptr(data_ptr, &ubo_data);
+    device.unmap_memory(uniforms.memory);
 
     Ok(())
 }

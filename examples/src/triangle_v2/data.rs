@@ -1,6 +1,5 @@
 
 use ash::vk;
-use ash::version::DeviceV1_0;
 
 use vkbase::context::VkDevice;
 use vkbase::ci::VkObjectBuildableCI;
@@ -8,7 +7,7 @@ use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
 use vkbase::utils::memory::get_memory_type_index;
 use vkbase::utils::time::VkTimeDuration;
-use vkbase::{VkResult, VkError};
+use vkbase::VkResult;
 use vkbase::{vkuint, vkbytes};
 
 use std::mem;
@@ -207,16 +206,10 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     let staging_memory = MemoryAI::new(staging_requirement.size, staging_memory_index)
         .build(device)?;
 
-    unsafe {
-        // map and copy.
-        let data_ptr = device.logic.handle.map_memory(staging_memory, 0, staging_requirement.size, vk::MemoryMapFlags::empty())
-            .map_err(|_| VkError::device("Map Memory"))?;
+    let data_ptr = device.map_memory(staging_memory, 0, staging_requirement.size)?;
+    device.copy_from_ptr(data_ptr, data);
+    device.unmap_memory(staging_memory);
 
-        let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut D, data.len());
-        mapped_copy_target.copy_from_slice(data);
-
-        device.logic.handle.unmap_memory(staging_memory);
-    }
     device.bind_memory(staging_buffer, staging_memory, 0)?;
 
     let (target_buffer, target_requirement) = BufferCI::new(buffer_size)
@@ -275,15 +268,9 @@ fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: 
     ];
 
     // Map uniform buffer and update it.
-    unsafe {
-        let data_ptr = device.logic.handle.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as _, vk::MemoryMapFlags::empty())
-            .map_err(|_| VkError::device("Map Memory"))?;
-
-        let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut UboVS, ubo_data.len());
-        mapped_copy_target.copy_from_slice(&ubo_data);
-
-        device.logic.handle.unmap_memory(uniforms.memory);
-    }
+    let data_ptr = device.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as _)?;
+    device.copy_from_ptr(data_ptr, &ubo_data);
+    device.unmap_memory(uniforms.memory);
 
     Ok(())
 }

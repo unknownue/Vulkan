@@ -7,9 +7,10 @@ pub use self::logical::{VkLogicalDevice, VkQueue, LogicDevConfig};
 pub use self::physical::{VkPhysicalDevice, PhysicalDevConfig};
 
 use ash::vk;
+use ash::version::DeviceV1_0;
 use crate::utils::time::VkTimeDuration;
-use crate::VkResult;
-use crate::vkbytes;
+use crate::{VkResult, VkError};
+use crate::{vkbytes, vkptr};
 
 pub struct VkDevice {
 
@@ -29,6 +30,29 @@ impl VkDevice {
     #[inline]
     pub fn bind_memory(&self, object: impl VkObjectBindable, memory: vk::DeviceMemory, offset: vkbytes) -> VkResult<()> {
         object.bind(self, memory, offset)
+    }
+
+    #[inline]
+    pub fn map_memory(&self, memory: vk::DeviceMemory, offset: vkbytes, size: vkbytes) -> VkResult<vkptr> {
+        unsafe {
+            self.logic.handle.map_memory(memory, offset, size, vk::MemoryMapFlags::empty())
+                .map_err(|_| VkError::device("Map Memory"))
+        }
+    }
+
+    #[inline]
+    pub fn copy_from_ptr<DataType: Copy>(&self, data_ptr: vkptr, data: &[DataType]) {
+        unsafe {
+            let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut DataType, data.len());
+            mapped_copy_target.copy_from_slice(data);
+        }
+    }
+
+    #[inline]
+    pub fn unmap_memory(&self, memory: vk::DeviceMemory) {
+        unsafe {
+            self.logic.handle.unmap_memory(memory);
+        }
     }
 
     #[inline]

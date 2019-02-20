@@ -1,12 +1,11 @@
 
 use ash::vk;
-use ash::version::DeviceV1_0;
 
 use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetElementList};
 use crate::gltf::scene::Scene;
 use crate::gltf::nodes::node::Node;
 use crate::gltf::nodes::attachment::{NodeAttachments, NodeAttachmentFlags};
-use crate::error::{VkResult, VkError, VkTryFrom};
+use crate::error::{VkResult, VkTryFrom};
 use crate::context::VkDevice;
 use crate::vkbytes;
 
@@ -83,16 +82,9 @@ impl NodeAsset {
             .build(device)?;
 
         // map and bind uniform buffer to memory.
-        unsafe {
-
-            // map uniform data.
-            let data_ptr = device.logic.handle.map_memory(uniform_memory, 0, uniform_requirement.size, vk::MemoryMapFlags::empty())
-                .map_err(|_| VkError::device("Map Memory"))?;
-            self.attachments.data_content.map_data(data_ptr, uniform_requirement.size, min_alignment);
-
-            // unmap the memory.
-            device.logic.handle.unmap_memory(uniform_memory);
-        }
+        let data_ptr = device.map_memory(uniform_memory, 0, uniform_requirement.size)?;
+        self.attachments.data_content.map_data(data_ptr, uniform_requirement.size, min_alignment);
+        device.unmap_memory(uniform_memory);
 
         // bind vertex buffer to memory.
         device.bind_memory(uniform_buffer, uniform_memory, 0)?;
