@@ -13,6 +13,7 @@ const WINDOW_TITLE: &'static str = "Vulkan Example - Pipeline state objects";
 fn main() {
 
     use vkbase::{WindowConfig, WindowContext};
+    use vkbase::context::PhysicalDevConfig;
     use vkbase::ProcPipeline;
     use vkbase::context::VulkanContext;
 
@@ -23,6 +24,10 @@ fn main() {
 
     let window = WindowContext::new(win_config)
         .expect("Error when creating Window Context");
+
+    let mut phy_config = PhysicalDevConfig::default();
+    phy_config.request_features.fill_mode_non_solid = ash::vk::TRUE;
+    // phy_config.request_features.wide_lines = ash::vk::TRUE;
 
     let vk_context = VulkanContext::new(&window)
         .build().expect("Error when creating Vulkan Context");

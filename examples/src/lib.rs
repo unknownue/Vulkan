@@ -19,6 +19,11 @@ lazy_static! {
         0.0,  0.0, 0.0, 1.0,
     );
 }
+pub const DEFAULT_CLEAR_COLOR: vk::ClearValue = vk::ClearValue {
+    color: vk::ClearColorValue {
+        float32: [0.025, 0.025, 0.025, 1.0]
+    }
+};
 
 
 pub struct VkExampleBackendRes {

@@ -17,7 +17,7 @@ use crate::ci::sync::FenceCI;
 use crate::context::VkDevice;
 use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi};
 use crate::utils::time::VkTimeDuration;
-use crate::utils::memory::get_memory_type_index;
+use crate::utils::memory::{get_memory_type_index, bound_to_alignment};
 use crate::error::{VkResult, VkError, VkTryFrom};
 use crate::vkbytes;
 
@@ -115,19 +115,21 @@ impl MeshAsset {
         let (vertex_buffer, vertex_requirement) = self.attributes.buffer_ci()
             .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
             .build(device)?;
+        let vertex_aligned_size = bound_to_alignment(vertex_requirement.size, vertex_requirement.alignment);
 
         let mesh_block = if let Some(indices_ci) = self.indices.buffer_ci() {
             let (index_buffer, index_requirement) = indices_ci
                 .usage(vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
                 .build(device)?;
+            let index_aligned_size = bound_to_alignment(index_requirement.size, index_requirement.alignment);
 
             let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits & index_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-            let mesh_memory = MemoryAI::new(vertex_requirement.size + index_requirement.size, memory_type)
+            let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_requirement.size },
-                index: Some(BufferBlock { buffer: index_buffer, size: index_requirement.size }),
+                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_aligned_size },
+                index: Some(BufferBlock { buffer: index_buffer, size: index_aligned_size }),
                 memory: mesh_memory,
             }
         } else {
@@ -142,6 +144,13 @@ impl MeshAsset {
             }
         };
 
+        // bind vertex buffer to memory.
+        device.bind_memory(mesh_block.vertex.buffer, mesh_block.memory, 0)?;
+        // bind index buffer to memory.
+        if let Some(ref index_buffer) = mesh_block.index {
+            device.bind_memory(index_buffer.buffer, mesh_block.memory, mesh_block.vertex.size)?;
+        }
+
         Ok(mesh_block)
     }
 
@@ -151,19 +160,21 @@ impl MeshAsset {
         let (vertex_buffer, vertex_requirement) = self.attributes.buffer_ci()
             .usage(vk::BufferUsageFlags::TRANSFER_SRC)
             .build(device)?;
+        let vertex_aligned_size = bound_to_alignment(vertex_requirement.size, vertex_requirement.alignment);
 
         let mesh_block = if let Some(indices_ci) = self.indices.buffer_ci() {
             let (index_buffer, index_requirement) = indices_ci
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC)
                 .build(device)?;
+            let index_aligned_size = bound_to_alignment(index_requirement.size, index_requirement.alignment);
 
             let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-            let mesh_memory = MemoryAI::new(vertex_requirement.size + index_requirement.size, memory_type)
+            let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_requirement.size },
-                index: Some(BufferBlock { buffer: index_buffer, size: index_requirement.size }),
+                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_aligned_size },
+                index: Some(BufferBlock { buffer: index_buffer, size: index_aligned_size }),
                 memory: mesh_memory,
             }
 
@@ -179,30 +190,38 @@ impl MeshAsset {
             }
         };
 
-        // map and bind staging buffer to memory.
-        unsafe {
-
-            // map vertex data.
-            let vertex_data_ptr = device.logic.handle.map_memory(mesh_block.memory, 0, mesh_block.vertex.size, vk::MemoryMapFlags::empty())
-                .map_err(|_| VkError::device("Map Memory"))?;
-            self.attributes.data_content.map_data(vertex_data_ptr);
-
-            // map index data.
-            if let Some(ref index_buffer) = mesh_block.index {
-                let index_data_ptr = device.logic.handle.map_memory(mesh_block.memory, mesh_block.vertex.size, index_buffer.size, vk::MemoryMapFlags::empty())
-                    .map_err(|_| VkError::device("Map Memory"))?;
-                self.indices.map_data(index_data_ptr);
-            }
-
-            // unmap the memory.
-            device.logic.handle.unmap_memory(mesh_block.memory);
-        }
-
         // bind vertex buffer to memory.
         device.bind_memory(mesh_block.vertex.buffer, mesh_block.memory, 0)?;
         // bind index buffer to memory.
         if let Some(ref index_buffer) = mesh_block.index {
             device.bind_memory(index_buffer.buffer, mesh_block.memory, mesh_block.vertex.size)?;
+        }
+
+        // map and bind staging buffer to memory.
+        unsafe {
+
+            if let Some(ref index_buffer) = mesh_block.index {
+
+                // get the starting pointer of host memory.
+                let data_ptr = device.logic.handle.map_memory(mesh_block.memory, 0, mesh_block.vertex.size + index_buffer.size, vk::MemoryMapFlags::empty())
+                    .map_err(|_| VkError::device("Map Memory"))?;
+
+                // map vertex data.
+                self.attributes.data_content.map_data(data_ptr);
+
+                let data_ptr = data_ptr.offset(mesh_block.vertex.size as _);
+                // map index data.
+                self.indices.map_data(data_ptr);
+            } else {
+
+                let data_ptr = device.logic.handle.map_memory(mesh_block.memory, 0, mesh_block.vertex.size, vk::MemoryMapFlags::empty())
+                    .map_err(|_| VkError::device("Map Memory"))?;
+                // map vertex data.
+                self.attributes.data_content.map_data(data_ptr);
+            }
+
+            // unmap the memory.
+            device.logic.handle.unmap_memory(mesh_block.memory);
         }
 
         Ok(mesh_block)

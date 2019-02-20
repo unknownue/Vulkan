@@ -21,13 +21,13 @@ use vkexamples::VkExampleBackendRes;
 type Matrix4F = nalgebra::Matrix4<f32>;
 type Vector4F = nalgebra::Vector4<f32>;
 
-const PHONG_VERTEX_SHADER_SOURCE_PATH      : &'static str = "src/pipelines/phong.vert.glsl";
-const PHONG_FRAGMENT_SHADER_SOURCE_PATH    : &'static str = "src/pipelines/phong.frag.glsl";
-const TOON_VERTEX_SHADER_SOURCE_PATH       : &'static str = "src/pipelines/toon.vert.glsl";
-const TOON_FRAGMENT_SHADER_SOURCE_PATH     : &'static str = "src/pipelines/toon.frag.glsl";
-const WIREFRAME_VERTEX_SHADER_SOURCE_PATH  : &'static str = "src/pipelines/wireframe.vert.glsl";
-const WIREFRAME_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "src/pipelines/wireframe.frag.glsl";
-const MODEL_PATH: &'static str = "models/treasure_smooth.gltf";
+const PHONG_VERTEX_SHADER_SOURCE_PATH      : &'static str = "examples/src/pipelines/phong.vert.glsl";
+const PHONG_FRAGMENT_SHADER_SOURCE_PATH    : &'static str = "examples/src/pipelines/phong.frag.glsl";
+const TOON_VERTEX_SHADER_SOURCE_PATH       : &'static str = "examples/src/pipelines/toon.vert.glsl";
+const TOON_FRAGMENT_SHADER_SOURCE_PATH     : &'static str = "examples/src/pipelines/toon.frag.glsl";
+const WIREFRAME_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/pipelines/wireframe.vert.glsl";
+const WIREFRAME_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/pipelines/wireframe.frag.glsl";
+const MODEL_PATH: &'static str = "examples/src/pipelines/treasure_smooth.gltf";
 
 
 pub struct VulkanExample {
@@ -133,7 +133,7 @@ impl VulkanExample {
     fn record_commands(&self, device: &VkDevice, dimension: vk::Extent2D) -> VkResult<()> {
 
         let clear_values = [
-            vk::ClearValue { color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] } },
+            vkexamples::DEFAULT_CLEAR_COLOR.clone(),
             vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
         ];
 
@@ -171,20 +171,26 @@ impl VulkanExample {
 
             { // Left: Solid colored
                 viewport.width = dimension.width as f32 / 3.0;
-                recorder.set_viewport(0, &[viewport]);
+                recorder
+                    .bind_pipeline(self.pipelines.phong)
+                    .set_viewport(0, &[viewport]);
                 self.model.record_command(&recorder, &render_params);
             }
 
             { // Center: Toon
                 viewport.x = dimension.width as f32 / 3.0;
-                recorder.set_viewport(0, &[viewport]);
+                recorder
+                    .bind_pipeline(self.pipelines.toon)
+                    .set_viewport(0, &[viewport]);
                 self.model.record_command(&recorder, &render_params);
             }
 
             { // Right: Wireframe
                 if device.phy.enable_features().fill_mode_non_solid == vk::TRUE {
                     viewport.x = dimension.width as f32 / 3.0 * 2.0;
-                    recorder.set_viewport(0, &[viewport]);
+                    recorder
+                        .bind_pipeline(self.pipelines.wireframe)
+                        .set_viewport(0, &[viewport]);
                     self.model.record_command(&recorder, &render_params);
                 }
             }

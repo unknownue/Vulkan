@@ -13,7 +13,7 @@ type Matrix4F = nalgebra::Matrix4<f32>;
 pub struct Node {
 
     /// the name property of current node.
-    name: Option<String>,
+    _name: Option<String>,
     /// the reference to MeshEntity.
     local_mesh: Option<LocalMesh>,
     /// the json index of children nodes.
@@ -31,7 +31,7 @@ struct LocalMesh {
 
 impl Node {
 
-    pub fn from_doc(node: gltf::Node, render_counter: usize) -> VkResult<Node> {
+    pub fn from_doc(node: gltf::Node, render_counter: &mut usize) -> VkResult<Node> {
 
         // read the name of Node.
         let name = node.name().and_then(|n| Some(n.to_string()));
@@ -44,8 +44,9 @@ impl Node {
 
             let local_mesh = LocalMesh {
                 mesh_index  : doc_mesh.index(),
-                render_order: render_counter,
+                render_order: render_counter.clone(),
             };
+            (*render_counter) += 1;
 
             Some(local_mesh)
         } else {
@@ -57,7 +58,7 @@ impl Node {
             .map(|doc_node| doc_node.index())
             .collect();
 
-        let result = Node { name, local_mesh, children, local_transform };
+        let result = Node { _name: name, local_mesh, children, local_transform };
         Ok(result)
     }
 

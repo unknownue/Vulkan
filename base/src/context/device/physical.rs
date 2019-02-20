@@ -12,14 +12,14 @@ use std::ffi::CString;
 #[derive(Debug, Clone)]
 pub struct PhysicalDevConfig {
 
-    print_device_properties: bool,
-    device_type_preference: vk::PhysicalDeviceType,
+    pub print_device_properties: bool,
+    pub device_type_preference: vk::PhysicalDeviceType,
 
-    print_available_extensions: bool,
-    request_extensions: Vec<CString>,
+    pub print_available_extensions: bool,
+    pub request_extensions: Vec<CString>,
 
-    print_available_features: bool,
-    request_features: vk::PhysicalDeviceFeatures,
+    pub print_available_features: bool,
+    pub request_features: vk::PhysicalDeviceFeatures,
 }
 
 impl Default for PhysicalDevConfig {

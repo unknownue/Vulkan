@@ -50,10 +50,8 @@ impl AssetAbstract for NodeAsset {
 
             let json_index = doc_node.index();
 
-            let node = Node::from_doc(doc_node, render_counter)?;
+            let node = Node::from_doc(doc_node, &mut render_counter)?;
             self.nodes.push(json_index, node);
-
-            render_counter += 1;
         }
 
         scene.read_node_attachment(&self.nodes, &mut self.attachments);
