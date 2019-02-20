@@ -15,6 +15,7 @@ use crate::ci::memory::MemoryAI;
 use crate::ci::sync::FenceCI;
 
 use crate::context::VkDevice;
+use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi};
 use crate::utils::time::VkTimeDuration;
 use crate::utils::memory::get_memory_type_index;
 use crate::error::{VkResult, VkError, VkTryFrom};
@@ -39,11 +40,11 @@ struct MeshAssetBlock {
 
 pub struct MeshResource {
 
+    pub(crate) list: AssetElementList<Mesh>,
+
     vertex: BufferBlock,
     index : Option<BufferBlock>,
     memory: vk::DeviceMemory,
-
-    list: AssetElementList<Mesh>,
 
     pub vertex_input: VertexInputSCI,
 }
@@ -262,6 +263,27 @@ impl MeshAsset {
 impl MeshAssetBlock {
 
     fn discard(&self, device: &VkDevice) {
+
+        device.discard(self.vertex.buffer);
+        if let Some(ref index_buffer) = self.index {
+            device.discard(index_buffer.buffer);
+        }
+        device.discard(self.memory);
+    }
+}
+
+impl MeshResource {
+
+    pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>) {
+
+        recorder.bind_vertex_buffers(0, &[self.vertex.buffer], &[0]);
+
+        if let Some(ref index_buffer) = self.index {
+            recorder.bind_index_buffer(index_buffer.buffer, vk::IndexType::UINT32, 0);
+        }
+    }
+
+    pub fn discard(&self, device: &VkDevice) {
 
         device.discard(self.vertex.buffer);
         if let Some(ref index_buffer) = self.index {

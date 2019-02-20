@@ -56,7 +56,7 @@ impl MemoryAI {
     }
 }
 
-impl crate::context::VkObjectCreatable for vk::DeviceMemory {
+impl crate::context::VkObjectDiscardable for vk::DeviceMemory {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

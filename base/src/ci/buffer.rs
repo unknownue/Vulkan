@@ -2,7 +2,7 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::context::{VkDevice, VkObjectCreatable, VkObjectBindable};
+use crate::context::{VkDevice, VkObjectDiscardable, VkObjectBindable};
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
@@ -80,7 +80,7 @@ impl BufferCI {
     }
 }
 
-impl VkObjectCreatable for vk::Buffer {
+impl VkObjectDiscardable for vk::Buffer {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

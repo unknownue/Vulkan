@@ -7,7 +7,7 @@ use crate::error::{VkResult, VkError};
 use crate::{vkfloat, vkuint};
 
 pub type MatSerializedData = Vec<u8>;
-const DEFAULT_MATERIAL_INDEX: usize = usize::max_value();
+pub const DEFAULT_MATERIAL_INDEX: usize = usize::max_value();
 
 // ------------------------------------------------------------------------------------
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -64,8 +64,8 @@ pub struct MaterialAsset {
 
 pub struct MaterialResource {
 
+    pub(crate) list: AssetElementList<MatSerializedData>,
     material_size: vkuint,
-    list: AssetElementList<MatSerializedData>,
 }
 
 impl MaterialAsset {

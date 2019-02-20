@@ -1,7 +1,13 @@
 
 use crate::gltf::asset::{GltfDocument, ReferenceIndex};
+use crate::gltf::asset::{VkglTFModel, ModelRenderParams};
+
 use crate::gltf::meshes::attributes::AttributesData;
 use crate::gltf::meshes::indices::IndicesData;
+
+use crate::gltf::material::DEFAULT_MATERIAL_INDEX;
+use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi};
+
 use crate::{VkResult, VkError};
 use crate::vkuint;
 
@@ -52,6 +58,21 @@ impl Primitive {
             material: doc_primitive.material().index(),
         };
         Ok(result)
+    }
+
+    pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>, model: &VkglTFModel, params: &ModelRenderParams) {
+
+        let material_data = model.materials.list.get(self.material.unwrap_or(DEFAULT_MATERIAL_INDEX));
+        recorder.push_constants(params.pipeline_layout, params.material_stage, 0, material_data);
+
+        match self.params {
+            | RenderParams::DrawArray { vertex_count, first_vertex } => {
+                recorder.draw(vertex_count, 1, first_vertex, 0);
+            },
+            | RenderParams::DrawIndex {  index_count,  first_index } => {
+                recorder.draw_indexed(index_count, 1, first_index, 0, 0);
+            },
+        }
     }
 }
 // --------------------------------------------------------------------------------------

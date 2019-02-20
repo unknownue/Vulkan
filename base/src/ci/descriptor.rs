@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::context::{VkObjectCreatable, VkObjectAllocatable};
+use crate::context::{VkObjectDiscardable, VkObjectAllocatable};
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
@@ -80,7 +80,7 @@ impl DescriptorPoolCI {
     }
 }
 
-impl VkObjectCreatable for vk::DescriptorPool {
+impl VkObjectDiscardable for vk::DescriptorPool {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
@@ -152,7 +152,7 @@ impl DescriptorSetLayoutCI {
     }
 }
 
-impl VkObjectCreatable for vk::DescriptorSetLayout {
+impl VkObjectDiscardable for vk::DescriptorSetLayout {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

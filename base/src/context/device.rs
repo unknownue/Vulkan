@@ -42,7 +42,7 @@ impl VkDevice {
     }
 
     #[inline]
-    pub fn discard(&self, object: impl VkObjectCreatable) {
+    pub fn discard(&self, object: impl VkObjectDiscardable) {
         object.discard(self);
     }
 
@@ -55,7 +55,7 @@ impl VkDevice {
     }
 }
 
-pub trait VkObjectCreatable: Copy {
+pub trait VkObjectDiscardable: Copy {
 
     fn discard(self, device: &VkDevice);
 }

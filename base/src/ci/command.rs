@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::context::{VkObjectCreatable, VkObjectAllocatable};
+use crate::context::{VkObjectDiscardable, VkObjectAllocatable};
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
@@ -134,7 +134,7 @@ impl CommandPoolCI {
     }
 }
 
-impl VkObjectCreatable for vk::CommandPool {
+impl VkObjectDiscardable for vk::CommandPool {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

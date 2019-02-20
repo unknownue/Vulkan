@@ -5,7 +5,7 @@ use ash::version::DeviceV1_0;
 use std::ptr;
 
 use crate::context::VkDevice;
-use crate::context::{VkObjectCreatable, VkObjectWaitable};
+use crate::context::{VkObjectDiscardable, VkObjectWaitable};
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::utils::time::VkTimeDuration;
@@ -58,7 +58,7 @@ impl SemaphoreCI {
     }
 }
 
-impl VkObjectCreatable for vk::Semaphore {
+impl VkObjectDiscardable for vk::Semaphore {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
@@ -115,7 +115,7 @@ impl FenceCI {
     }
 }
 
-impl VkObjectCreatable for vk::Fence {
+impl VkObjectDiscardable for vk::Fence {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
@@ -124,7 +124,7 @@ impl VkObjectCreatable for vk::Fence {
     }
 }
 
-impl VkObjectCreatable for &Vec<vk::Fence> {
+impl VkObjectDiscardable for &Vec<vk::Fence> {
 
     fn discard(self, device: &VkDevice) {
 

@@ -112,13 +112,24 @@ pub struct ModelRenderParams {
 
     pub descriptor_set : vk::DescriptorSet,
     pub pipeline_layout: vk::PipelineLayout,
+    pub material_stage : vk::ShaderStageFlags,
 }
 
 impl VkglTFModel {
 
     pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>, params: &ModelRenderParams) {
 
-        unimplemented!()
+        self.meshes.record_command(recorder);
+        self.scene.record_command(recorder, self, params);
+    }
+}
+
+impl VkglTFModel {
+
+    pub fn discard(&self, device: &VkDevice) {
+
+        self.meshes.discard(device);
+        self.nodes.discard(device);
     }
 }
 // --------------------------------------------------------------------------------------

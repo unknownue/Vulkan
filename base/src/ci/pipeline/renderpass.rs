@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::context::VkObjectCreatable;
+use crate::context::VkObjectDiscardable;
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
@@ -161,7 +161,7 @@ impl RenderPassCI {
     }
 }
 
-impl VkObjectCreatable for vk::RenderPass {
+impl VkObjectDiscardable for vk::RenderPass {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

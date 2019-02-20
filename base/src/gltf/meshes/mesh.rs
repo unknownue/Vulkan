@@ -1,8 +1,13 @@
 
 use crate::gltf::asset::GltfDocument;
+use crate::gltf::asset::{VkglTFModel, ModelRenderParams};
+
 use crate::gltf::meshes::primitive::Primitive;
 use crate::gltf::meshes::attributes::AttributesData;
 use crate::gltf::meshes::indices::IndicesData;
+
+use crate::command::{VkCmdRecorder, IGraphics};
+
 use crate::error::VkResult;
 
 // --------------------------------------------------------------------------------------
@@ -29,6 +34,13 @@ impl Mesh {
 
         let mesh = Mesh { primitives };
         Ok(mesh)
+    }
+
+    pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>, model: &VkglTFModel, params: &ModelRenderParams) {
+
+        for primitive in self.primitives.iter() {
+            primitive.record_command(recorder, model, params);
+        }
     }
 }
 // --------------------------------------------------------------------------------------

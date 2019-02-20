@@ -10,6 +10,7 @@ use crate::error::{VkResult, VkError, VkTryFrom};
 use crate::context::VkDevice;
 use crate::vkbytes;
 
+
 pub struct NodeAsset {
 
     attachments: NodeAttachments,
@@ -19,9 +20,9 @@ pub struct NodeAsset {
 
 pub struct NodeResource {
 
-    nodes: AssetElementList<Node>,
+    pub(crate) list: AssetElementList<Node>,
+    pub(crate) attachment_size_aligned: vkbytes,
 
-    attachment_size_aligned: vkbytes,
     buffer: vk::Buffer,
     memory: vk::DeviceMemory,
 }
@@ -43,12 +44,16 @@ impl AssetAbstract for NodeAsset {
 
     fn read_doc(&mut self, source: &GltfDocument, scene: &Scene) -> VkResult<()> {
 
+        let mut render_counter = 0;
+
         for doc_node in source.doc.nodes() {
 
             let json_index = doc_node.index();
 
-            let node = Node::from_doc(doc_node)?;
+            let node = Node::from_doc(doc_node, render_counter)?;
             self.nodes.push(json_index, node);
+
+            render_counter += 1;
         }
 
         scene.read_node_attachment(&self.nodes, &mut self.attachments);
@@ -95,7 +100,7 @@ impl NodeAsset {
         device.bind_memory(uniform_buffer, uniform_memory, 0)?;
 
         let result = NodeResource {
-            nodes : self.nodes,
+            list  : self.nodes,
             buffer: uniform_buffer,
             memory: uniform_memory,
             attachment_size_aligned,
@@ -113,5 +118,11 @@ impl NodeResource {
             offset: 0,
             range : self.attachment_size_aligned,
         }
+    }
+
+    pub fn discard(&self, device: &VkDevice) {
+
+        device.discard(self.buffer);
+        device.discard(self.memory);
     }
 }

@@ -113,7 +113,7 @@ impl ShaderModuleCI {
     }
 }
 
-impl crate::context::VkObjectCreatable for vk::ShaderModule {
+impl crate::context::VkObjectDiscardable for vk::ShaderModule {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

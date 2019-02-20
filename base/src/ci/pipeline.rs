@@ -21,7 +21,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
-use crate::context::VkObjectCreatable;
+use crate::context::VkObjectDiscardable;
 use crate::ci::shader::ShaderStageCI;
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
@@ -101,7 +101,7 @@ impl PipelineLayoutCI {
     }
 }
 
-impl VkObjectCreatable for vk::PipelineLayout {
+impl VkObjectDiscardable for vk::PipelineLayout {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
@@ -193,7 +193,7 @@ impl FramebufferCI {
     }
 }
 
-impl VkObjectCreatable for vk::Framebuffer {
+impl VkObjectDiscardable for vk::Framebuffer {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
@@ -202,7 +202,7 @@ impl VkObjectCreatable for vk::Framebuffer {
     }
 }
 
-impl VkObjectCreatable for &Vec<vk::Framebuffer> {
+impl VkObjectDiscardable for &Vec<vk::Framebuffer> {
 
     fn discard(self, device: &VkDevice) {
 
@@ -371,7 +371,7 @@ impl GraphicsPipelineCI {
     }
 }
 
-impl VkObjectCreatable for vk::Pipeline {
+impl VkObjectDiscardable for vk::Pipeline {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

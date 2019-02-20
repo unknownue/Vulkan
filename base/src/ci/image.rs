@@ -2,7 +2,7 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::context::{VkDevice, VkObjectCreatable, VkObjectBindable};
+use crate::context::{VkDevice, VkObjectDiscardable, VkObjectBindable};
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
 use crate::error::{VkResult, VkError};
 use crate::{vkbytes, vkuint};
@@ -127,7 +127,7 @@ impl ImageCI {
     }
 }
 
-impl VkObjectCreatable for vk::Image {
+impl VkObjectDiscardable for vk::Image {
 
     fn discard(self, device: &VkDevice) {
         unsafe {
@@ -232,7 +232,7 @@ impl ImageViewCI {
     }
 }
 
-impl crate::context::VkObjectCreatable for vk::ImageView {
+impl crate::context::VkObjectDiscardable for vk::ImageView {
 
     fn discard(self, device: &VkDevice) {
         unsafe {

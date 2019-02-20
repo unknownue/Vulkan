@@ -156,6 +156,7 @@ impl VulkanExample {
             let render_params = vkbase::gltf::ModelRenderParams {
                 descriptor_set : self.descriptors.set,
                 pipeline_layout: self.pipelines.layout,
+                material_stage : vk::ShaderStageFlags::VERTEX,
             };
 
             let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(device, command);
@@ -210,6 +211,7 @@ impl VulkanExample {
         device.discard(self.uniform_buffer.buffer);
         device.discard(self.uniform_buffer.memory);
 
+        self.model.discard(device);
         self.backend_res.discard(device);
     }
 }
