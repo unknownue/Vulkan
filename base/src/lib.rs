@@ -10,9 +10,9 @@ pub mod ci;
 pub mod utils;
 pub mod command;
 pub mod platforms;
+pub mod gltf;
 
 mod error;
-mod gltf;
 mod workflow;
 mod input;
 

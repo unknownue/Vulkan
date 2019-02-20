@@ -11,8 +11,10 @@ use crate::gltf::meshes::indices::IndicesData;
 use crate::ci::VkObjectBuildableCI;
 use crate::ci::device::SubmitCI;
 use crate::ci::memory::MemoryAI;
+use crate::ci::sync::FenceCI;
 
 use crate::context::VkDevice;
+use crate::utils::time::VkTimeDuration;
 use crate::utils::memory::get_memory_type_index;
 use crate::error::{VkResult, VkError, VkTryFrom};
 use crate::vkbytes;
@@ -192,10 +194,10 @@ impl MeshAsset {
         }
 
         // bind vertex buffer to memory.
-        device.bind(mesh_block.vertex.buffer, mesh_block.memory, 0)?;
+        device.bind_memory(mesh_block.vertex.buffer, mesh_block.memory, 0)?;
         // bind index buffer to memory.
         if let Some(ref index_buffer) = mesh_block.index {
-            device.bind(index_buffer.buffer, mesh_block.memory, mesh_block.vertex.size)?;
+            device.bind_memory(index_buffer.buffer, mesh_block.memory, mesh_block.vertex.size)?;
         }
 
         Ok(mesh_block)
@@ -237,8 +239,6 @@ impl MeshAsset {
         cmd_recorder.end_record()?;
 
 
-        use crate::ci::sync::FenceCI;
-        use crate::utils::time::VkTimeDuration;
         let fence = device.build(&FenceCI::new(false))?;
 
         let submit_ci = SubmitCI::new()

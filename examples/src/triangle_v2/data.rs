@@ -217,7 +217,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
 
         device.logic.handle.unmap_memory(staging_memory);
     }
-    device.bind(staging_buffer, staging_memory, 0)?;
+    device.bind_memory(staging_buffer, staging_memory, 0)?;
 
     let (target_buffer, target_requirement) = BufferCI::new(buffer_size)
         .usage(vk::BufferUsageFlags::TRANSFER_DST | buffer_usage)
@@ -227,7 +227,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     let target_memory = MemoryAI::new(target_requirement.size, target_memory_index)
         .build(device)?;
 
-    device.bind(target_buffer, target_memory, 0)?;
+    device.bind_memory(target_buffer, target_memory, 0)?;
 
     let result = BufferResourceTmp { buffer_size, staging_buffer, staging_memory, target_buffer, target_memory };
     Ok(result)
@@ -243,7 +243,7 @@ pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<U
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
     let uniform_memory = MemoryAI::new(memory_requirement.size, memory_index)
         .build(device)?;
-    device.bind(uniform_buffer, uniform_memory, 0)?;
+    device.bind_memory(uniform_buffer, uniform_memory, 0)?;
 
     let descriptor_info = vk::DescriptorBufferInfo {
         buffer: uniform_buffer,

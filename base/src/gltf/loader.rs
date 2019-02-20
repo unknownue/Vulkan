@@ -16,7 +16,7 @@ pub struct GltfModelInfo<'a> {
     pub node: NodeAttachmentFlags,
 }
 
-fn load_gltf(info: GltfModelInfo, device: &VkDevice) -> VkResult<VkglTFModel> {
+pub fn load_gltf(device: &VkDevice, info: GltfModelInfo) -> VkResult<VkglTFModel> {
 
     let (doc, buffers, images) = gltf::import(info.path)
         .map_err(VkErrorKind::ParseGltf)?;

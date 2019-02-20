@@ -27,7 +27,7 @@ impl VkDevice {
     }
 
     #[inline]
-    pub fn bind(&self, object: impl VkObjectBindable, memory: vk::DeviceMemory, offset: vkbytes) -> VkResult<()> {
+    pub fn bind_memory(&self, object: impl VkObjectBindable, memory: vk::DeviceMemory, offset: vkbytes) -> VkResult<()> {
         object.bind(self, memory, offset)
     }
 

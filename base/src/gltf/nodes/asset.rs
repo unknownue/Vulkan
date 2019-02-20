@@ -88,7 +88,7 @@ impl NodeAsset {
         }
 
         // bind vertex buffer to memory.
-        device.bind(uniform_buffer, uniform_memory, 0)?;
+        device.bind_memory(uniform_buffer, uniform_memory, 0)?;
 
         let result = NodeResource {
             nodes : self.nodes,

@@ -69,14 +69,6 @@ pub struct AssetRepository {
     pub materials: MaterialAsset,
 }
 
-pub struct VkglTFModel {
-
-    scene: Scene,
-    meshes: MeshResource,
-    nodes : NodeResource,
-    materials: MaterialResource,
-}
-
 impl AssetRepository {
 
     pub fn new(attr_flag: AttributeFlags, attachment_flag: NodeAttachmentFlags) -> VkResult<AssetRepository> {
@@ -99,5 +91,16 @@ impl AssetRepository {
         };
         Ok(result)
     }
+}
+// --------------------------------------------------------------------------------------
+
+
+// --------------------------------------------------------------------------------------
+pub struct VkglTFModel {
+
+    scene: Scene,
+    meshes: MeshResource,
+    nodes : NodeResource,
+    materials: MaterialResource,
 }
 // --------------------------------------------------------------------------------------

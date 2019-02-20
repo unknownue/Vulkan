@@ -15,6 +15,7 @@ winit = "0.18.1"
 nalgebra = "0.16"
 shaderc = "0.3.10"
 memoffset = "0.2"
+lazy_static = "1.2.0"
 
 vkbase = { package = "vulkan-base", path = "../base" }
 
@@ -29,3 +30,7 @@ path = "src/triangle_v1/main.rs"
 [[bin]]
 name = "triangle_v2"
 path = "src/triangle_v2/main.rs"
+
+[[bin]]
+name = "pipelines"
+path = "src/pipelines/main.rs"

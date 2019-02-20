@@ -2,11 +2,23 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
+use lazy_static::lazy_static;
+
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::sync::SemaphoreCI;
 use vkbase::vkuint;
 use vkbase::{VkResult, VkError};
+
+lazy_static! {
+
+    pub static ref Y_CORRECTION: nalgebra::Matrix4<f32> = nalgebra::Matrix4::new(
+        1.0,  0.0, 0.0, 0.0,
+        0.0, -1.0, 0.0, 0.0,
+        0.0,  0.0, 0.5, 0.5,
+        0.0,  0.0, 0.0, 1.0,
+    );
+}
 
 
 pub struct VkExampleBackendRes {
@@ -117,10 +129,8 @@ fn setup_depth_image(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<Dep
     let memory = MemoryAI::new(image_requirement.size, memory_index)
         .build(device)?;
 
-    unsafe {
-        device.logic.handle.bind_image_memory(image, memory, 0)
-            .map_err(|_| VkError::device("Bind Image Memory."))?;
-    }
+    // bind depth image to memory.
+    device.bind_memory(image, memory, 0)?;
 
     let view = ImageViewCI::new(image, vk::ImageViewType::TYPE_2D, device.phy.depth_format)
         .aspect_mask(vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL)
