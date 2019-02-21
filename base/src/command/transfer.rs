@@ -15,27 +15,27 @@ impl VkCommandType for ITransfer {
 
 impl<'a> CmdTransferApi for VkCmdRecorder<'a, ITransfer> {
 
-    fn copy_buf2buf(&self, src_buffer_handle: vk::Buffer, dst_buffer_handle: vk::Buffer, regions: &[vk::BufferCopy]) -> &Self {
+    fn copy_buf2buf(&self, src: vk::Buffer, dst: vk::Buffer, regions: &[vk::BufferCopy]) -> &Self {
         unsafe {
-            self.device.logic.handle.cmd_copy_buffer(self.command, src_buffer_handle, dst_buffer_handle, regions);
+            self.device.logic.handle.cmd_copy_buffer(self.command, src, dst, regions);
         } self
     }
 
-    fn copy_buf2img(&self, src_handle: vk::Buffer, dst_handle: vk::Image, dst_layout: vk::ImageLayout, regions: &[vk::BufferImageCopy]) -> &Self {
+    fn copy_buf2img(&self, src: vk::Buffer, dst: vk::Image, dst_layout: vk::ImageLayout, regions: &[vk::BufferImageCopy]) -> &Self {
         unsafe {
-            self.device.logic.handle.cmd_copy_buffer_to_image(self.command, src_handle, dst_handle, dst_layout, regions);
+            self.device.logic.handle.cmd_copy_buffer_to_image(self.command, src, dst, dst_layout, regions);
         } self
     }
 
-    fn copy_img2buf(&self, src_handle: vk::Image, src_layout: vk::ImageLayout, dst_buffer: vk::Buffer, regions: &[vk::BufferImageCopy]) -> &Self {
+    fn copy_img2buf(&self, src: vk::Image, src_layout: vk::ImageLayout, dst: vk::Buffer, regions: &[vk::BufferImageCopy]) -> &Self {
         unsafe {
-            self.device.logic.handle.cmd_copy_image_to_buffer(self.command, src_handle, src_layout, dst_buffer, regions);
+            self.device.logic.handle.cmd_copy_image_to_buffer(self.command, src, src_layout, dst, regions);
         } self
     }
 
-    fn copy_img2img(&self,src_handle: vk::Image, src_layout: vk::ImageLayout, dst_handle: vk::Image, dst_layout: vk::ImageLayout, regions: &[vk::ImageCopy]) -> &Self {
+    fn copy_img2img(&self,src: vk::Image, src_layout: vk::ImageLayout, dst: vk::Image, dst_layout: vk::ImageLayout, regions: &[vk::ImageCopy]) -> &Self {
         unsafe {
-            self.device.logic.handle.cmd_copy_image(self.command, src_handle, src_layout, dst_handle, dst_layout, regions);
+            self.device.logic.handle.cmd_copy_image(self.command, src, src_layout, dst, dst_layout, regions);
         } self
     }
 

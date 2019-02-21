@@ -1,8 +1,10 @@
 
+use crate::gltf::asset::ReferenceIndex;
 use crate::error::{VkResult, VkError, VkTryFrom};
 use crate::{vkbytes, vkptr};
 
 use std::ops::{ BitAnd, BitOr, BitOrAssign, BitAndAssign };
+use std::collections::HashMap;
 
 type Matrix4F = nalgebra::Matrix4<f32>;
 
@@ -13,6 +15,8 @@ pub struct NodeAttachments {
     pub element_size: vkbytes,
     /// the attachment data of this Node.
     pub data_content: Box<dyn AttachmentData>,
+    /// Map the json index of Node to the position index of its attachment data(in `data_content`).
+    pub attachments_mapping: HashMap<ReferenceIndex, usize>,
 }
 
 pub struct AttachmentContent {
@@ -28,8 +32,21 @@ impl VkTryFrom<NodeAttachmentFlags> for NodeAttachments {
         let content = flags.new_transforms()
             .ok_or(VkError::unimplemented("Node property combination"))?;
 
-        let result = NodeAttachments { element_size, data_content: content };
+        let result = NodeAttachments {
+            element_size,
+            data_content : content,
+            attachments_mapping: HashMap::new(),
+        };
         Ok(result)
+    }
+}
+
+impl NodeAttachments {
+
+    pub fn extend(&mut self, node_index: ReferenceIndex, attachment: AttachmentContent) {
+
+        let attachment_position = self.data_content.extend(attachment);
+        self.attachments_mapping.insert(node_index, attachment_position);
     }
 }
 // --------------------------------------------------------------------------------------
@@ -37,7 +54,7 @@ impl VkTryFrom<NodeAttachmentFlags> for NodeAttachments {
 // --------------------------------------------------------------------------------------
 pub trait AttachmentData {
 
-    fn extend(&mut self, attachment: AttachmentContent);
+    fn extend(&mut self, attachment: AttachmentContent) -> usize;
 
     fn length(&self) -> usize;
 
@@ -80,7 +97,7 @@ macro_rules! define_node_attachments {
 
         #[allow(non_camel_case_types)]
         #[derive(Default)]
-        pub(crate) struct $name_transform {
+        struct $name_transform {
             data: Vec<$name_uniform>,
         }
 
@@ -106,12 +123,14 @@ macro_rules! define_node_attachments {
 
         impl AttachmentData for $name_transform {
 
-            fn extend(&mut self, attachment: AttachmentContent) {
+            fn extend(&mut self, attachment: AttachmentContent) -> usize {
 
                 let length = self.data.len();
                 $(
                     read_transform!(self, attachment, $name_uniform, length, $attribute);
                 )*
+
+                length
             }
 
             fn length(&self) -> usize {
@@ -142,7 +161,7 @@ pub struct NodeAttachmentFlags(u32);
 impl NodeAttachmentFlags {
     pub const NONE            : NodeAttachmentFlags = NodeAttachmentFlags(0b0);
     pub const TRANSFORM_MATRIX: NodeAttachmentFlags = NodeAttachmentFlags(0b1);
-    // pub const JOINT_MATRIX    : NodeTransformFlags = NodeTransformFlags(0b10);
+    // pub const JOINT_MATRIX    : NodeAttachmentFlags = NodeAttachmentFlags(0b10);
 
     pub const NAF_T: NodeAttachmentFlags = NodeAttachmentFlags(0b1);
 

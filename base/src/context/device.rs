@@ -33,19 +33,27 @@ impl VkDevice {
     }
 
     #[inline]
-    pub fn map_memory(&self, memory: vk::DeviceMemory, offset: vkbytes, size: vkbytes) -> VkResult<vkptr> {
-        unsafe {
+    pub fn map_memory<T>(&self, memory: vk::DeviceMemory, offset: vkbytes, size: vkbytes) -> VkResult<vkptr<T>> {
+        let ptr = unsafe {
             self.logic.handle.map_memory(memory, offset, size, vk::MemoryMapFlags::empty())
-                .map_err(|_| VkError::device("Map Memory"))
-        }
+                .map_err(|_| VkError::device("Map Memory"))?
+        };
+        Ok(ptr as vkptr<T>)
     }
 
     #[inline]
-    pub fn copy_from_ptr<DataType: Copy>(&self, data_ptr: vkptr, data: &[DataType]) {
+    pub fn copy_to_ptr<T>(&self, data_ptr: vkptr, data: &[T]) {
+
+        // implementation 1.
         unsafe {
-            let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut DataType, data.len());
-            mapped_copy_target.copy_from_slice(data);
+            (data_ptr as vkptr<T>).copy_from(data.as_ptr(), data.len());
         }
+
+        // implementation 2.
+        // unsafe {
+        //     let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut T, data.len());
+        //     mapped_copy_target.copy_from_slice(data);
+        // }
     }
 
     #[inline]

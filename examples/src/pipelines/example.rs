@@ -176,12 +176,6 @@ impl VulkanExample {
             vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
         ];
 
-        let mut viewport = vk::Viewport {
-            x: 0.0, y: 0.0,
-            width: dimension.width as f32, height: dimension.height as f32,
-            min_depth: 0.0, max_depth: 1.0,
-        };
-
         let scissor = vk::Rect2D {
             extent: dimension.clone(),
             offset: vk::Offset2D { x: 0, y: 0 },
@@ -198,6 +192,12 @@ impl VulkanExample {
                 material_stage : vk::ShaderStageFlags::VERTEX,
             };
 
+            let mut viewport = vk::Viewport {
+                x: 0.0, y: 0.0,
+                width: dimension.width as f32, height: dimension.height as f32,
+                min_depth: 0.0, max_depth: 1.0,
+            };
+
             let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(device, command);
 
             let render_pass_bi = RenderPassBI::new(self.pipelines.render_pass, self.backend_res.framebuffers[i])
@@ -211,16 +211,21 @@ impl VulkanExample {
             { // Left: Solid colored
                 viewport.width = dimension.width as f32 / 3.0;
                 recorder
-                    .bind_pipeline(self.pipelines.phong)
-                    .set_viewport(0, &[viewport]);
+                    .set_viewport(0, &[viewport])
+                    .bind_pipeline(self.pipelines.phong);
                 self.model.record_command(&recorder, &render_params);
             }
 
             { // Center: Toon
                 viewport.x = dimension.width as f32 / 3.0;
                 recorder
-                    .bind_pipeline(self.pipelines.toon)
-                    .set_viewport(0, &[viewport]);
+                    .set_viewport(0, &[viewport])
+                    .bind_pipeline(self.pipelines.toon);
+
+                // Line width > 1.0f only if wide lines feature is supported.
+                if device.phy.enable_features().wide_lines == vk::TRUE {
+                    recorder.set_line_width(2.0);
+                }
                 self.model.record_command(&recorder, &render_params);
             }
 
@@ -228,8 +233,8 @@ impl VulkanExample {
                 if device.phy.enable_features().fill_mode_non_solid == vk::TRUE {
                     viewport.x = dimension.width as f32 / 3.0 * 2.0;
                     recorder
-                        .bind_pipeline(self.pipelines.wireframe)
-                        .set_viewport(0, &[viewport]);
+                        .set_viewport(0, &[viewport])
+                        .bind_pipeline(self.pipelines.wireframe);
                     self.model.record_command(&recorder, &render_params);
                 }
             }
@@ -245,7 +250,9 @@ impl VulkanExample {
     fn update_uniforms(&mut self, device: &VkDevice) -> VkResult<()> {
 
         self.ubo_data[0].view = self.camera.view_matrix();
-        device.copy_from_ptr(self.uniform_buffer.data_ptr, &self.ubo_data);
+
+        // dbg!(self.ubo_data[0].view);
+        device.copy_to_ptr(self.uniform_buffer.data_ptr, &self.ubo_data);
 
         Ok(())
     }
@@ -316,7 +323,7 @@ struct UboVS {
 
 fn prepare_uniform(device: &VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<UniformBuffer> {
 
-    let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<UboVS>() as vkbytes)
+    let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<[UboVS; 1]>() as vkbytes)
         .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
         .build(device)?;
 
@@ -328,7 +335,7 @@ fn prepare_uniform(device: &VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<Uniform
     // Map uniform buffer and update it.
     // keep the uniform memory map during the program running.
     let data_ptr = device.map_memory(uniform_memory, 0, mem::size_of::<[UboVS; 1]>() as vkbytes)?;
-    device.copy_from_ptr(data_ptr, ubo_data);
+    device.copy_to_ptr(data_ptr, ubo_data);
 
     let uniforms = UniformBuffer {
         data_ptr,
@@ -337,7 +344,7 @@ fn prepare_uniform(device: &VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<Uniform
         descriptor: vk::DescriptorBufferInfo {
             buffer: uniform_buffer,
             offset: 0,
-            range: mem::size_of::<UboVS>() as vkbytes,
+            range : mem::size_of::<[UboVS; 1]>() as vkbytes,
         },
     };
 
@@ -465,7 +472,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
 
     let mut rasterization_state = RasterizationSCI::new()
         .polygon(vk::PolygonMode::FILL)
-        .cull_face(vk::CullModeFlags::NONE, vk::FrontFace::COUNTER_CLOCKWISE);
+        .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::COUNTER_CLOCKWISE);
 
     let blend_attachment = BlendAttachmentSCI::new().value();
     let blend_state = ColorBlendSCI::new()

@@ -2,12 +2,15 @@
 use ash::vk;
 
 use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetElementList};
+use crate::gltf::asset::ReferenceIndex;
 use crate::gltf::scene::Scene;
 use crate::gltf::nodes::node::Node;
 use crate::gltf::nodes::attachment::{NodeAttachments, NodeAttachmentFlags};
 use crate::error::{VkResult, VkTryFrom};
 use crate::context::VkDevice;
 use crate::vkbytes;
+
+use std::collections::HashMap;
 
 
 pub struct NodeAsset {
@@ -21,6 +24,7 @@ pub struct NodeResource {
 
     pub(crate) list: AssetElementList<Node>,
     pub(crate) attachment_size_aligned: vkbytes,
+    pub(crate) attachment_mapping: HashMap<ReferenceIndex, usize>,
 
     buffer: vk::Buffer,
     memory: vk::DeviceMemory,
@@ -43,13 +47,11 @@ impl AssetAbstract for NodeAsset {
 
     fn read_doc(&mut self, source: &GltfDocument, scene: &Scene) -> VkResult<()> {
 
-        let mut render_counter = 0;
-
         for doc_node in source.doc.nodes() {
 
             let json_index = doc_node.index();
 
-            let node = Node::from_doc(doc_node, &mut render_counter)?;
+            let node = Node::from_doc(doc_node)?;
             self.nodes.push(json_index, node);
         }
 
@@ -82,7 +84,7 @@ impl NodeAsset {
             .build(device)?;
 
         // map and bind uniform buffer to memory.
-        let data_ptr = device.map_memory(uniform_memory, 0, uniform_requirement.size)?;
+        let data_ptr = device.map_memory(uniform_memory, 0, vk::WHOLE_SIZE)?;
         self.attachments.data_content.map_data(data_ptr, uniform_requirement.size, min_alignment);
         device.unmap_memory(uniform_memory);
 
@@ -93,6 +95,7 @@ impl NodeAsset {
             list  : self.nodes,
             buffer: uniform_buffer,
             memory: uniform_memory,
+            attachment_mapping: self.attachments.attachments_mapping,
             attachment_size_aligned,
         };
         Ok(result)

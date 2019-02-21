@@ -33,7 +33,7 @@ impl IndicesData {
             .map(move |index_element| index_element + start_index);
 
         let result = IndicesExtendInfo {
-            first_index  : self.start_index,
+            first_index  : self.data_content.len() as _,
             indices_count: index_iter.size_hint().0 as _,
         };
 
@@ -57,9 +57,7 @@ impl IndicesData {
     pub fn map_data(&self, memory_ptr: vkptr) {
 
         unsafe {
-
-            let mapped_copy_target = ::std::slice::from_raw_parts_mut(memory_ptr as *mut vkuint, self.data_content.len());
-            mapped_copy_target.copy_from_slice(&self.data_content);
+            (memory_ptr as vkptr<vkuint>).copy_from(self.data_content.as_ptr(), self.data_content.len());
         }
     }
 }

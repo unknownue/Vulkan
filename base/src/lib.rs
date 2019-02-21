@@ -38,8 +38,8 @@ pub type vkchar = ::std::os::raw::c_char;
 #[allow(non_camel_case_types)]
 pub type vkbool = ash::vk::Bool32;
 #[allow(non_camel_case_types)]
-// raw pointer type used in vulkan.
-pub type vkptr = *mut ::std::os::raw::c_void;
+// raw pointer type used in vulkan.(the size of c_void is 1).
+pub type vkptr<T=::std::os::raw::c_void> = *mut T;
 /// the number of bytes, used to measure the size of memory block(buffer, image...).
 #[allow(non_camel_case_types)]
 pub type vkbytes = ash::vk::DeviceSize;

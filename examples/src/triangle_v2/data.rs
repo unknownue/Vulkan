@@ -207,7 +207,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
         .build(device)?;
 
     let data_ptr = device.map_memory(staging_memory, 0, staging_requirement.size)?;
-    device.copy_from_ptr(data_ptr, data);
+    device.copy_to_ptr(data_ptr, data);
     device.unmap_memory(staging_memory);
 
     device.bind_memory(staging_buffer, staging_memory, 0)?;
@@ -269,7 +269,7 @@ fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: 
 
     // Map uniform buffer and update it.
     let data_ptr = device.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as _)?;
-    device.copy_from_ptr(data_ptr, &ubo_data);
+    device.copy_to_ptr(data_ptr, &ubo_data);
     device.unmap_memory(uniforms.memory);
 
     Ok(())

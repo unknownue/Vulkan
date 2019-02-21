@@ -128,10 +128,12 @@ impl VkPhysicalDevice {
         Ok(alternative_devices)
     }
 
+    #[inline]
     pub fn enable_features(&self) -> &vk::PhysicalDeviceFeatures {
         &self.config.request_features
     }
 
+    #[inline]
     pub fn enable_extensions(&self) -> &Vec<CString> {
         &self.config.request_extensions
     }

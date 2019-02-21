@@ -81,6 +81,7 @@ impl MaterialAsset {
     }
 
     pub fn allocate(self) -> MaterialResource {
+
         MaterialResource {
             material_size: ::std::mem::size_of::<MaterialData>() as vkuint,
             list: self.materials,

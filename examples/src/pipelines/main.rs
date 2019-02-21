@@ -32,6 +32,7 @@ fn main() {
     // phy_config.request_features.wide_lines = ash::vk::TRUE;
 
     let vk_context = VulkanContext::new(&window)
+        .with_physical_device_config(phy_config)
         .build().expect("Error when creating Vulkan Context");
 
     let app = example::VulkanExample::new(&vk_context)

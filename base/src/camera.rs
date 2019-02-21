@@ -125,7 +125,7 @@ impl Default for FlightCameraBuilder {
     fn default() -> FlightCameraBuilder {
         FlightCameraBuilder {
             pos      : Point3F::new(0.0, 0.0, 0.0),
-            world_up : Vector3F::y(),
+            world_up : Vector3F::new(0.0, 1.0, 0.0),
             yaw      : -90.0,
             pitch    : 0.0,
             near     : 0.1,
@@ -138,7 +138,7 @@ impl Default for FlightCameraBuilder {
 impl FlightCameraBuilder {
 
     pub fn build(self) -> FlightCamera {
-        FlightCamera {
+        let mut camera = FlightCamera {
             pos      : self.pos,
             front    : Vector3F::new(0.0, 0.0, -1.0),
             up       : nalgebra::zero(),
@@ -153,8 +153,11 @@ impl FlightCameraBuilder {
             move_speed: 2.5,
             _mouse_sentivity: 1.0,
             _wheel_sentivity: 1.0,
-            zoom: 45.0
-        }
+            zoom: 45.0,
+        };
+        camera.update_vectors();
+
+        camera
     }
 
     pub fn place_at(mut self, position: Point3F) -> FlightCameraBuilder {

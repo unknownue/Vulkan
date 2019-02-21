@@ -53,7 +53,7 @@ impl AttributesData {
 
         let input_binding = vk::VertexInputBindingDescription {
             binding: 0,
-            stride : ::std::mem::size_of::<Attr_PN>() as _,
+            stride : ::std::mem::size_of::<AttrVertexPN>() as _,
             input_rate: vk::VertexInputRate::VERTEX,
         };
 
@@ -395,7 +395,7 @@ macro_rules! define_attributes {
 
                 AttributeExtendInfo {
                     first_vertex: start_vertex_index,
-                    vertex_count: self.data.len() - start_vertex_index ,
+                    vertex_count: self.data.len() - start_vertex_index,
                 }
             }
 
@@ -406,9 +406,7 @@ macro_rules! define_attributes {
             fn map_data(&self, memory_ptr: vkptr) {
 
                 unsafe {
-
-                    let mapped_copy_target = ::std::slice::from_raw_parts_mut(memory_ptr as *mut $name_vertex, self.data.len());
-                    mapped_copy_target.copy_from_slice(&self.data);
+                    (memory_ptr as vkptr<$name_vertex>).copy_from(self.data.as_ptr(), self.data.len());
                 }
             }
         }

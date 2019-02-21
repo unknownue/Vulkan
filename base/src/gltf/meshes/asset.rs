@@ -122,7 +122,7 @@ impl MeshAsset {
                 .build(device)?;
             let index_aligned_size = bound_to_alignment(index_requirement.size, index_requirement.alignment);
 
-            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits & index_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
                 .build(device)?;
 
@@ -133,11 +133,11 @@ impl MeshAsset {
             }
         } else {
             let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-            let mesh_memory = MemoryAI::new(vertex_requirement.size, memory_type)
+            let mesh_memory = MemoryAI::new(vertex_aligned_size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_requirement.size },
+                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_aligned_size },
                 index: None,
                 memory: mesh_memory,
             }
@@ -149,7 +149,6 @@ impl MeshAsset {
         if let Some(ref index_buffer) = mesh_block.index {
             device.bind_memory(index_buffer.buffer, mesh_block.memory, mesh_block.vertex.size)?;
         }
-
         Ok(mesh_block)
     }
 
@@ -176,14 +175,13 @@ impl MeshAsset {
                 index: Some(BufferBlock { buffer: index_buffer, size: index_aligned_size }),
                 memory: mesh_memory,
             }
-
         } else {
             let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-            let mesh_memory = MemoryAI::new(vertex_requirement.size, memory_type)
+            let mesh_memory = MemoryAI::new(vertex_aligned_size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_requirement.size },
+                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_aligned_size },
                 index: None,
                 memory: mesh_memory,
             }
@@ -197,19 +195,18 @@ impl MeshAsset {
         }
 
         // map and bind staging buffer to memory.
-
-        if let Some(ref index_buffer) = mesh_block.index {
-
+        if mesh_block.index.is_some() {
             // get the starting pointer of host memory.
-            let data_ptr = device.map_memory(mesh_block.memory, 0, mesh_block.vertex.size + index_buffer.size)?;
+            let data_ptr = device.map_memory(mesh_block.memory, 0, vk::WHOLE_SIZE)?;
             // map vertex data.
             self.attributes.data_content.map_data(data_ptr);
 
-            let data_ptr = unsafe { data_ptr.offset(mesh_block.vertex.size as _) };
+            let data_ptr = unsafe {
+                data_ptr.offset(mesh_block.vertex.size as isize)
+            };
             // map index data.
             self.indices.map_data(data_ptr);
         } else {
-
             // map vertex data.
             let data_ptr = device.map_memory(mesh_block.memory, 0, mesh_block.vertex.size)?;
             self.attributes.data_content.map_data(data_ptr);
@@ -233,7 +230,8 @@ impl MeshAsset {
             .build(device)?
             .remove(0);
 
-        let cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
+        let mut cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
+        cmd_recorder.set_usage(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         let vertex_copy_region = vk::BufferCopy {
             src_offset: 0,
@@ -241,21 +239,23 @@ impl MeshAsset {
             size: staging.vertex.size,
         };
 
+        // copy vertex data to target buffer.
         cmd_recorder.begin_record()?
             .copy_buf2buf(staging.vertex.buffer, mesh.vertex.buffer, &[vertex_copy_region]);
 
+        // copy index data to target buffer.
+        if let Some(ref staging_index) = staging.index {
 
-        if let Some(ref index_buffer) = staging.index {
             let index_copy_region = vk::BufferCopy {
-                src_offset: staging.vertex.size,
-                dst_offset: staging.vertex.size,
-                size: index_buffer.size,
+                src_offset: 0,
+                dst_offset: 0,
+                size: staging_index.size,
             };
-            cmd_recorder.copy_buf2buf(index_buffer.buffer, mesh.index.as_ref().unwrap().buffer, &[index_copy_region]);
+            cmd_recorder
+                .copy_buf2buf(staging_index.buffer, mesh.index.as_ref().unwrap().buffer, &[index_copy_region]);
         }
 
         cmd_recorder.end_record()?;
-
 
         let fence = device.build(&FenceCI::new(false))?;
 
@@ -264,9 +264,7 @@ impl MeshAsset {
         device.submit(submit_ci, device.logic.queues.transfer.handle, fence)?;
         device.wait(fence, VkTimeDuration::Infinite)?;
 
-        // release temporary resource.
         device.discard(fence);
-        // free the command poll will automatically destroy all command buffers created by this pool.
         device.discard(command_pool);
 
         Ok(())

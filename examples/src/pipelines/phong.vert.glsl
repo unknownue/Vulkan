@@ -41,5 +41,5 @@ void main() {
 	outNormal = mat3(ubo.model) * inNormal;
 	vec3 lPos = mat3(ubo.model) * ubo.lightPos.xyz;
 	outLightVec = lPos - pos.xyz;
-	outViewVec = -pos.xyz;		
+	outViewVec = -pos.xyz;
 }
