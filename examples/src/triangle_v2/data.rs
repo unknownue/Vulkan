@@ -6,7 +6,6 @@ use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
 use vkbase::utils::memory::get_memory_type_index;
-use vkbase::utils::time::VkTimeDuration;
 use vkbase::VkResult;
 use vkbase::{vkuint, vkbytes};
 
@@ -165,16 +164,8 @@ fn transfer_staging_data(device: &VkDevice, vertices: &BufferResourceTmp, indice
         .copy_buf2buf(indices.staging_buffer, indices.target_buffer, &[index_copy_region])
         .end_record()?;
 
-    use vkbase::ci::sync::FenceCI;
-    let fence = device.build(&FenceCI::new(false))?;
+    cmd_recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
 
-    let submit_ci = vkbase::ci::device::SubmitCI::new()
-        .add_command(copy_command);
-    device.submit(submit_ci, device.logic.queues.transfer.handle, fence)?;
-    device.wait(fence, VkTimeDuration::Infinite)?;
-
-    // release temporary resource.
-    device.discard(fence);
     // free the command poll will automatically destroy all command buffers created by this pool.
     device.discard(command_pool);
 

@@ -9,13 +9,13 @@ use crate::gltf::meshes::indices::IndicesData;
 
 use crate::ci::VkObjectBuildableCI;
 use crate::ci::pipeline::VertexInputSCI;
-use crate::ci::device::SubmitCI;
 use crate::ci::memory::MemoryAI;
-use crate::ci::sync::FenceCI;
+
+use crate::command::VkCmdRecorder;
+use crate::command::{IGraphics, CmdGraphicsApi};
+use crate::command::{ITransfer, CmdTransferApi};
 
 use crate::context::VkDevice;
-use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi};
-use crate::utils::time::VkTimeDuration;
 use crate::utils::memory::{get_memory_type_index, bound_to_alignment};
 use crate::error::{VkResult, VkTryFrom};
 use crate::vkbytes;
@@ -85,7 +85,7 @@ impl AssetAbstract for MeshAsset {
 
 impl MeshAsset {
 
-    pub fn allocate(self, device: &VkDevice) -> VkResult<MeshResource> {
+    pub fn allocate(self, device: &VkDevice, cmd_recorder: &VkCmdRecorder<ITransfer>) -> VkResult<MeshResource> {
 
         // allocate staging buffer.
         let staging_block = self.allocate_staging(device)?;
@@ -93,7 +93,7 @@ impl MeshAsset {
         let mesh_block = self.allocate_mesh(device)?;
 
         // copy data from staging buffer to mesh buffer.
-        MeshAsset::copy_staging2mesh(device, &staging_block, &mesh_block)?;
+        MeshAsset::copy_staging2mesh(device, cmd_recorder, &staging_block, &mesh_block)?;
 
         // discard staging resource.
         staging_block.discard(device);
@@ -218,20 +218,9 @@ impl MeshAsset {
         Ok(mesh_block)
     }
 
-    fn copy_staging2mesh(device: &VkDevice, staging: &MeshAssetBlock, mesh: &MeshAssetBlock) -> VkResult<()> {
+    fn copy_staging2mesh(device: &VkDevice, cmd_recorder: &VkCmdRecorder<ITransfer>, staging: &MeshAssetBlock, mesh: &MeshAssetBlock) -> VkResult<()> {
 
-        use crate::ci::command::{CommandBufferAI, CommandPoolCI};
-        use crate::command::{VkCmdRecorder, ITransfer, CmdTransferApi};
-
-        let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
-            .build(device)?;
-
-        let copy_command = CommandBufferAI::new(command_pool, 1)
-            .build(device)?
-            .remove(0);
-
-        let mut cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
-        cmd_recorder.set_usage(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        cmd_recorder.reset_command(vk::CommandBufferResetFlags::empty())?;
 
         let vertex_copy_region = vk::BufferCopy {
             src_offset: 0,
@@ -251,21 +240,12 @@ impl MeshAsset {
                 dst_offset: 0,
                 size: staging_index.size,
             };
-            cmd_recorder
-                .copy_buf2buf(staging_index.buffer, mesh.index.as_ref().unwrap().buffer, &[index_copy_region]);
+            cmd_recorder.copy_buf2buf(staging_index.buffer, mesh.index.as_ref().unwrap().buffer, &[index_copy_region]);
         }
 
         cmd_recorder.end_record()?;
-
-        let fence = device.build(&FenceCI::new(false))?;
-
-        let submit_ci = SubmitCI::new()
-            .add_command(copy_command);
-        device.submit(submit_ci, device.logic.queues.transfer.handle, fence)?;
-        device.wait(fence, VkTimeDuration::Infinite)?;
-
-        device.discard(fence);
-        device.discard(command_pool);
+        // execute and wait the copy operation.
+        cmd_recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
 
         Ok(())
     }

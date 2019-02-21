@@ -2,8 +2,14 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
+use crate::ci::sync::FenceCI;
+use crate::ci::device::SubmitCI;
+
 use crate::command::VkCommandType;
 use crate::command::recorder::VkCmdRecorder;
+
+use crate::utils::time::VkTimeDuration;
+use crate::VkResult;
 
 use crate::ci::image::ImageBarrierCI;
 
@@ -11,6 +17,23 @@ pub struct ITransfer;
 
 impl VkCommandType for ITransfer {
     const BIND_POINT: vk::PipelineBindPoint = vk::PipelineBindPoint::GRAPHICS;
+}
+
+impl<'a> VkCmdRecorder<'a, ITransfer> {
+
+    pub fn flush_copy_command(&self, queue: vk::Queue) -> VkResult<()> {
+
+        let fence = self.device.build(&FenceCI::new(false))?;
+
+        let submit_ci = SubmitCI::new()
+            .add_command(self.command);
+        self.device.submit(submit_ci, queue, fence)?;
+        self.device.wait(fence, VkTimeDuration::Infinite)?;
+
+        self.device.discard(fence);
+
+        Ok(())
+    }
 }
 
 impl<'a> CmdTransferApi for VkCmdRecorder<'a, ITransfer> {

@@ -6,6 +6,8 @@ use crate::gltf::asset::ReferenceIndex;
 use crate::gltf::scene::Scene;
 use crate::gltf::nodes::node::Node;
 use crate::gltf::nodes::attachment::{NodeAttachments, NodeAttachmentFlags};
+
+use crate::command::{VkCmdRecorder, ITransfer, CmdTransferApi};
 use crate::error::{VkResult, VkTryFrom};
 use crate::context::VkDevice;
 use crate::vkbytes;
@@ -63,38 +65,66 @@ impl AssetAbstract for NodeAsset {
 
 impl NodeAsset {
 
-    pub fn allocate(self, device: &VkDevice) -> VkResult<NodeResource> {
+    pub fn allocate(self, device: &VkDevice, cmd_recorder: &VkCmdRecorder<ITransfer>) -> VkResult<NodeResource> {
 
         use crate::ci::buffer::BufferCI;
         use crate::ci::memory::MemoryAI;
         use crate::ci::VkObjectBuildableCI;
-        use crate::utils::memory::bound_to_alignment;
+        use crate::utils::memory::{bound_to_alignment, get_memory_type_index};
 
         let min_alignment = device.phy.limits.min_uniform_buffer_offset_alignment;
         let attachment_size_aligned = bound_to_alignment(self.attachments.element_size, min_alignment);
+        let request_attachments_size = attachment_size_aligned * (self.attachments.data_content.length() as vkbytes);
 
-        // create dynamic uniform buffer and memory.
-        let uniform_size = attachment_size_aligned * (self.attachments.data_content.length() as vkbytes);
-        let (uniform_buffer, uniform_requirement) = BufferCI::new(uniform_size)
-            .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
+        // create staging buffer and memory.
+        let (staging_buffer, staging_requirement) = BufferCI::new(request_attachments_size)
+            .usage(vk::BufferUsageFlags::TRANSFER_SRC)
+            .build(device)?;
+        let staging_memory = MemoryAI::new(
+            staging_requirement.size,
+            get_memory_type_index(device, staging_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT))
             .build(device)?;
 
-        let memory_type = crate::utils::memory::get_memory_type_index(device, uniform_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-        let uniform_memory = MemoryAI::new(uniform_requirement.size, memory_type)
+        // map and bind staging buffer to memory.
+        device.bind_memory(staging_buffer, staging_memory, 0)?;
+        let data_ptr = device.map_memory(staging_memory, 0, vk::WHOLE_SIZE)?;
+        self.attachments.data_content.map_data(data_ptr, staging_requirement.size, min_alignment);
+        device.unmap_memory(staging_memory);
+
+        // allocate dynamic uniform buffer and memory for Node attachments data.
+        let (attachments_buffer, attachments_requirement) = BufferCI::new(request_attachments_size)
+            .usage(vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
             .build(device)?;
+        let attachments_memory = MemoryAI::new(
+            attachments_requirement.size,
+            get_memory_type_index(device, attachments_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL))
+            .build(device)?;
+        device.bind_memory(attachments_buffer, attachments_memory, 0)?;
 
-        // map and bind uniform buffer to memory.
-        let data_ptr = device.map_memory(uniform_memory, 0, vk::WHOLE_SIZE)?;
-        self.attachments.data_content.map_data(data_ptr, uniform_requirement.size, min_alignment);
-        device.unmap_memory(uniform_memory);
+        // copy staging data to target memory.
+        cmd_recorder.reset_command(vk::CommandBufferResetFlags::empty())?;
 
-        // bind vertex buffer to memory.
-        device.bind_memory(uniform_buffer, uniform_memory, 0)?;
+        let copy_region = vk::BufferCopy {
+            src_offset: 0,
+            dst_offset: 0,
+            size: staging_requirement.size,
+        };
 
+        cmd_recorder.begin_record()?
+            .copy_buf2buf(staging_buffer, attachments_buffer, &[copy_region])
+            .end_record()?;
+
+        cmd_recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
+
+        // destroy staging buffer and memory.
+        device.discard(staging_buffer);
+        device.discard(staging_memory);
+
+        // done.
         let result = NodeResource {
             list  : self.nodes,
-            buffer: uniform_buffer,
-            memory: uniform_memory,
+            buffer: attachments_buffer,
+            memory: attachments_memory,
             attachment_mapping: self.attachments.attachments_mapping,
             attachment_size_aligned,
         };

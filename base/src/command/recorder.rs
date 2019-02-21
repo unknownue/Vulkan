@@ -57,4 +57,13 @@ impl<'a, 'd: 'a, T> VkCmdRecorder<'a, T> {
 
         Ok(())
     }
+
+    pub fn reset_command(&self, flags: vk::CommandBufferResetFlags) -> VkResult<()> {
+
+        unsafe {
+            self.device.logic.handle.reset_command_buffer(self.command, flags)
+                .or(Err(VkError::device("End Command Buffer.")))?;
+        }
+        Ok(())
+    }
 }
