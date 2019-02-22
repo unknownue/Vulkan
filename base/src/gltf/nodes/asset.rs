@@ -70,7 +70,7 @@ impl NodeAsset {
         use crate::ci::buffer::BufferCI;
         use crate::ci::memory::MemoryAI;
         use crate::ci::VkObjectBuildableCI;
-        use crate::utils::memory::{bound_to_alignment, get_memory_type_index};
+        use crate::utils::memory::bound_to_alignment;
 
         let min_alignment = device.phy.limits.min_uniform_buffer_offset_alignment;
         let attachment_size_aligned = bound_to_alignment(self.attachments.element_size, min_alignment);
@@ -82,7 +82,7 @@ impl NodeAsset {
             .build(device)?;
         let staging_memory = MemoryAI::new(
             staging_requirement.size,
-            get_memory_type_index(device, staging_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT))
+            device.get_memory_type(staging_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT))
             .build(device)?;
 
         // map and bind staging buffer to memory.
@@ -97,7 +97,7 @@ impl NodeAsset {
             .build(device)?;
         let attachments_memory = MemoryAI::new(
             attachments_requirement.size,
-            get_memory_type_index(device, attachments_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL))
+            device.get_memory_type(attachments_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL))
             .build(device)?;
         device.bind_memory(attachments_buffer, attachments_memory, 0)?;
 

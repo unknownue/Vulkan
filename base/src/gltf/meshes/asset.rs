@@ -16,9 +16,8 @@ use crate::command::{IGraphics, CmdGraphicsApi};
 use crate::command::{ITransfer, CmdTransferApi};
 
 use crate::context::VkDevice;
-use crate::utils::memory::{get_memory_type_index, bound_to_alignment};
+use crate::utils::memory::{bound_to_alignment, MemorySlice};
 use crate::error::{VkResult, VkTryFrom};
-use crate::vkbytes;
 
 
 pub struct MeshAsset {
@@ -31,8 +30,8 @@ pub struct MeshAsset {
 
 struct MeshAssetBlock {
 
-    vertex: BufferBlock,
-    index: Option<BufferBlock>,
+    vertex: MemorySlice<vk::Buffer>,
+    index: Option<MemorySlice<vk::Buffer>>,
 
     memory: vk::DeviceMemory,
 }
@@ -41,16 +40,11 @@ pub struct MeshResource {
 
     pub(crate) list: AssetElementList<Mesh>,
 
-    vertex: BufferBlock,
-    index : Option<BufferBlock>,
+    vertex: MemorySlice<vk::Buffer>,
+    index : Option<MemorySlice<vk::Buffer>>,
     memory: vk::DeviceMemory,
 
     pub vertex_input: VertexInputSCI,
-}
-
-pub struct BufferBlock {
-    pub buffer: vk::Buffer,
-    pub size: vkbytes,
 }
 
 impl VkTryFrom<AttributeFlags> for MeshAsset {
@@ -122,32 +116,44 @@ impl MeshAsset {
                 .build(device)?;
             let index_aligned_size = bound_to_alignment(index_requirement.size, index_requirement.alignment);
 
-            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+            let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_aligned_size },
-                index: Some(BufferBlock { buffer: index_buffer, size: index_aligned_size }),
+                vertex: MemorySlice {
+                    handle: vertex_buffer,
+                    offset: 0,
+                    size  : vertex_aligned_size,
+                },
+                index: Some(MemorySlice {
+                    handle: index_buffer,
+                    offset: vertex_aligned_size,
+                    size  : index_aligned_size,
+                }),
                 memory: mesh_memory,
             }
         } else {
-            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+            let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let mesh_memory = MemoryAI::new(vertex_aligned_size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_aligned_size },
+                vertex: MemorySlice {
+                    handle: vertex_buffer,
+                    offset: 0,
+                    size  : vertex_aligned_size,
+                },
                 index: None,
                 memory: mesh_memory,
             }
         };
 
         // bind vertex buffer to memory.
-        device.bind_memory(mesh_block.vertex.buffer, mesh_block.memory, 0)?;
+        device.bind_memory(mesh_block.vertex.handle, mesh_block.memory, mesh_block.vertex.offset)?;
         // bind index buffer to memory.
         if let Some(ref index_buffer) = mesh_block.index {
-            device.bind_memory(index_buffer.buffer, mesh_block.memory, mesh_block.vertex.size)?;
+            device.bind_memory(index_buffer.handle, mesh_block.memory, index_buffer.offset)?;
         }
         Ok(mesh_block)
     }
@@ -166,49 +172,61 @@ impl MeshAsset {
                 .build(device)?;
             let index_aligned_size = bound_to_alignment(index_requirement.size, index_requirement.alignment);
 
-            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+            let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_aligned_size },
-                index: Some(BufferBlock { buffer: index_buffer, size: index_aligned_size }),
+                vertex: MemorySlice {
+                    handle: vertex_buffer,
+                    offset: 0,
+                    size  : vertex_aligned_size,
+                },
+                index: Some(MemorySlice {
+                    handle: index_buffer,
+                    offset: vertex_aligned_size,
+                    size  : index_aligned_size,
+                }),
                 memory: mesh_memory,
             }
         } else {
-            let memory_type = get_memory_type_index(device, vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+            let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let mesh_memory = MemoryAI::new(vertex_aligned_size, memory_type)
                 .build(device)?;
 
             MeshAssetBlock {
-                vertex: BufferBlock { buffer: vertex_buffer, size: vertex_aligned_size },
+                vertex: MemorySlice {
+                    handle: vertex_buffer,
+                    offset: 0,
+                    size  : vertex_aligned_size,
+                },
                 index: None,
                 memory: mesh_memory,
             }
         };
 
         // bind vertex buffer to memory.
-        device.bind_memory(mesh_block.vertex.buffer, mesh_block.memory, 0)?;
+        device.bind_memory(mesh_block.vertex.handle, mesh_block.memory, mesh_block.vertex.offset)?;
         // bind index buffer to memory.
         if let Some(ref index_buffer) = mesh_block.index {
-            device.bind_memory(index_buffer.buffer, mesh_block.memory, mesh_block.vertex.size)?;
+            device.bind_memory(index_buffer.handle, mesh_block.memory, index_buffer.offset)?;
         }
 
         // map and bind staging buffer to memory.
-        if mesh_block.index.is_some() {
+        if let Some(ref index_buffer) = mesh_block.index {
             // get the starting pointer of host memory.
-            let data_ptr = device.map_memory(mesh_block.memory, 0, vk::WHOLE_SIZE)?;
+            let data_ptr = device.map_memory(mesh_block.memory, mesh_block.vertex.offset, vk::WHOLE_SIZE)?;
             // map vertex data.
             self.attributes.data_content.map_data(data_ptr);
 
             let data_ptr = unsafe {
-                data_ptr.offset(mesh_block.vertex.size as isize)
+                data_ptr.offset(index_buffer.offset as isize)
             };
             // map index data.
             self.indices.map_data(data_ptr);
         } else {
             // map vertex data.
-            let data_ptr = device.map_memory(mesh_block.memory, 0, mesh_block.vertex.size)?;
+            let data_ptr = device.map_memory(mesh_block.memory, mesh_block.vertex.offset, mesh_block.vertex.size)?;
             self.attributes.data_content.map_data(data_ptr);
         }
 
@@ -223,24 +241,25 @@ impl MeshAsset {
         cmd_recorder.reset_command(vk::CommandBufferResetFlags::empty())?;
 
         let vertex_copy_region = vk::BufferCopy {
-            src_offset: 0,
+            src_offset: 0, // the starting offset of buffer.
             dst_offset: 0,
             size: staging.vertex.size,
         };
 
         // copy vertex data to target buffer.
         cmd_recorder.begin_record()?
-            .copy_buf2buf(staging.vertex.buffer, mesh.vertex.buffer, &[vertex_copy_region]);
+            .copy_buf2buf(staging.vertex.handle, mesh.vertex.handle, &[vertex_copy_region]);
 
         // copy index data to target buffer.
         if let Some(ref staging_index) = staging.index {
-
-            let index_copy_region = vk::BufferCopy {
-                src_offset: 0,
-                dst_offset: 0,
-                size: staging_index.size,
-            };
-            cmd_recorder.copy_buf2buf(staging_index.buffer, mesh.index.as_ref().unwrap().buffer, &[index_copy_region]);
+            if let Some(ref mesh_index) = mesh.index {
+                let index_copy_region = vk::BufferCopy {
+                    src_offset: 0,
+                    dst_offset: 0,
+                    size: staging_index.size,
+                };
+                cmd_recorder.copy_buf2buf(staging_index.handle, mesh_index.handle, &[index_copy_region]);
+            }
         }
 
         cmd_recorder.end_record()?;
@@ -255,9 +274,9 @@ impl MeshAssetBlock {
 
     fn discard(&self, device: &VkDevice) {
 
-        device.discard(self.vertex.buffer);
+        device.discard(self.vertex.handle);
         if let Some(ref index_buffer) = self.index {
-            device.discard(index_buffer.buffer);
+            device.discard(index_buffer.handle);
         }
         device.discard(self.memory);
     }
@@ -267,18 +286,18 @@ impl MeshResource {
 
     pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>) {
 
-        recorder.bind_vertex_buffers(0, &[self.vertex.buffer], &[0]);
+        recorder.bind_vertex_buffers(0, &[self.vertex.handle], &[0]);
 
         if let Some(ref index_buffer) = self.index {
-            recorder.bind_index_buffer(index_buffer.buffer, vk::IndexType::UINT32, 0);
+            recorder.bind_index_buffer(index_buffer.handle, vk::IndexType::UINT32, 0);
         }
     }
 
     pub fn discard(&self, device: &VkDevice) {
 
-        device.discard(self.vertex.buffer);
+        device.discard(self.vertex.handle);
         if let Some(ref index_buffer) = self.index {
-            device.discard(index_buffer.buffer);
+            device.discard(index_buffer.handle);
         }
         device.discard(self.memory);
     }

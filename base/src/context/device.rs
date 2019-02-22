@@ -10,7 +10,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 use crate::utils::time::VkTimeDuration;
 use crate::{VkResult, VkError};
-use crate::{vkbytes, vkptr};
+use crate::{vkbytes, vkuint, vkptr};
 
 pub struct VkDevice {
 
@@ -84,6 +84,13 @@ impl VkDevice {
             T: VkObjectAllocatable {
 
         object.free(self, pool);
+    }
+
+    /// Return the first memory type index that is support `request_flags`.
+    #[inline]
+    pub fn get_memory_type(&self, type_bits: vkuint, request_flags: vk::MemoryPropertyFlags) -> vkuint {
+        use crate::utils::memory::get_memory_type_index;
+        get_memory_type_index(self, type_bits, request_flags)
     }
 }
 

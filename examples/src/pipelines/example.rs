@@ -7,7 +7,6 @@ use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
 use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
-use vkbase::utils::memory::get_memory_type_index;
 use vkbase::gltf::VkglTFModel;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
@@ -324,8 +323,8 @@ fn prepare_uniform(device: &VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<Uniform
         .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
         .build(device)?;
 
-    let memory_index = get_memory_type_index(device, memory_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-    let uniform_memory = MemoryAI::new(memory_requirement.size, memory_index)
+    let memory_type = device.get_memory_type(memory_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+    let uniform_memory = MemoryAI::new(memory_requirement.size, memory_type)
         .build(device)?;
     device.bind_memory(uniform_buffer, uniform_memory, 0)?;
 
