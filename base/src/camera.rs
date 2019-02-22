@@ -32,6 +32,13 @@ pub struct FlightCamera {
     near: f32,
     far : f32,
     screen_aspect: f32,
+
+    /// Vulkan assumes a viewport origin at the top-left by default.
+    /// This leads to the clip space having its +Y axis pointing downwards, contrary to OpenGL's behaviour.
+    /// Set `flip_vertically` to true to adapt this change for vulkan(default is true).
+    ///
+    /// see http://forum.lwjgl.org/index.php?topic=6167.0 for detail.
+    flip_vertically: bool,
 }
 
 impl FlightCamera {
@@ -60,6 +67,10 @@ impl FlightCamera {
 
     pub fn reset_screen_dimension(&mut self, width: u32, height: u32) {
         self.screen_aspect = (width as f32) / (height as f32);
+    }
+
+    pub fn flip_vertically(&mut self) {
+        self.flip_vertically = !self.flip_vertically;
     }
 
     pub fn receive_input(&mut self, inputer: &InputController, delta_time: f32) {
@@ -98,12 +109,17 @@ impl FlightCamera {
         let front_y = self.pitch.to_radians().sin();
         let front_z = self.yaw.to_radians().sin() * self.pitch.to_radians().cos();
 
-        self.front = Vector3F::new(front_x, front_y, front_z).normalize();
-
         // also calculate the right and up vector.
         // Normalize the vectors, because their length gets closer to 0 the move you look up or down which results in slower movement.
-        self.right = self.front.cross(&self.world_up);
-        self.up    = self.right.cross(&self.front);
+        if self.flip_vertically {
+            self.front = Vector3F::new(-front_x, front_y, front_z).normalize();
+            self.right = self.front.cross(&Vector3F::new(self.world_up.x, -self.world_up.y, self.world_up.z));
+            self.up    = self.right.cross(&self.front);
+        } else {
+            self.front = Vector3F::new(front_x, front_y, front_z).normalize();
+            self.right = self.front.cross(&self.world_up);
+            self.up    = self.right.cross(&self.front);
+        }
     }
 }
 
@@ -154,6 +170,8 @@ impl FlightCameraBuilder {
             _mouse_sentivity: 1.0,
             _wheel_sentivity: 1.0,
             zoom: 45.0,
+
+            flip_vertically: true,
         };
         camera.update_vectors();
 
@@ -165,8 +183,7 @@ impl FlightCameraBuilder {
     }
 
     pub fn world_up(mut self, up: Vector3F) -> FlightCameraBuilder {
-        self.world_up = up;
-        self
+        self.world_up = up; self
     }
 
     pub fn yaw(mut self, yaw: f32) -> FlightCameraBuilder {
@@ -179,7 +196,7 @@ impl FlightCameraBuilder {
 
     pub fn view_distance(mut self, near: f32, far: f32) -> FlightCameraBuilder {
         self.near = near;
-        self.far = far;self
+        self.far = far; self
     }
 
     pub fn screen_aspect_ratio(mut self, ratio: f32) -> FlightCameraBuilder {

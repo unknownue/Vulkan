@@ -77,7 +77,6 @@ impl VulkanExample {
                 projection   : camera.proj_matrix(),
                 view         : camera.view_matrix(),
                 model        : Matrix4F::identity(),
-                y_correction : vkexamples::Y_CORRECTION.clone(),
                 light_pos    : Vector4F::new(0.0, 2.0, 1.0, 0.0),
             },
         ];
@@ -309,7 +308,6 @@ struct UniformBuffer {
 //     mat4 projection;
 //     mat4 view;
 //     mat4 model;
-//     mat4 y_correction;
 //     vec4 lightPos;
 // } ubo;
 #[derive(Debug, Clone, Copy)]
@@ -317,7 +315,6 @@ struct UboVS {
     projection   : Matrix4F,
     view         : Matrix4F,
     model        : Matrix4F,
-    y_correction : Matrix4F,
     light_pos    : Vector4F,
 }
 
@@ -472,7 +469,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
 
     let mut rasterization_state = RasterizationSCI::new()
         .polygon(vk::PolygonMode::FILL)
-        .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::COUNTER_CLOCKWISE);
+        .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::CLOCKWISE);
 
     let blend_attachment = BlendAttachmentSCI::new().value();
     let blend_state = ColorBlendSCI::new()

@@ -2,23 +2,12 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use lazy_static::lazy_static;
-
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::sync::SemaphoreCI;
 use vkbase::vkuint;
 use vkbase::{VkResult, VkError};
 
-lazy_static! {
-
-    pub static ref Y_CORRECTION: nalgebra::Matrix4<f32> = nalgebra::Matrix4::new(
-        1.0,  0.0, 0.0, 0.0,
-        0.0, -1.0, 0.0, 0.0,
-        0.0,  0.0, 0.5, 0.5,
-        0.0,  0.0, 0.0, 1.0,
-    );
-}
 pub const DEFAULT_CLEAR_COLOR: vk::ClearValue = vk::ClearValue {
     color: vk::ClearColorValue {
         float32: [0.025, 0.025, 0.025, 1.0]

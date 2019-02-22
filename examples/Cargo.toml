@@ -15,7 +15,6 @@ winit = "0.18.1"
 nalgebra = "0.16"
 shaderc = "0.3.10"
 memoffset = "0.2"
-lazy_static = "1.2.0"
 
 vkbase = { package = "vulkan-base", path = "../base" }
 

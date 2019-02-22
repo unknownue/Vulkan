@@ -10,7 +10,6 @@ layout (set = 0, binding = 0) uniform UBO {
 	mat4 projection;
 	mat4 view;
 	mat4 model;
-	mat4 y_correction;
 	vec4 lightPos;
 } ubo;
 
@@ -32,5 +31,5 @@ void main() {
 
     outColor = material.base_color_factor.xyz;
 
-    gl_Position = ubo.y_correction * ubo.projection * ubo.view * ubo.model * node_attachments.transform * vec4(inPos.xyz, 1.0);
+    gl_Position = ubo.projection * ubo.view * ubo.model * node_attachments.transform * vec4(inPos.xyz, 1.0);
 }
