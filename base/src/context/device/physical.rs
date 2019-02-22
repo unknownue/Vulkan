@@ -49,6 +49,7 @@ pub struct VkPhysicalDevice {
 
     pub limits: vk::PhysicalDeviceLimits,
 
+    features_enable: vk::PhysicalDeviceFeatures,
     config: PhysicalDevConfig,
 }
 
@@ -67,16 +68,12 @@ impl VkPhysicalDevice {
                 continue
             }
 
-            // make sure all requested features are support by device.
-            if is_all_features_support(instance, &phy_device, &config) == false {
-                continue
-            }
-
             if config.print_device_properties {
                 print_device_properties(&phy_device.property);
             }
 
             selected_device = Some(phy_device);
+            break;
         }
 
         if let Some(phy_device) = selected_device {
@@ -91,6 +88,7 @@ impl VkPhysicalDevice {
             let dst_device = VkPhysicalDevice {
                 handle: phy_device.handle,
                 limits: phy_device.property.limits,
+                features_enable: enable_feature_if_support(&phy_device, &config),
                 config, memories, depth_format,
             };
 
@@ -130,7 +128,7 @@ impl VkPhysicalDevice {
 
     #[inline]
     pub fn enable_features(&self) -> &vk::PhysicalDeviceFeatures {
-        &self.config.request_features
+        &self.features_enable
     }
 
     #[inline]
@@ -143,6 +141,7 @@ struct PhyDeviceTmp {
 
     handle: vk::PhysicalDevice,
     property: vk::PhysicalDeviceProperties,
+    features: vk::PhysicalDeviceFeatures,
 }
 
 
@@ -202,14 +201,18 @@ fn query_device_property(instance: &VkInstance, phy_device: vk::PhysicalDevice) 
         instance.handle.get_physical_device_properties(phy_device)
     };
 
+    let available_feature = unsafe {
+        instance.handle.get_physical_device_features(phy_device)
+    };
+
     PhyDeviceTmp {
         handle: phy_device,
         property: device_property,
+        features: available_feature,
     }
 }
 
 fn print_device_properties(property: &vk::PhysicalDeviceProperties) {
-
 
     let device_name = chars2string(&property.device_name);
     println!("[Info] Using device: {}", &device_name);
@@ -237,7 +240,7 @@ fn print_device_properties(property: &vk::PhysicalDeviceProperties) {
 
 // Physical Feature ------------------------------------------------------------------
 macro_rules! check_feature {
-    ($available:ident, $config:ident, {
+    ($device:ident, $config:ident, $features_enable:ident, {
         $(
            $feature:tt,
         )*
@@ -245,25 +248,28 @@ macro_rules! check_feature {
 
         if $config.print_available_features {
             $(
-                println!("{} = {}", stringify!($available.$feature), $available.$feature);
+                println!("{} = {}", stringify!($device.features.$feature), $device.features.$feature);
             )*
         }
 
         $(
-            if $config.request_features.$feature == 1 && $available.$feature == 0 {
-                return false
+            if $config.request_features.$feature == vk::TRUE {
+                if $device.features.$feature == vk::TRUE {
+                    $features_enable.$feature = vk::TRUE;
+                } else {
+                    let device_name = chars2string(&$device.property.device_name);
+                    println!("[Warning] Vulkan feature '{}' is not support on {}.", stringify!($feature), device_name);
+                }
             }
         )*
     };
 }
 
-fn is_all_features_support(instance: &VkInstance, phy_device: &PhyDeviceTmp, config: &PhysicalDevConfig) -> bool {
+fn enable_feature_if_support(phy_device: &PhyDeviceTmp, config: &PhysicalDevConfig) -> vk::PhysicalDeviceFeatures {
 
-    let available_feature = unsafe {
-        instance.handle.get_physical_device_features(phy_device.handle)
-    };
+    let mut features_enable = vk::PhysicalDeviceFeatures::default();
 
-    check_feature!(available_feature, config, {
+    check_feature!(phy_device, config, features_enable, {
         robust_buffer_access,
         full_draw_index_uint32,
         image_cube_array,
@@ -321,7 +327,7 @@ fn is_all_features_support(instance: &VkInstance, phy_device: &PhyDeviceTmp, con
         inherited_queries,
     });
 
-    true
+    features_enable
 }
 // ----------------------------------------------------------------------------------
 

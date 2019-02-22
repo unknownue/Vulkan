@@ -77,7 +77,7 @@ impl VkExampleBackendRes {
 
     pub fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain, render_pass: vk::RenderPass) -> VkResult<()> {
 
-        self.dimension =new_chain.dimension;
+        self.dimension = new_chain.dimension;
 
         device.discard(self.depth_image.view);
         device.discard(self.depth_image.image);

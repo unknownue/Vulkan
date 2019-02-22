@@ -25,8 +25,8 @@ pub struct FlightCamera {
 
     // camera options
     move_speed: f32,
-    _mouse_sentivity: f32,
-    _wheel_sentivity: f32,
+    _mouse_sensitivity: f32,
+    _wheel_sensitivity: f32,
 
     zoom: f32,
     near: f32,
@@ -167,8 +167,8 @@ impl FlightCameraBuilder {
             screen_aspect: self.screen_aspect,
 
             move_speed: 2.5,
-            _mouse_sentivity: 1.0,
-            _wheel_sentivity: 1.0,
+            _mouse_sensitivity: 1.0,
+            _wheel_sensitivity: 1.0,
             zoom: 45.0,
 
             flip_vertically: true,

@@ -74,10 +74,10 @@ impl VulkanExample {
 
         let ubo_data = [
             UboVS {
-                projection   : camera.proj_matrix(),
-                view         : camera.view_matrix(),
-                model        : Matrix4F::identity(),
-                light_pos    : Vector4F::new(0.0, 2.0, 1.0, 0.0),
+                projection : camera.proj_matrix(),
+                view       : camera.view_matrix(),
+                model      : Matrix4F::identity(),
+                light_pos  : Vector4F::new(0.0, 2.0, 1.0, 0.0),
             },
         ];
 
