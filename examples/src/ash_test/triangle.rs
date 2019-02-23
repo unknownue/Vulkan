@@ -8,7 +8,6 @@ use ash::version::EntryV1_0;
 
 use std::ptr;
 use std::ffi::{CString, CStr};
-use std::path::Path;
 use std::os::raw::{c_void, c_char};
 
 const APPLICATION_VERSION: u32 = vk_make_version!(1, 0, 0);
@@ -898,11 +897,8 @@ fn create_shader_module(device: &ash::Device, code: Vec<u8>) -> vk::ShaderModule
 
 fn create_graphics_pipeline(device: &ash::Device, render_pass: vk::RenderPass, swapchain_extent: vk::Extent2D) -> (vk::Pipeline, vk::PipelineLayout) {
 
-    let vert_shader_code = read_shader_code(Path::new("examples/src/ash_test/triangle.vert.spv"));
-    let frag_shader_code = read_shader_code(Path::new("examples/src/ash_test/triangle.frag.spv"));
-
-    let vert_shader_module = create_shader_module(device, vert_shader_code);
-    let frag_shader_module = create_shader_module(device, frag_shader_code);
+    let vert_shader_module = create_shader_module(device, include_bytes!("triangle.vert.spv").to_vec());
+    let frag_shader_module = create_shader_module(device, include_bytes!("triangle.frag.spv").to_vec());
 
     let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
 
@@ -1228,18 +1224,6 @@ fn vk_to_string(raw_string_array: &[c_char]) -> String {
     raw_string.to_str()
         .expect("Failed to convert vulkan raw string.")
         .to_owned()
-}
-
-fn read_shader_code(shader_path: &Path) -> Vec<u8> {
-    use std::fs::File;
-    use std::io::Read;
-
-    let spv_file = File::open(shader_path)
-        .expect(&format!("Failed to find spv file at {:?}", shader_path));
-    let bytes_code: Vec<u8> = spv_file.bytes()
-        .filter_map(|byte| byte.ok()).collect();
-
-    bytes_code
 }
 
 struct ProgramProc {

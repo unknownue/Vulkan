@@ -9,13 +9,9 @@ use vkbase::FrameAction;
 use vkbase::vkuint;
 
 use std::ptr;
-use std::path::Path;
 use std::ffi::CString;
 
 use crate::data::{Vertex, VertexBuffer, IndexBuffer, UniformBuffer, DepthImage};
-
-const SHADER_VERTEX_PATH  : &'static str = "examples/src/triangle_v1/triangle.vert.glsl";
-const SHADER_FRAGMENT_PATH: &'static str = "examples/src/triangle_v1/triangle.frag.glsl";
 
 pub struct VulkanExample {
 
@@ -863,11 +859,9 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
 
 
     // shaders
-    let mut shader_compiler = vkbase::utils::shaderc::VkShaderCompiler::new()?;
-    let vert_codes = shader_compiler.compile_from_path(Path::new(SHADER_VERTEX_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
-    let frag_codes = shader_compiler.compile_from_path(Path::new(SHADER_FRAGMENT_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
-
     use vkbase::ci::shader::ShaderModuleCI;
+    let vert_codes = include_bytes!("triangle.vert.spv").to_vec();
+    let frag_codes = include_bytes!("triangle.frag.spv").to_vec();
     let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
         .build(device)?;
     let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
