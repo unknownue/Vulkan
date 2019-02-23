@@ -28,7 +28,7 @@ const TOON_VERTEX_SHADER_SOURCE_PATH       : &'static str = "examples/src/pipeli
 const TOON_FRAGMENT_SHADER_SOURCE_PATH     : &'static str = "examples/src/pipelines/toon.frag.glsl";
 const WIREFRAME_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/pipelines/wireframe.vert.glsl";
 const WIREFRAME_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/pipelines/wireframe.frag.glsl";
-const MODEL_PATH: &'static str = "examples/src/pipelines/treasure_smooth.gltf";
+const MODEL_PATH: &'static str = "examples/assets/models/treasure_smooth.gltf";
 
 
 pub struct VulkanExample {
@@ -99,7 +99,7 @@ impl VulkanExample {
     }
 }
 
-impl vkbase::Workflow for VulkanExample {
+impl vkbase::RenderWorkflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
 

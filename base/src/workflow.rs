@@ -12,15 +12,15 @@ use crate::utils::frame::FrameAction;
 use crate::input::InputController;
 use crate::error::VkResult;
 
-///
-/// Initialize Vulkan Context
-///        ↓             <---------------------------------------↑
-///        ↓             ↓      (swapchain_reload if happen)     ↓
-///        ↓             ↓                                       ↑(game loop)
-///        ↓             ↓                                       ↑
-///      init() -------------> receive_input --> render_frame --------> deinit ----------> destroy Vulkan Context.
-///                                                                  (terminate program)
-pub trait Workflow {
+//
+// Initialize Vulkan Context
+//        ↓             <---------------------------------------↑
+//        ↓             ↓      (swapchain_reload if happen)     ↓
+//        ↓             ↓                                       ↑(game loop)
+//        ↓             ↓                                       ↑
+//      init() -------------> receive_input --> render_frame --------> deinit ----------> destroy Vulkan Context.
+//                                                                  (terminate program)
+pub trait RenderWorkflow {
 
     fn init(&mut self, _device: &VkDevice) -> VkResult<()> {
         Ok(())

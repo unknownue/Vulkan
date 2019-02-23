@@ -3,7 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use crate::context::{VulkanContext, VkDevice, SwapchainSyncError};
-use crate::workflow::Workflow;
+use crate::workflow::RenderWorkflow;
 use crate::workflow::window::WindowContext;
 use crate::input::InputController;
 use crate::utils::fps::FpsCounter;
@@ -40,7 +40,7 @@ impl ProcPipeline {
         self.vulkan.swapchain.frame_in_flight()
     }
 
-    pub fn launch(&mut self, mut app: impl Workflow) -> VkResult<()> {
+    pub fn launch(&mut self, mut app: impl RenderWorkflow) -> VkResult<()> {
 
         app.init(&self.vulkan.device)?;
 
@@ -57,7 +57,7 @@ impl ProcPipeline {
         Ok(())
     }
 
-    fn main_loop(&mut self, app: &mut impl Workflow) -> VkResult<()> {
+    fn main_loop(&mut self, app: &mut impl RenderWorkflow) -> VkResult<()> {
 
         let mut input_handler = InputController::default();
 
@@ -102,7 +102,7 @@ impl ProcPipeline {
         Ok(())
     }
 
-    fn render_frame(&mut self, app: &mut impl Workflow, delta_time: f32) -> VkResult<FrameAction> {
+    fn render_frame(&mut self, app: &mut impl RenderWorkflow, delta_time: f32) -> VkResult<FrameAction> {
 
         // wait and acquire next image. -------------------------------------
         let fence_ready = self.syncs.sync_fences[self.frame_counter.current_frame()];

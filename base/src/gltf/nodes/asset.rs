@@ -70,10 +70,10 @@ impl NodeAsset {
         use crate::ci::buffer::BufferCI;
         use crate::ci::memory::MemoryAI;
         use crate::ci::VkObjectBuildableCI;
-        use crate::utils::memory::bound_to_alignment;
+        use crate::utils::memory::IntegerAlignable;
 
         let min_alignment = device.phy.limits.min_uniform_buffer_offset_alignment;
-        let attachment_size_aligned = bound_to_alignment(self.attachments.element_size, min_alignment);
+        let attachment_size_aligned = self.attachments.element_size.align_to(min_alignment);
         let request_attachments_size = attachment_size_aligned * (self.attachments.data_content.length() as vkbytes);
 
         // create staging buffer and memory.

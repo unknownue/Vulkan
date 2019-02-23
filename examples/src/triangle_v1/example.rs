@@ -108,7 +108,7 @@ impl VulkanExample {
     }
 }
 
-impl vkbase::Workflow for VulkanExample {
+impl vkbase::RenderWorkflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
 

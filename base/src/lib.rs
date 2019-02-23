@@ -1,5 +1,5 @@
 
-pub use self::workflow::{Workflow, WindowContext, WindowConfig};
+pub use self::workflow::{RenderWorkflow, WindowContext, WindowConfig};
 pub use self::workflow::ProcPipeline;
 pub use self::error::{VkResult, VkError};
 pub use self::utils::frame::FrameAction;

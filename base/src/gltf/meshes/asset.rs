@@ -16,7 +16,7 @@ use crate::command::{IGraphics, CmdGraphicsApi};
 use crate::command::{ITransfer, CmdTransferApi};
 
 use crate::context::VkDevice;
-use crate::utils::memory::{bound_to_alignment, MemorySlice};
+use crate::utils::memory::{MemorySlice, IntegerAlignable};
 use crate::error::{VkResult, VkTryFrom};
 
 
@@ -104,17 +104,19 @@ impl MeshAsset {
 
     fn allocate_mesh(&self, device: &VkDevice) -> VkResult<MeshAssetBlock> {
 
+        use crate::utils::memory::IntegerAlignable;
+
         // create buffer and allocate memory for glTF mesh.
         let (vertex_buffer, vertex_requirement) = self.attributes.buffer_ci()
             .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
             .build(device)?;
-        let vertex_aligned_size = bound_to_alignment(vertex_requirement.size, vertex_requirement.alignment);
+        let vertex_aligned_size = vertex_requirement.size.align_to(vertex_requirement.alignment);
 
         let mesh_block = if let Some(indices_ci) = self.indices.buffer_ci() {
             let (index_buffer, index_requirement) = indices_ci
                 .usage(vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
                 .build(device)?;
-            let index_aligned_size = bound_to_alignment(index_requirement.size, index_requirement.alignment);
+            let index_aligned_size = index_requirement.size.align_to(index_requirement.alignment);
 
             let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
@@ -164,13 +166,13 @@ impl MeshAsset {
         let (vertex_buffer, vertex_requirement) = self.attributes.buffer_ci()
             .usage(vk::BufferUsageFlags::TRANSFER_SRC)
             .build(device)?;
-        let vertex_aligned_size = bound_to_alignment(vertex_requirement.size, vertex_requirement.alignment);
+        let vertex_aligned_size = vertex_requirement.size.align_to(vertex_requirement.alignment);
 
         let mesh_block = if let Some(indices_ci) = self.indices.buffer_ci() {
             let (index_buffer, index_requirement) = indices_ci
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC)
                 .build(device)?;
-            let index_aligned_size = bound_to_alignment(index_requirement.size, index_requirement.alignment);
+            let index_aligned_size = index_requirement.size.align_to(index_requirement.alignment);
 
             let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
