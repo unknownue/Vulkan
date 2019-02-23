@@ -105,7 +105,7 @@ impl AssetRepository {
             scene,
             meshes: self.meshes.allocate(device, &cmd_recorder)?,
             nodes : self.nodes.allocate(device, &cmd_recorder)?,
-            materials: self.materials.allocate(),
+            materials: self.materials,
         };
 
         device.discard(command_pool);
