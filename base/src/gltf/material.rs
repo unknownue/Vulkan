@@ -89,7 +89,7 @@ impl MaterialAsset {
         Ok(result)
     }
 
-    pub fn material_size(&self) -> vkuint {
+    pub const fn material_size(&self) -> vkuint {
         MATERIAL_SIZE as vkuint
     }
 

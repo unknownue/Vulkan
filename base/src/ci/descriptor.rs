@@ -366,3 +366,33 @@ impl DescriptorImageSetWI {
     }
 }
 // ----------------------------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------------------------
+/// Convenient struct to update descriptor set.
+#[derive(Default)]
+pub struct DescriptorSetsUpdateCI {
+    writes: Vec<vk::WriteDescriptorSet>,
+    copies: Vec<vk::CopyDescriptorSet>,
+}
+
+impl DescriptorSetsUpdateCI {
+
+    pub fn new() -> DescriptorSetsUpdateCI {
+        DescriptorSetsUpdateCI::default()
+    }
+
+    pub fn add_write(mut self, value: vk::WriteDescriptorSet) -> DescriptorSetsUpdateCI {
+        self.writes.push(value); self
+    }
+
+    pub fn add_copy(mut self, value: vk::CopyDescriptorSet) -> DescriptorSetsUpdateCI {
+        self.copies.push(value); self
+    }
+
+    pub fn update(self, device: &VkDevice) {
+        unsafe {
+            device.logic.handle.update_descriptor_sets(&self.writes, &self.copies);
+        }
+    }
+}
+// ----------------------------------------------------------------------------------------------

@@ -70,7 +70,7 @@ impl VulkanContext {
     pub(super) fn discard(&self) {
 
         self.swapchain.discard(&self.device);
-        self.device.logic.discard();
+        self.device.discard_self();
         self.surface.discard();
         self.debugger.discard();
         self.instance.discard();
@@ -118,10 +118,7 @@ impl<'a> VulkanContextBuilder<'a> {
 
         let phy_device = device::VkPhysicalDevice::new(&instance, self.config.dev_phy)?;
         let logic_device = device::VkLogicalDevice::new(&instance, &phy_device, self.config.dev_logic)?;
-        let device = device::VkDevice {
-            phy: phy_device,
-            logic: logic_device,
-        };
+        let device = device::VkDevice::new(logic_device, phy_device)?;
 
         let dimension = self.window.dimension()?;
         let swapchain = swapchain::VkSwapchain::new(&instance, &device, &surface, self.config.swapchain, dimension)?;

@@ -229,6 +229,8 @@ pub struct GraphicsPipelineCI {
     depth_stencil  : DepthStencilSCI,
     multisample    : MultisampleSCI,
     dynamic        : DynamicSCI,
+
+    cache: Option<vk::PipelineCache>,
 }
 
 impl VulkanCI for GraphicsPipelineCI {
@@ -292,7 +294,7 @@ impl VkObjectBuildableCI for GraphicsPipelineCI {
         };
 
         let pipeline = unsafe {
-            device.logic.handle.create_graphics_pipelines(vk::PipelineCache::null(), &[pipeline_ci], None)
+            device.logic.handle.create_graphics_pipelines(self.cache.unwrap_or(device.pipeline_cache), &[pipeline_ci], None)
                 .map_err(|_| VkError::create("Graphics Pipeline"))?
         }.remove(0);
 
@@ -319,6 +321,7 @@ impl GraphicsPipelineCI {
             depth_stencil  : DepthStencilSCI::new(),
             multisample    : MultisampleSCI::new(),
             dynamic        : DynamicSCI::new(),
+            cache: None,
         }
     }
 
@@ -369,6 +372,10 @@ impl GraphicsPipelineCI {
     pub fn set_dynamic(&mut self, sci: DynamicSCI) {
         self.dynamic = sci;
     }
+
+    pub fn set_pipeline_cache(&mut self, cache: vk::PipelineCache) {
+        self.cache = Some(cache);
+    }
 }
 
 impl VkObjectDiscardable for vk::Pipeline {
@@ -376,6 +383,58 @@ impl VkObjectDiscardable for vk::Pipeline {
     fn discard(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_pipeline(self, None);
+        }
+    }
+}
+// ----------------------------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------------------------
+// Wrapper class for vk::PipelineCacheCreateInfo.
+#[derive(Debug, Clone)]
+pub struct PipelineCacheCI {
+    ci: vk::PipelineCacheCreateInfo,
+}
+
+impl VulkanCI for PipelineCacheCI {
+    type CIType = vk::PipelineCacheCreateInfo;
+
+    fn default_ci() -> vk::PipelineCacheCreateInfo {
+
+        vk::PipelineCacheCreateInfo {
+            s_type: vk::StructureType::PIPELINE_CACHE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags : vk::PipelineCacheCreateFlags::empty(),
+            initial_data_size: 0,
+            p_initial_data: ptr::null(),
+        }
+    }
+}
+
+impl PipelineCacheCI {
+
+    pub fn new() -> PipelineCacheCI {
+        PipelineCacheCI {
+            ci: PipelineCacheCI::default_ci(),
+        }
+    }
+
+    pub fn flags(mut self, flags: vk::PipelineCacheCreateFlags) -> PipelineCacheCI {
+        self.ci.flags = flags; self
+    }
+
+    pub fn build(&self, device: &VkDevice) -> VkResult<vk::PipelineCache> {
+        unsafe {
+            device.logic.handle.create_pipeline_cache(&self.ci, None)
+                .map_err(|_| VkError::create("Graphics Cache"))
+        }
+    }
+}
+
+impl VkObjectDiscardable for vk::PipelineCache {
+
+    fn discard(self, device: &VkDevice) {
+        unsafe {
+            device.logic.handle.destroy_pipeline_cache(self, None);
         }
     }
 }

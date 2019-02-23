@@ -1,6 +1,5 @@
 
 use ash::vk;
-use ash::version::DeviceV1_0;
 
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
@@ -184,7 +183,7 @@ impl VulkanExample {
 fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
-    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI};
+    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorSetsUpdateCI};
     use vkbase::ci::pipeline::PipelineLayoutCI;
 
     // Descriptor Pool.
@@ -219,9 +218,9 @@ fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer) -> VkResult<Des
     let write_info = DescriptorBufferSetWI::new(descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
         .add_buffer(uniforms.descriptor.clone());
 
-    unsafe {
-        device.logic.handle.update_descriptor_sets(&[write_info.value()], &[]);
-    }
+    DescriptorSetsUpdateCI::new()
+        .add_write(write_info.value())
+        .update(device);
 
     let result = DescriptorStaff { descriptor_pool, descriptor_set, pipeline_layout, set_layout };
     Ok(result)

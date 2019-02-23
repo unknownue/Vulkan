@@ -9,13 +9,36 @@ pub use self::physical::{VkPhysicalDevice, PhysicalDevConfig};
 use ash::vk;
 use ash::version::DeviceV1_0;
 use crate::utils::time::VkTimeDuration;
+use crate::ci::VulkanCI;
+use crate::ci::pipeline::PipelineCacheCI;
 use crate::{VkResult, VkError};
 use crate::{vkbytes, vkuint, vkptr};
 
 pub struct VkDevice {
 
-    pub logic : logical::VkLogicalDevice,
-    pub phy   : physical::VkPhysicalDevice,
+    pub logic : VkLogicalDevice,
+    pub phy   : VkPhysicalDevice,
+
+    pub pipeline_cache: vk::PipelineCache,
+}
+
+impl VkDevice {
+
+    pub(super) fn new(logic: VkLogicalDevice, phy: VkPhysicalDevice) -> VkResult<VkDevice> {
+
+        // Create an empty pipeline cache.
+        let pipeline_cache = unsafe {
+            logic.handle.create_pipeline_cache(&PipelineCacheCI::default_ci(), None)
+                .map_err(|_| VkError::create("Graphics Cache"))?
+        };
+        let device = VkDevice { logic, phy, pipeline_cache };
+        Ok(device)
+    }
+
+    pub(super) fn discard_self(&self) {
+        self.discard(self.pipeline_cache);
+        self.logic.discard();
+    }
 }
 
 impl VkDevice {

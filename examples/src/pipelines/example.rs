@@ -1,6 +1,5 @@
 
 use ash::vk;
-use ash::version::DeviceV1_0;
 
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
@@ -356,7 +355,7 @@ struct DescriptorStaff {
 fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
-    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI};
+    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorSetsUpdateCI};
 
     // Descriptor Pool.
     let descriptor_pool = DescriptorPoolCI::new(1)
@@ -408,9 +407,10 @@ fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer, model: &VkglTFM
     let node_write_info = DescriptorBufferSetWI::new(descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
         .add_buffer(model.nodes.node_descriptor());
 
-    unsafe {
-        device.logic.handle.update_descriptor_sets(&[ubo_write_info.value(), node_write_info.value()], &[]);
-    }
+    DescriptorSetsUpdateCI::new()
+        .add_write(ubo_write_info.value())
+        .add_write(node_write_info.value())
+        .update(device);
 
     let descriptors = DescriptorStaff {
         pool   : descriptor_pool,
