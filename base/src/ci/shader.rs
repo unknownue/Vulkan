@@ -86,15 +86,15 @@ impl ShaderModuleCI {
 
     pub fn from_glsl(stage: vk::ShaderStageFlags, codes: Vec<u8>) -> ShaderModuleCI {
 
-        ShaderModuleCI::new(stage, ShaderType::GLSLSource(codes))
+        ShaderModuleCI::inner_new(stage, ShaderType::GLSLSource(codes))
     }
 
     pub fn from_spriv(stage: vk::ShaderStageFlags, path: impl AsRef<Path>) -> ShaderModuleCI {
 
-        ShaderModuleCI::new(stage, ShaderType::SprivSource(PathBuf::from(path.as_ref())))
+        ShaderModuleCI::inner_new(stage, ShaderType::SprivSource(PathBuf::from(path.as_ref())))
     }
 
-    fn new(stage: vk::ShaderStageFlags, ty: ShaderType) -> ShaderModuleCI {
+    fn inner_new(stage: vk::ShaderStageFlags, ty: ShaderType) -> ShaderModuleCI {
 
         ShaderModuleCI {
             ci: ShaderModuleCI::default_ci(),

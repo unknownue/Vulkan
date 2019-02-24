@@ -6,11 +6,9 @@ use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
 use vkbase::VkResult;
-use vkbase::{vkuint, vkbytes};
+use vkbase::{vkuint, vkbytes, Matrix4F};
 
 use std::mem;
-
-type Mat4F = nalgebra::Matrix4<f32>;
 
 /// Vertex layout used in this example.
 #[derive(Debug, Clone, Copy)]
@@ -93,9 +91,9 @@ pub struct DescriptorStaff {
 //	} ubo;
 #[derive(Debug, Clone, Copy)]
 pub struct UboVS {
-    pub projection: Mat4F,
-    pub view: Mat4F,
-    pub model: Mat4F,
+    pub projection: Matrix4F,
+    pub view: Matrix4F,
+    pub model: Matrix4F,
 }
 
 // Prepare vertex buffer and index buffer for an indexed triangle.
@@ -251,9 +249,9 @@ fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: 
 
     let ubo_data = [
         UboVS {
-            projection: Mat4F::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
-            view: Mat4F::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
-            model: Mat4F::identity(),
+            projection: Matrix4F::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
+            view: Matrix4F::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
+            model: Matrix4F::identity(),
         },
     ];
 

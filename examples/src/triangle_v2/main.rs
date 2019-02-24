@@ -14,8 +14,8 @@ const WINDOW_TITLE: &'static str = "Vulkan Example - Basic indexed triangle";
 fn main() {
 
     use vkbase::{WindowConfig, WindowContext};
-    use vkbase::ProcPipeline;
     use vkbase::context::VulkanContext;
+    use vkbase::ProcPipeline;
 
     let mut win_config = WindowConfig::default();
     win_config.dimension.width  = WINDOW_WIDTH;

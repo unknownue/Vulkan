@@ -13,9 +13,8 @@ const WINDOW_TITLE: &'static str = "Vulkan Example - Pipeline state objects";
 fn main() {
 
     use vkbase::{WindowConfig, WindowContext};
-    use vkbase::context::PhysicalDevConfig;
+    use vkbase::context::{PhysicalDevConfig, VulkanContext};
     use vkbase::ProcPipeline;
-    use vkbase::context::VulkanContext;
 
     let mut win_config = WindowConfig::default();
     win_config.dimension.width  = WINDOW_WIDTH;

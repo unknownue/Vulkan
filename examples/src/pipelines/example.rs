@@ -1,6 +1,10 @@
 
 use ash::vk;
 
+use std::ptr;
+use std::mem;
+use std::path::Path;
+
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
@@ -9,17 +13,10 @@ use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 use vkbase::gltf::VkglTFModel;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkbytes, vkptr};
+use vkbase::{vkbytes, vkptr, Point3F, Matrix4F, Vector4F};
 use vkbase::VkResult;
 
-use std::ptr;
-use std::mem;
-use std::path::Path;
-
 use vkexamples::VkExampleBackendRes;
-type Point3F  = nalgebra::Point3<f32>;
-type Matrix4F = nalgebra::Matrix4<f32>;
-type Vector4F = nalgebra::Vector4<f32>;
 
 const PHONG_VERTEX_SHADER_SOURCE_PATH      : &'static str = "examples/src/pipelines/phong.vert.glsl";
 const PHONG_FRAGMENT_SHADER_SOURCE_PATH    : &'static str = "examples/src/pipelines/phong.frag.glsl";
