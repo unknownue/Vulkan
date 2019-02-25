@@ -290,6 +290,10 @@ impl DescriptorBufferSetWI {
         self.writes.push(info); self
     }
 
+    pub fn set_buffer(&mut self, infos: Vec<vk::DescriptorBufferInfo>) {
+        self.writes = infos;
+    }
+
     pub fn dst_array_element(mut self, array_element: vkuint) -> DescriptorBufferSetWI {
         self.wi.dst_array_element = array_element; self
     }
@@ -350,6 +354,10 @@ impl DescriptorImageSetWI {
 
     pub fn add_image(mut self, info: vk::DescriptorImageInfo) -> DescriptorImageSetWI {
         self.writes.push(info); self
+    }
+
+    pub fn set_images(&mut self, infos: Vec<vk::DescriptorImageInfo>) {
+        self.writes = infos;
     }
 
     pub fn dst_array_element(mut self, array_element: vkuint) -> DescriptorImageSetWI {

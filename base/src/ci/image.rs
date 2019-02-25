@@ -8,7 +8,6 @@ use crate::error::{VkResult, VkError};
 use crate::{vkbytes, vkuint, vkfloat};
 
 use std::ptr;
-use crate::context::VulkanContext;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::ImageCreateInfo.
@@ -320,7 +319,7 @@ pub struct SamplerCI {
     ci: vk::SamplerCreateInfo,
 }
 
-impl VulkanCi for SamplerCI {
+impl VulkanCI for SamplerCI {
     type CIType = vk::SamplerCreateInfo;
 
     fn default_ci() -> vk::SamplerCreateInfo {
@@ -335,9 +334,9 @@ impl VulkanCi for SamplerCI {
             address_mode_u: vk::SamplerAddressMode::REPEAT,
             address_mode_v: vk::SamplerAddressMode::REPEAT,
             address_mode_w: vk::SamplerAddressMode::REPEAT,
-            anisotropy_enable: VK_FALSE,
+            anisotropy_enable: vk::FALSE,
             max_anisotropy   : 1.0,
-            compare_enable: VK_FALSE,
+            compare_enable: vk::FALSE,
             compare_op    : vk::CompareOp::ALWAYS,
             mip_lod_bias: 0.0,
             min_lod     : 0.0,

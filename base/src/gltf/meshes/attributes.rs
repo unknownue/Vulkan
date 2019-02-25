@@ -364,6 +364,7 @@ macro_rules! define_attributes {
         }
 
         #[allow(non_camel_case_types)]
+        #[repr(C)]
         #[derive(Debug, Clone, Copy)]
         struct $name_vertex {
             $(

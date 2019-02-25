@@ -102,6 +102,7 @@ macro_rules! define_node_attachments {
         }
 
         #[allow(non_camel_case_types)]
+        #[repr(C)]
         #[derive(Debug, Clone, Copy)]
         struct $name_uniform {
             $(

@@ -15,6 +15,7 @@ winit = "0.18.1"
 nalgebra = "0.16"
 shaderc = "0.3.10"
 memoffset = "0.2"
+rusttype = "0.7.5"
 
 vkbase = { package = "vulkan-base", path = "../base" }
 
@@ -33,3 +34,7 @@ path = "src/triangle_v2/main.rs"
 [[bin]]
 name = "pipelines"
 path = "src/pipelines/main.rs"
+
+[[bin]]
+name = "text-overlay"
+path = "src/text-overlay/main.rs"

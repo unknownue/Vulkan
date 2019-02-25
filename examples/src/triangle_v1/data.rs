@@ -13,6 +13,7 @@ use std::ptr;
 
 
 /// Vertex layout used in this example.
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Vertex {
     position: [f32; 3],
@@ -106,6 +107,7 @@ pub struct UniformBuffer {
 //		mat4 viewMatrix;
 //		mat4 modelMatrix;
 //	} ubo;
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct UboVS {
     pub projection: Matrix4F,
