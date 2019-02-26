@@ -16,7 +16,7 @@ use crate::text::{TextPool, TextInfo, GlyphImages};
 
 const TEXT_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/text-overlay/text.vert.glsl";
 const TEXT_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/text-overlay/text.frag.glsl";
-const RENDERING_TEXT: &'static str = "Sample Text";
+const RENDERING_TEXT: &'static str = "SampleText";
 
 pub struct VulkanExample {
 
@@ -44,6 +44,7 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut backend_res = VkExampleBackendRes::new(device, swapchain)?;
+        backend_res.enable_depth_attachment(false);
 
         let text_glyphs = GlyphImages::from_font(device, include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))?;
         let text_pool = TextPool::new(device, dimension)?;
@@ -215,7 +216,7 @@ fn setup_descriptor(device: &VkDevice, glyphs: &GlyphImages) -> VkResult<Descrip
     let descriptor_set = descriptor_sets.remove(0);
 
     // update descriptors.
-    let sampled_image_write_info = DescriptorImageSetWI::new(descriptor_set, 0, vk::DescriptorType::SAMPLER)
+    let sampled_image_write_info = DescriptorImageSetWI::new(descriptor_set, 0, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
         .add_image(vk::DescriptorImageInfo {
             sampler: glyphs.text_sampler,
             image_view: glyphs.glyph_view,

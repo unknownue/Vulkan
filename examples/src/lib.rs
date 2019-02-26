@@ -17,7 +17,6 @@ pub const DEFAULT_CLEAR_COLOR: vk::ClearValue = vk::ClearValue {
 
 pub struct VkExampleBackendRes {
 
-    depth_image: DepthImage,
 
     pub dimension: vk::Extent2D,
     pub framebuffers: Vec<vk::Framebuffer>,
@@ -26,6 +25,9 @@ pub struct VkExampleBackendRes {
 
     pub command_pool: vk::CommandPool,
     pub commands: Vec<vk::CommandBuffer>,
+
+    depth_image: DepthImage,
+    is_use_depth_attachment: bool,
 }
 
 struct DepthImage {
@@ -47,8 +49,13 @@ impl VkExampleBackendRes {
             depth_image, await_rendering,
             commands, command_pool, dimension,
             framebuffers: Vec::new(),
+            is_use_depth_attachment: true,
         };
         Ok(target)
+    }
+
+    pub fn enable_depth_attachment(&mut self, is_enable: bool) {
+        self.is_use_depth_attachment = is_enable;
     }
 
     pub fn setup_framebuffers(&mut self, device: &VkDevice, swapchain: &VkSwapchain, render_pass: vk::RenderPass) -> VkResult<()> {
@@ -65,10 +72,14 @@ impl VkExampleBackendRes {
 
         for i in 0..swapchain.frame_in_flight() {
 
-            let framebuffer = FramebufferCI::new_2d(render_pass, dimension)
-                .add_attachment(swapchain.images[i].view) // color attachment is the view of the swapchain image.
-                .add_attachment(self.depth_image.view) // depth/stencil attachment is the same for all frame buffers.
-                .build(device)?;
+            let mut framebuffer_ci = FramebufferCI::new_2d(render_pass, dimension)
+                .add_attachment(swapchain.images[i].view); // color attachment is the view of the swapchain image.
+
+            if self.is_use_depth_attachment {
+                framebuffer_ci = framebuffer_ci.add_attachment(self.depth_image.view);
+            }
+
+            let framebuffer = framebuffer_ci.build(device)?;
             self.framebuffers.push(framebuffer);
         }
 
