@@ -11,8 +11,6 @@ use crate::command::recorder::VkCmdRecorder;
 use crate::utils::time::VkTimeDuration;
 use crate::VkResult;
 
-use crate::ci::image::ImageBarrierCI;
-
 pub struct ITransfer;
 
 impl VkCommandType for ITransfer {
@@ -62,13 +60,10 @@ impl<'a> CmdTransferApi for VkCmdRecorder<'a, ITransfer> {
         } self
     }
 
-    fn image_pipeline_barrier(&self, src_stage: vk::PipelineStageFlags, dst_stage: vk::PipelineStageFlags, dependencies: vk::DependencyFlags, image_barriers: Vec<ImageBarrierCI>) -> &Self {
-
-        let barriers: Vec<vk::ImageMemoryBarrier> = image_barriers.into_iter()
-            .map(|b| b.into()).collect();
+    fn image_pipeline_barrier(&self, src_stage: vk::PipelineStageFlags, dst_stage: vk::PipelineStageFlags, dependencies: vk::DependencyFlags, image_barriers: &[vk::ImageMemoryBarrier]) -> &Self {
 
         unsafe {
-            self.device.logic.handle.cmd_pipeline_barrier(self.command, src_stage, dst_stage, dependencies, &[], &[], &barriers);
+            self.device.logic.handle.cmd_pipeline_barrier(self.command, src_stage, dst_stage, dependencies, &[], &[], image_barriers);
         } self
     }
 
@@ -89,7 +84,7 @@ pub trait CmdTransferApi {
 
     fn copy_img2img(&self,src_handle: vk::Image, src_layout: vk::ImageLayout, dst_handle: vk::Image, dst_layout: vk::ImageLayout, regions: &[vk::ImageCopy]) -> &Self;
 
-    fn image_pipeline_barrier(&self, src_stage: vk::PipelineStageFlags, dst_stage: vk::PipelineStageFlags, dependencies: vk::DependencyFlags, image_barriers: Vec<ImageBarrierCI>) -> &Self;
+    fn image_pipeline_barrier(&self, src_stage: vk::PipelineStageFlags, dst_stage: vk::PipelineStageFlags, dependencies: vk::DependencyFlags, image_barriers: &[vk::ImageMemoryBarrier]) -> &Self;
 
     fn blit_image(&self, src_handle: vk::Image, src_layout: vk::ImageLayout, dst_handle: vk::Image, dst_layout: vk::ImageLayout, regions: &[vk::ImageBlit], filter: vk::Filter) -> &Self;
 }

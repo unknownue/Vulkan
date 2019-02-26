@@ -2,62 +2,80 @@
 use ash::vk;
 use memoffset::offset_of;
 
+use std::ops::Range;
+use std::collections::HashMap;
+
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
+use vkbase::ci::image::{ImageCI, ImageViewCI, SamplerCI, ImageBarrierCI};
 use vkbase::ci::pipeline::VertexInputSCI;
+use vkbase::ci::command::{CommandPoolCI, CommandBufferAI};
 use vkbase::ci::VkObjectBuildableCI;
 
-use vkbase::context::VkDevice;
-use vkbase::command::{VkCmdRecorder, IGraphics};
+use vkbase::command::VkCmdRecorder;
+use vkbase::command::{IGraphics, CmdGraphicsApi};
+use vkbase::command::{ITransfer, CmdTransferApi};
 
-use vkbase::{vkuint, vkbytes};
+use vkbase::context::VkDevice;
+use vkbase::utils::color::VkColor;
+
+use vkbase::{vkuint, vkbytes, vkptr};
 use vkbase::{VkResult, VkError};
 
-pub const CHARACTER_COUNT: vkuint = 128;
-
-type CharacterID = vkuint;
+// TODO: Consider space bounding box.
+const ASCII_RANGE: Range<u8> = (33..127_u8);
+const VERTEX_PER_CHARACTER: usize = 6; // each character use 6 vertex to draw.
 const TEXT_CAPABILITY_LENGTH: usize = 1024;
+const FONT_SCALE: f32 = 24.0;
+const IMAGE_PADDING: usize = 20;
+
+type CharacterID = char;
+type GlyphLayouts = HashMap<CharacterID, rusttype::Rect<i32>>;
 
 /// The vertex attributes for each character.
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct CharacterVertex {
-    id    : CharacterID,
     pos   : [f32; 2],
     uv    : [f32; 2],
     color : [f32; 4],
 }
 
-pub struct CharacterImage {
-    pub image: vk::Image,
-    pub view : vk::ImageView,
-    pub metrics: CharacterMetrics,
-}
-
-pub struct CharacterMetrics {
-
-}
-
 pub struct GlyphImages {
+
     pub text_sampler: vk::Sampler,
-    pub images: [CharacterImage; CHARACTER_COUNT as usize],
-    pub memory: vk::DeviceMemory,
+    pub glyph_image: vk::Image,
+    pub glyph_view : vk::ImageView,
+
+    memory: vk::DeviceMemory,
+    layouts: GlyphLayouts,
+
+    image_dimension: vk::Extent2D,
 }
 
 impl GlyphImages {
 
-    pub fn from_font(bytes: &[u8]) -> GlyphImages {
-        unimplemented!()
+    pub fn from_font(device: &VkDevice, bytes: &[u8]) -> VkResult<GlyphImages> {
+
+        let (layouts, image_bytes, image_dimension) = generate_ascii_glyphs_bytes(bytes)?;
+        let (glyph_image, memory) = allocate_image(device, image_bytes, image_dimension)?;
+
+        // TODO: Just store alpha info.
+        let glyph_view = ImageViewCI::new(glyph_image, vk::ImageViewType::TYPE_2D, vk::Format::R32G32B32A32_SFLOAT)
+            .aspect_mask(vk::ImageAspectFlags::COLOR)
+            .build(device)?;
+        let text_sampler = SamplerCI::new()
+            .build(device)?;
+
+        let result = GlyphImages { text_sampler, glyph_image, glyph_view, memory, layouts, image_dimension };
+        Ok(result)
     }
 
     pub fn discard(&self, device: &VkDevice) {
+
         device.discard(self.text_sampler);
-
-        for glyph in self.images.iter() {
-            device.discard(glyph.view);
-            device.discard(glyph.image);
-        }
-
+        device.discard(self.glyph_view);
+        device.discard(self.glyph_image);
         device.discard(self.memory);
     }
 }
@@ -65,18 +83,27 @@ impl GlyphImages {
 
 pub struct TextPool {
 
-    texts: Vec<String>,
+    // screen dimension.
+    dimension: vk::Extent2D,
+    texts: Vec<TextInfo>,
     texts_length: usize,
 
+    data_ptr: vkptr,
     buffer: vk::Buffer,
     memory: vk::DeviceMemory,
 }
 
+pub struct TextInfo {
+    pub content: String,
+    pub color  : VkColor,
+    pub location: vk::Offset2D,
+}
+
 impl TextPool {
 
-    pub fn new(device: &VkDevice) -> VkResult<TextPool> {
+    pub fn new(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<TextPool> {
 
-        let pool_size = (::std::mem::size_of::<CharacterVertex>() * TEXT_CAPABILITY_LENGTH) as vkbytes;
+        let pool_size = (::std::mem::size_of::<CharacterVertex>() * TEXT_CAPABILITY_LENGTH * VERTEX_PER_CHARACTER) as vkbytes;
         let (buffer, requirement) = BufferCI::new(pool_size)
             .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
             .build(device)?;
@@ -84,19 +111,22 @@ impl TextPool {
         let memory_type = device.get_memory_type(requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
         let memory = MemoryAI::new(requirement.size, memory_type)
             .build(device)?;
+        device.bind_memory(buffer, memory, 0)?;
+        // keep the memory mapping during the whole program running.
+        let data_ptr = device.map_memory(memory, 0, vk::WHOLE_SIZE)?;
 
         let result = TextPool {
             texts: Vec::new(),
             texts_length: 0,
-            buffer, memory,
+            buffer, memory, dimension, data_ptr,
         };
         Ok(result)
     }
 
-    pub fn add_text(&mut self, text: String) -> VkResult<()> {
+    pub fn add_text(&mut self, text: TextInfo) -> VkResult<()> {
 
-        if self.texts_length + text.len() <= TEXT_CAPABILITY_LENGTH {
-            self.texts_length += text.len();
+        if self.texts_length + text.content.len() <= TEXT_CAPABILITY_LENGTH {
+            self.texts_length += text.content.len();
             self.texts.push(text);
             Ok(())
         } else {
@@ -104,13 +134,82 @@ impl TextPool {
         }
     }
 
-    pub fn update_texts(&self, device: &VkDevice, glyphs: &GlyphImages) {
-        unimplemented!()
+    pub fn update_texts(&self, device: &VkDevice, glyphs: &GlyphImages) -> VkResult<()> {
+
+        // calculate vertex attributes of rendering texts.
+        let mut char_vertices = Vec::with_capacity(self.texts_length * VERTEX_PER_CHARACTER);
+
+        for text in self.texts.iter() {
+
+            for ch in text.content.as_bytes() {
+                let character_id = ch.clone() as char;
+                let glyph_layout = glyphs.layouts.get(&character_id)
+                    .ok_or(VkError::custom(format!("Find invalid character: {}.", character_id)))?;
+
+                let top_left = CharacterVertex {
+                    pos: [
+                        (text.location.x + glyph_layout.min.x) as f32 / self.dimension.width  as f32,
+                        (text.location.y + glyph_layout.min.y) as f32 / self.dimension.height as f32,
+                    ],
+                    uv: [
+                        glyph_layout.min.x as f32 / glyphs.image_dimension.width  as f32,
+                        glyph_layout.min.y as f32 / glyphs.image_dimension.height as f32,
+                    ],
+                    color: text.color.into(),
+                };
+                let bottom_left = CharacterVertex {
+                    pos: [
+                        (text.location.x + glyph_layout.min.x) as f32 / self.dimension.width  as f32,
+                        (text.location.y + glyph_layout.max.y) as f32 / self.dimension.height as f32,
+                    ],
+                    uv: [
+                        glyph_layout.min.x as f32 / glyphs.image_dimension.width  as f32,
+                        glyph_layout.max.y as f32 / glyphs.image_dimension.height as f32,
+                    ],
+                    color: text.color.into(),
+                };
+                let bottom_right = CharacterVertex {
+                    pos: [
+                        (text.location.x + glyph_layout.max.x) as f32 / self.dimension.width  as f32,
+                        (text.location.y + glyph_layout.max.y) as f32 / self.dimension.height as f32,
+                    ],
+                    uv: [
+                        glyph_layout.max.x as f32 / glyphs.image_dimension.width  as f32,
+                        glyph_layout.max.y as f32 / glyphs.image_dimension.height as f32,
+                    ],
+                    color: text.color.into(),
+                };
+                let top_right = CharacterVertex {
+                    pos: [
+                        (text.location.x + glyph_layout.max.x) as f32 / self.dimension.width  as f32,
+                        (text.location.y + glyph_layout.min.y) as f32 / self.dimension.height as f32,
+                    ],
+                    uv: [
+                        glyph_layout.max.x as f32 / glyphs.image_dimension.width  as f32,
+                        glyph_layout.min.y as f32 / glyphs.image_dimension.height as f32,
+                    ],
+                    color: text.color.into(),
+                };
+
+                char_vertices.extend_from_slice(&[
+                    top_left, bottom_left, bottom_right, // triangle 1
+                    top_left, bottom_right, top_right,   // triangle 2
+                ]);
+            }
+        }
+
+        // upload vertex attributes to memory.
+        device.copy_to_ptr(self.data_ptr, &char_vertices);
+
+        Ok(())
     }
 
     pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>) {
 
-        unimplemented!()
+        recorder.bind_vertex_buffers(0, &[self.buffer], &[0]);
+
+        let vertex_count = (self.texts_length * VERTEX_PER_CHARACTER) as vkuint;
+        recorder.draw(vertex_count, 1, 0, 0);
     }
 
     pub fn input_descriptions() -> VertexInputSCI {
@@ -124,31 +223,164 @@ impl TextPool {
             .add_attribute(vk::VertexInputAttributeDescription {
                 location: 0,
                 binding : 0,
-                format  : vk::Format::R32_UINT,
-                offset  : offset_of!(CharacterVertex, id) as _,
-            })
-            .add_attribute(vk::VertexInputAttributeDescription {
-                location: 0,
-                binding : 1,
                 format  : vk::Format::R32G32_SFLOAT,
                 offset  : offset_of!(CharacterVertex, pos) as _,
             })
             .add_attribute(vk::VertexInputAttributeDescription {
                 location: 0,
-                binding : 2,
+                binding : 1,
                 format  : vk::Format::R32G32_SFLOAT,
                 offset  : offset_of!(CharacterVertex, uv) as _,
             })
             .add_attribute(vk::VertexInputAttributeDescription {
                 location: 0,
-                binding : 3,
+                binding : 2,
                 format  : vk::Format::R32G32B32A32_SFLOAT,
                 offset  : offset_of!(CharacterVertex, color) as _,
             })
     }
 
     pub fn discard(&self, device: &VkDevice) {
+
+        device.unmap_memory(self.memory);
         device.discard(self.buffer);
         device.discard(self.memory);
     }
+}
+
+fn generate_ascii_glyphs_bytes(font_bytes: &[u8]) -> VkResult<(GlyphLayouts, Vec<u8>, vk::Extent2D)> {
+
+    use rusttype::{Font, Scale, PositionedGlyph, point};
+
+    let font = Font::from_bytes(font_bytes)
+        .map_err(|e| VkError::custom(e.to_string()))?;
+    let ascii_bytes: Vec<u8> = ASCII_RANGE.collect();
+
+    let ascii_characters = unsafe { String::from_utf8_unchecked(ascii_bytes.clone()) };
+    let color: [u8; 4] = VkColor::WHITE.into();
+
+    let scale = Scale::uniform(FONT_SCALE);
+    let v_metrics = font.v_metrics(scale);
+
+    let glyphs_start_point = point(IMAGE_PADDING as f32, IMAGE_PADDING as f32 + v_metrics.ascent);
+    let glyphs: Vec<PositionedGlyph> = font.layout(&ascii_characters, scale, glyphs_start_point)
+        .collect();
+    let glyphs_height = (v_metrics.ascent - v_metrics.descent).ceil() as usize;
+    let glyphs_width = {
+        let min_x = glyphs.first().map(|g| g.pixel_bounding_box().unwrap().min.x).unwrap();
+        let max_x = glyphs.last().map(|g| g.pixel_bounding_box().unwrap().max.x).unwrap();
+        (max_x - min_x) as usize
+    };
+
+    let image_width  = (2 * IMAGE_PADDING) + glyphs_width;
+    let image_height = (2 * IMAGE_PADDING) + glyphs_height;
+    let bytes_per_pixel = 4;
+
+    // fill image data with empty bytes.
+    let mut image_bytes = vec![0_u8; image_width * image_height * bytes_per_pixel];
+
+    let mut glyph_layouts= GlyphLayouts::new();
+
+    // fill color to image data.
+    for (glyph, character) in glyphs.iter().zip(ascii_bytes.into_iter()) {
+
+        if let Some(bounding_box) = glyph.pixel_bounding_box() {
+            // Draw the glyph into the image per-pixel by using the draw closure.
+            glyph.draw(|x, y, v| {
+
+                let x = x + bounding_box.min.x as u32;
+                let y = y + bounding_box.min.y as u32;
+                let pos = (x + y * image_width as u32) as usize * bytes_per_pixel;
+
+                image_bytes[pos] = color[0];
+                image_bytes[pos + 1] = color[1];
+                image_bytes[pos + 2] = color[2];
+                image_bytes[pos + 3] = (v * 255.0) as u8;
+            });
+
+            glyph_layouts.insert(character as CharacterID, bounding_box.clone());
+        }
+    }
+
+    let dimension = vk::Extent2D {
+        width : image_width  as vkuint,
+        height: image_height as vkuint,
+    };
+    Ok((glyph_layouts, image_bytes, dimension))
+}
+
+fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, dimension: vk::Extent2D) -> VkResult<(vk::Image, vk::DeviceMemory)> {
+
+    // create vk::Buffer and map image data to it.
+    let estimate_buffer_size = (image_bytes.len() as vkbytes) * (::std::mem::size_of::<u8>() as vkbytes);
+    let (staging_buffer, staging_reqs) = BufferCI::new(estimate_buffer_size)
+        .usage(vk::BufferUsageFlags::TRANSFER_SRC)
+        .build(device)?;
+    let staging_memory = MemoryAI::new(staging_reqs.size, device.get_memory_type(
+        staging_reqs.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
+    )).build(device)?;
+    device.bind_memory(staging_buffer, staging_memory, 0)?;
+
+    let data_ptr = device.map_memory(staging_memory, 0, vk::WHOLE_SIZE)?;
+    device.copy_to_ptr(data_ptr, &image_bytes);
+    device.unmap_memory(staging_memory);
+
+    // create vk::Image and its memory.
+    let (glyphs_image, image_reqs) = ImageCI::new_2d(vk::Format::R32G32B32A32_SFLOAT, dimension)
+        .usages(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST)
+        .build(device)?;
+    let image_memory = MemoryAI::new(image_reqs.size, device.get_memory_type(
+        image_reqs.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL
+    )).build(device)?;
+    device.bind_memory(glyphs_image, image_memory, 0)?;
+
+    // transfer image data from staging buffer to destination image.
+    let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
+        .build(device)?;
+    let copy_command = CommandBufferAI::new(command_pool, 1)
+        .build(device)?
+        .remove(0);
+
+    let recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
+
+    let copy_region = vk::BufferImageCopy {
+        buffer_offset: 0,
+        buffer_row_length  : dimension.width,
+        buffer_image_height: dimension.height,
+        image_subresource: vk::ImageSubresourceLayers {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            mip_level: 0,
+            base_array_layer: 0,
+            layer_count: 1,
+        },
+        image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+        image_extent: vk::Extent3D { width: dimension.width, height: dimension.height, depth: 1 },
+    };
+
+    let image_range = vk::ImageSubresourceRange {
+        aspect_mask: vk::ImageAspectFlags::COLOR,
+        base_mip_level: 0,   level_count: 1,
+        base_array_layer: 0, layer_count: 1,
+    };
+    let copy_dst_barrier = ImageBarrierCI::new(glyphs_image, image_range)
+        .access_mask(vk::AccessFlags::empty(), vk::AccessFlags::TRANSFER_WRITE)
+        .layout(vk::ImageLayout::UNDEFINED, vk::ImageLayout::TRANSFER_DST_OPTIMAL);
+    let shader_read_barrier = ImageBarrierCI::new(glyphs_image, image_range)
+        .access_mask(vk::AccessFlags::TRANSFER_WRITE, vk::AccessFlags::SHADER_READ)
+        .layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
+
+    recorder.begin_record()?
+        .image_pipeline_barrier(vk::PipelineStageFlags::TOP_OF_PIPE, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[copy_dst_barrier.value()])
+        .copy_buf2img(staging_buffer, glyphs_image, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL, &[copy_region])
+        .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[shader_read_barrier.value()])
+        .end_record()?;
+
+    recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
+
+    // clean useless resources.
+    device.discard(command_pool);
+    device.discard(staging_buffer);
+    device.discard(staging_memory);
+
+    Ok((glyphs_image, image_memory))
 }

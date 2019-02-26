@@ -1,18 +1,18 @@
 
 use ash::vk;
 
-use std::ptr;
 use std::path::Path;
 
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 use vkbase::context::VulkanContext;
+use vkbase::utils::color::VkColor;
 use vkbase::FrameAction;
 use vkbase::VkResult;
 
 use vkexamples::VkExampleBackendRes;
-use crate::text::{TextPool, GlyphImages, CHARACTER_COUNT};
+use crate::text::{TextPool, TextInfo, GlyphImages};
 
 const TEXT_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/text-overlay/text.vert.glsl";
 const TEXT_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/text-overlay/text.frag.glsl";
@@ -45,8 +45,8 @@ impl VulkanExample {
 
         let mut backend_res = VkExampleBackendRes::new(device, swapchain)?;
 
-        let text_glyphs = GlyphImages::from_font(include_bytes!("../../assets/fonts/Roboto-Regular.ttf"));
-        let text_pool = TextPool::new(device)?;
+        let text_glyphs = GlyphImages::from_font(device, include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))?;
+        let text_pool = TextPool::new(device, dimension)?;
         let descriptors = setup_descriptor(device, &text_glyphs)?;
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
@@ -66,8 +66,13 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
 
-        self.text_pool.add_text(String::from(RENDERING_TEXT))?;
-        self.text_pool.update_texts(device, &self.text_glyphs);
+        let text = TextInfo {
+            content: String::from(RENDERING_TEXT),
+            location: vk::Offset2D { x: 0, y: 0 },
+            color: VkColor::new_u8(255, 255, 255, 255),
+        };
+        self.text_pool.add_text(text)?;
+        self.text_pool.update_texts(device, &self.text_glyphs)?;
 
         self.record_commands(device, self.backend_res.dimension)?;
         Ok(())
@@ -93,8 +98,8 @@ impl vkbase::RenderWorkflow for VulkanExample {
         device.discard(self.pipelines.render_pass);
 
         self.text_glyphs.discard(device);
-        self.text_glyphs = GlyphImages::from_font(include_bytes!("../../assets/fonts/Roboto-Regular.ttf"));
-        self.text_pool.update_texts(device, &self.text_glyphs);
+        self.text_glyphs = GlyphImages::from_font(device, include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))?;
+        self.text_pool.update_texts(device, &self.text_glyphs)?;
 
         let renderpass = setup_renderpass(device, new_chain)?;
         self.backend_res.swapchain_reload(device, new_chain, renderpass)?;
@@ -185,34 +190,22 @@ fn setup_descriptor(device: &VkDevice, glyphs: &GlyphImages) -> VkResult<Descrip
 
     // Descriptor Pool.
     let descriptor_pool = DescriptorPoolCI::new(1)
-        .add_descriptor(vk::DescriptorType::SAMPLER, 1)
-        .add_descriptor(vk::DescriptorType::SAMPLED_IMAGE, CHARACTER_COUNT)
+        .add_descriptor(vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1)
         .build(device)?;
 
-    // sampler_descriptor represent shader codes as follows:
-    // layout (binding = 0) uniform sampler textSampler;
+    // `sampled_image_descriptor` represent shader codes as follows:
+    // layout (binding = 0) uniform sampler2D font_glyphs;
     let samplers_tmp = [glyphs.text_sampler];
-    let sampler_descriptor = vk::DescriptorSetLayoutBinding {
+    let sampled_image_descriptor = vk::DescriptorSetLayoutBinding {
         binding: 0,
-        descriptor_type: vk::DescriptorType::SAMPLER,
+        descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
         descriptor_count: 1,
         stage_flags: vk::ShaderStageFlags::FRAGMENT,
         p_immutable_samplers: samplers_tmp.as_ptr(),
     };
 
-    // node_descriptor represent shader codes as follows:
-    // layout (binding = 1) uniform texture2D glyphTextures[CHARACTER_COUNT];
-    let glyphs_descriptors = vk::DescriptorSetLayoutBinding {
-        binding: 1,
-        descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-        descriptor_count: CHARACTER_COUNT,
-        stage_flags: vk::ShaderStageFlags::FRAGMENT,
-        p_immutable_samplers: ptr::null(),
-    };
-
     let set_layout = DescriptorSetLayoutCI::new()
-        .add_binding(sampler_descriptor)
-        .add_binding(glyphs_descriptors)
+        .add_binding(sampled_image_descriptor)
         .build(device)?;
 
     // Descriptor set.
@@ -222,25 +215,15 @@ fn setup_descriptor(device: &VkDevice, glyphs: &GlyphImages) -> VkResult<Descrip
     let descriptor_set = descriptor_sets.remove(0);
 
     // update descriptors.
-    let sampler_write_info = DescriptorImageSetWI::new(descriptor_set, 0, vk::DescriptorType::SAMPLER)
+    let sampled_image_write_info = DescriptorImageSetWI::new(descriptor_set, 0, vk::DescriptorType::SAMPLER)
         .add_image(vk::DescriptorImageInfo {
             sampler: glyphs.text_sampler,
-            image_view: vk::ImageView::null(),
+            image_view: glyphs.glyph_view,
             image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         });
-
-    let mut glyph_images_info = DescriptorImageSetWI::new(descriptor_set, 1, vk::DescriptorType::SAMPLED_IMAGE);
-    for glyph in glyphs.images.iter() {
-        glyph_images_info = glyph_images_info.add_image(vk::DescriptorImageInfo {
-            sampler: vk::Sampler::null(),
-            image_view: glyph.view,
-            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-        });
-    }
 
     DescriptorSetsUpdateCI::new()
-        .add_write(sampler_write_info.value())
-        .add_write(glyph_images_info.value())
+        .add_write(sampled_image_write_info.value())
         .update(device);
 
     let descriptors = DescriptorStaff {
