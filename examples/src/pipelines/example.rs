@@ -106,13 +106,25 @@ impl vkbase::RenderWorkflow for VulkanExample {
             align: TextHAlign::Left,
             color: VkColor::WHITE,
             location: vk::Offset2D { x: 5, y: 0 },
+            capacity: None,
         };
+
+        let fps_text = TextInfo {
+            content: String::from("FPS:"),
+            scale: 12.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: 5, y: 20 },
+            capacity: Some(15),
+        };
+
         let text2 = TextInfo {
             content: device.phy.device_name.clone(),
             scale: 12.0,
             align: TextHAlign::Left,
             color: VkColor::WHITE,
-            location: vk::Offset2D { x: 5, y: 20 },
+            location: vk::Offset2D { x: 5, y: 40 },
+            capacity: None,
         };
 
         let phong_text = TextInfo {
@@ -121,6 +133,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             align: TextHAlign::Left,
             color: VkColor::WHITE,
             location: vk::Offset2D { x: screen_width / 12, y: screen_height / 8 * 7 },
+            capacity: None,
         };
 
         let toon_text = TextInfo {
@@ -129,6 +142,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             align: TextHAlign::Left,
             color: VkColor::WHITE,
             location: vk::Offset2D { x: screen_width / 12 * 5, y: screen_height / 8 * 7 },
+            capacity: None,
         };
 
         let wireframe_text = TextInfo {
@@ -137,9 +151,11 @@ impl vkbase::RenderWorkflow for VulkanExample {
             align: TextHAlign::Left,
             color: VkColor::WHITE,
             location: vk::Offset2D { x: screen_width / 12 * 9, y: screen_height / 8 * 7 },
+            capacity: None,
         };
 
         self.backend_res.ui_renderer.add_text(text1)?;
+        self.backend_res.ui_renderer.add_text(fps_text)?;
         self.backend_res.ui_renderer.add_text(text2)?;
         self.backend_res.ui_renderer.add_text(phong_text)?;
         self.backend_res.ui_renderer.add_text(toon_text)?;
@@ -183,7 +199,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         Ok(())
     }
 
-    fn receive_input(&mut self, inputer: &vkbase::InputController, delta_time: f32) -> FrameAction {
+    fn receive_input(&mut self, inputer: &vkbase::EventController, delta_time: f32) -> FrameAction {
 
         if inputer.is_key_active() || inputer.is_cursor_active() {
 
@@ -195,6 +211,12 @@ impl vkbase::RenderWorkflow for VulkanExample {
             self.camera.receive_input(inputer, delta_time);
         } else {
             self.is_toggle_event = false;
+        }
+
+        // update text on fps per second.
+        if inputer.fps_counter.is_tick_second() {
+            let fps = format!("FPS: {}", inputer.fps_counter.fps());
+            self.backend_res.ui_renderer.change_text(fps, 1);
         }
 
         FrameAction::Rendering

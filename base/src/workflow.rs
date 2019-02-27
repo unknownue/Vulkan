@@ -9,7 +9,7 @@ mod loops;
 use ash::vk;
 use crate::context::{VkDevice, VkSwapchain};
 use crate::utils::frame::FrameAction;
-use crate::input::InputController;
+use crate::input::EventController;
 use crate::error::VkResult;
 
 //
@@ -32,7 +32,7 @@ pub trait RenderWorkflow {
         Ok(())
     }
 
-    fn receive_input(&mut self, inputer: &InputController, delta_time: f32) -> FrameAction;
+    fn receive_input(&mut self, inputer: &EventController, delta_time: f32) -> FrameAction;
 
     fn deinit(&mut self, device: &VkDevice) -> VkResult<()>;
 }

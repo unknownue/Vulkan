@@ -3,7 +3,7 @@ pub use self::workflow::{RenderWorkflow, WindowContext, WindowConfig};
 pub use self::workflow::ProcPipeline;
 pub use self::error::{VkResult, VkError};
 pub use self::utils::frame::FrameAction;
-pub use self::input::InputController;
+pub use self::input::EventController;
 pub use self::camera::FlightCamera;
 
 pub mod context;

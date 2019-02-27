@@ -1,7 +1,7 @@
 
 use winit::VirtualKeyCode;
 
-use crate::input::InputController;
+use crate::input::EventController;
 
 type Point3F  = nalgebra::Point3<f32>;
 type Vector3F = nalgebra::Vector3<f32>;
@@ -73,7 +73,7 @@ impl FlightCamera {
         self.flip_vertically = !self.flip_vertically;
     }
 
-    pub fn receive_input(&mut self, inputer: &InputController, delta_time: f32) {
+    pub fn receive_input(&mut self, inputer: &EventController, delta_time: f32) {
 
         // keyboard
         let velocity = self.move_speed * delta_time;

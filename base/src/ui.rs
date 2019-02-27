@@ -45,11 +45,17 @@ impl UIRenderer {
     pub fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<()> {
 
         self.pipeline_asset.swapchain_reload(device, new_chain, renderpass)?;
-        self.text_pool.swapchain_reload()
+        self.text_pool.swapchain_reload();
+
+        Ok(())
     }
 
     pub fn add_text(&mut self, text: TextInfo) -> VkResult<()> {
         self.text_pool.add_text(text)
+    }
+
+    pub fn change_text(&mut self, content: String, update_index: usize) {
+        self.text_pool.change_text(content, update_index);
     }
 
     pub fn discard(&self, device: &VkDevice) {

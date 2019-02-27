@@ -89,7 +89,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         Ok(())
     }
 
-    fn receive_input(&mut self, inputer: &vkbase::InputController, _delta_time: f32) -> FrameAction {
+    fn receive_input(&mut self, inputer: &vkbase::EventController, _delta_time: f32) -> FrameAction {
 
         if inputer.key.is_key_pressed(winit::VirtualKeyCode::Escape) {
             return FrameAction::Terminal

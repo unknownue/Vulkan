@@ -5,8 +5,7 @@ use ash::version::DeviceV1_0;
 use crate::context::{VulkanContext, VkDevice, SwapchainSyncError};
 use crate::workflow::RenderWorkflow;
 use crate::workflow::window::WindowContext;
-use crate::input::InputController;
-use crate::utils::fps::FpsCounter;
+use crate::input::EventController;
 use crate::utils::time::VkTimeDuration;
 use crate::utils::frame::{FrameCounter, FrameAction};
 use crate::error::{VkResult, VkError};
@@ -20,7 +19,6 @@ pub struct ProcPipeline {
     syncs: SyncResource,
 
     frame_counter: FrameCounter,
-    fps_counter: FpsCounter,
 }
 
 impl ProcPipeline {
@@ -30,9 +28,8 @@ impl ProcPipeline {
         let frame_in_flight = vulkan.swapchain.frame_in_flight();
         let syncs = SyncResource::new(&vulkan.device, frame_in_flight)?;
         let frame_counter = FrameCounter::new(frame_in_flight);
-        let fps_counter = FpsCounter::new();
 
-        let target = ProcPipeline { window, vulkan, syncs, frame_counter, fps_counter };
+        let target = ProcPipeline { window, vulkan, syncs, frame_counter };
         Ok(target)
     }
 
@@ -59,7 +56,7 @@ impl ProcPipeline {
 
     fn main_loop(&mut self, app: &mut impl RenderWorkflow) -> VkResult<()> {
 
-        let mut input_handler = InputController::default();
+        let mut event_handler = EventController::default();
 
         'loop_marker: loop {
 
@@ -80,23 +77,22 @@ impl ProcPipeline {
                 }
             }
 
-            let delta_time = self.fps_counter.delta_time();
+            let delta_time = event_handler.fps_counter.delta_time();
 
             self.window.event_loop.poll_events(|event| {
-                input_handler.record_event(event);
+                event_handler.record_event(event);
             });
-            let window_feedback = input_handler.current_action();
+            let window_feedback = event_handler.current_action();
             response_feedback!(window_feedback);
 
-            let input_feedback = app.receive_input(&input_handler, delta_time);
+            let input_feedback = app.receive_input(&event_handler, delta_time);
             response_feedback!(input_feedback);
 
             let render_feedback = self.render_frame(app, delta_time)?;
             response_feedback!(render_feedback);
 
-            input_handler.tick_frame();
+            event_handler.tick_frame();
             self.frame_counter.tick_frame();
-            self.fps_counter.tick_frame();
         }
 
         Ok(())

@@ -1,27 +1,30 @@
 
 use smallvec::SmallVec;
 use crate::utils::frame::FrameAction;
+use crate::utils::fps::FpsCounter;
 
 const SIMULTANEOUS_KEY_COUNT: usize = 12;
 
 
-pub struct InputController {
+pub struct EventController {
 
     pub key: KeyHeap,
     pub cursor: CursorMotion,
+    pub fps_counter: FpsCounter,
 
     action: FrameAction,
     is_toggle_key: bool,
     is_toggle_cursor: bool,
 }
 
-impl Default for InputController {
+impl Default for EventController {
 
-    fn default() -> InputController {
+    fn default() -> EventController {
 
-        InputController {
+        EventController {
             key: Default::default(),
             cursor: Default::default(),
+            fps_counter: FpsCounter::new(),
 
             action: FrameAction::Rendering,
             is_toggle_key: false,
@@ -30,7 +33,7 @@ impl Default for InputController {
     }
 }
 
-impl InputController {
+impl EventController {
 
     pub(crate) fn record_event(&mut self, event: winit::Event) {
 
@@ -83,6 +86,8 @@ impl InputController {
     }
 
     pub(crate) fn tick_frame(&mut self) {
+
+        self.fps_counter.tick_frame();
         self.is_toggle_key = false;
         self.is_toggle_cursor = false;
         self.action = FrameAction::Rendering;

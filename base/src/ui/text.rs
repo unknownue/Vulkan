@@ -6,6 +6,7 @@ use rusttype::{Rect, VMetrics, HMetrics};
 
 use std::ops::Range;
 use std::collections::HashMap;
+use std::iter::Iterator;
 
 use crate::ci::buffer::BufferCI;
 use crate::ci::memory::MemoryAI;
@@ -153,11 +154,74 @@ pub struct TextPool {
 }
 
 pub struct TextInfo {
+    /// `content` is the content of text to render.
     pub content: String,
+    /// `scale` defines the font size of this text.
     pub scale  : f32,
+    /// `align` the align method for this text.
     pub align  : TextHAlign,
+    /// `color` is color value of this text.
     pub color  : VkColor,
+    /// `location` is the starting position of the first character.
     pub location: vk::Offset2D,
+    /// `capacity` is the maximum length of the text to rendering.
+    ///
+    /// If the content of text is change in runtime, you have to specify this value, or leave it None if not.
+    pub capacity: Option<usize>,
+}
+
+pub struct TextIter<'a> {
+    content: &'a [u8],
+    current: usize,
+    len: usize,
+    capacity: usize,
+}
+
+impl<'a> Iterator for TextIter<'a> {
+    type Item = Option<char>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+
+        let result = if self.current < self.len {
+            Some(self.content[self.current] as char)
+        } else {
+            if self.current < self.capacity {
+                None
+            } else {
+                return None
+            }
+        };
+
+        self.current += 1;
+        Some(result)
+    }
+}
+
+impl TextInfo {
+
+    fn iter(&self) -> TextIter {
+
+        let char_bytes = self.content.as_bytes();
+        let bytes_length = char_bytes.len();
+
+        if let Some(capacity) = self.capacity {
+            debug_assert!(capacity >= bytes_length);
+
+            TextIter {
+                content: char_bytes,
+                current: 0,
+                len: bytes_length,
+                capacity,
+            }
+        } else {
+            TextIter {
+                content: char_bytes,
+                current: 0,
+                len: bytes_length,
+                capacity: bytes_length,
+            }
+        }
+    }
 }
 
 /// The horizontal align of a specific text.
@@ -192,7 +256,7 @@ impl TextPool {
                 text.scale *= DISPLAY_SCALE_FIX * self.dpi_factor;
                 self.texts.push(text);
                 // update the text that is newly added.
-                self.update_texts(self.texts.len() - 1)?;
+                self.update_texts(self.texts.len() - 1);
 
                 Ok(())
             } else {
@@ -203,7 +267,13 @@ impl TextPool {
         }
     }
 
-    fn update_texts(&self, update_index: usize) -> VkResult<()> {
+    pub fn change_text(&mut self, content: String, update_index: usize) {
+
+        self.texts[update_index].content = content;
+        self.update_texts(update_index);
+    }
+
+    fn update_texts(&self, update_index: usize) {
 
         // calculate vertex attributes of rendering texts.
         let mut char_vertices = Vec::with_capacity(self.texts.len() * MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER);
@@ -213,11 +283,13 @@ impl TextPool {
         let mut origin_x = text.location.x as f32 * self.dpi_factor / self.dimension.width as f32;
         let origin_y = text.location.y as f32 * self.dpi_factor / self.dimension.height as f32;
 
-        for ch in text.content.as_bytes() {
+        for ch in text.iter() {
 
-            let character_id = ch.clone() as char;
+            // use ' '(space) character instead if all the characters of current text has been rendered, but not yet reached its capacity.
+            let character_id = ch.unwrap_or(' ');
+
             let glyph_layout = self.glyphs.layouts.get(&character_id)
-                .ok_or(VkError::custom(format!("Find invalid character: {}({}).", character_id, character_id as u8)))?;
+                .expect(&format!("Find invalid character: {}({}).", character_id, character_id as u8));
 
             let x_offset = (glyph_layout.bounding_box.min.x * text.scale) / self.dimension.width  as f32;
             let y_offset = (glyph_layout.bounding_box.min.y * text.scale) / self.dimension.height as f32;
@@ -285,8 +357,6 @@ impl TextPool {
                 .offset((MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER * update_index) as isize);
             target_ptr.copy_from(char_vertices.as_ptr(), char_vertices.len());
         }
-
-        Ok(())
     }
 
     pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>) {
@@ -295,18 +365,18 @@ impl TextPool {
 
         let mut first_vertex = 0;
         for text in self.texts.iter() {
-            recorder.draw((text.content.len() * VERTEX_PER_CHARACTER) as vkuint, 1, first_vertex, 0);
+
+            let render_vertex_count = (text.capacity.unwrap_or(text.content.len()) * VERTEX_PER_CHARACTER) as vkuint;
+            recorder.draw(render_vertex_count, 1, first_vertex, 0);
             first_vertex += (MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER) as vkuint;
         }
     }
 
-    pub fn swapchain_reload(&mut self) -> VkResult<()> {
+    pub fn swapchain_reload(&mut self) {
 
         for i in 0..self.texts.len() {
-            self.update_texts(i)?;
+            self.update_texts(i);
         }
-
-        Ok(())
     }
 
     pub fn glyphs_ref(&self) -> &GlyphImages {

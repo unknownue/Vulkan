@@ -14,6 +14,8 @@ pub struct FpsCounter {
     samples: [u32; FPS_SAMPLE_COUNT],
     current_frame: usize,
     delta_frame: u32,
+
+    second_counter: u32,
 }
 
 impl FpsCounter {
@@ -26,10 +28,11 @@ impl FpsCounter {
             samples: [0; FPS_SAMPLE_COUNT],
             current_frame: 0,
             delta_frame: 0,
+            second_counter: 0,
         }
     }
 
-    #[allow(dead_code)]
+    #[inline]
     pub fn set_prefer_fps(&mut self, prefer_fps: f32) {
         self.frame_time_prefer = (1000_000.0_f32 / prefer_fps) as u32;
     }
@@ -42,6 +45,13 @@ impl FpsCounter {
         self.delta_frame = time_elapsed.subsec_micros();
         self.samples[self.current_frame] = self.delta_frame;
         self.current_frame = (self.current_frame + 1) % FPS_SAMPLE_COUNT;
+
+
+        if self.is_tick_second() {
+            self.second_counter = 0;
+        } else {
+            self.second_counter += self.delta_frame;
+        }
     }
 
 //    TODO: this function seems not work.
@@ -57,18 +67,20 @@ impl FpsCounter {
 //    }
 
     /// Calculate the current FPS.
-    #[allow(dead_code)]
     pub fn fps(&self) -> f32 {
-        let mut sum = 0_u32;
-        self.samples.iter().for_each(|val| {
-            sum += val;
-        });
 
+        let sum: u32 = self.samples.iter().sum();
         1000_000.0_f32 / (sum as f32 / FPS_SAMPLE_COUNT_FLOAT)
+    }
+
+    #[inline]
+    pub fn is_tick_second(&self) -> bool {
+        self.second_counter > 1000_000_u32
     }
 
     /// Return current delta time in seconds
     /// this function ignore its second part, since the second is mostly zero.
+    #[inline]
     pub fn delta_time(&self) -> f32 {
         self.delta_frame as f32 / 1000_000.0_f32 // time in second
     }
