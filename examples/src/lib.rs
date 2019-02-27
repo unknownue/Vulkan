@@ -17,7 +17,6 @@ pub const DEFAULT_CLEAR_COLOR: vk::ClearValue = vk::ClearValue {
 
 pub struct VkExampleBackendRes {
 
-
     pub dimension: vk::Extent2D,
     pub framebuffers: Vec<vk::Framebuffer>,
 

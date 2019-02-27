@@ -1,4 +1,6 @@
 
+mod pipeline;
+
 use ash::vk;
 use memoffset::offset_of;
 
@@ -7,29 +9,36 @@ use rusttype::{Rect, VMetrics, HMetrics};
 use std::ops::Range;
 use std::collections::HashMap;
 
-use vkbase::ci::buffer::BufferCI;
-use vkbase::ci::memory::MemoryAI;
-use vkbase::ci::image::{ImageCI, ImageViewCI, SamplerCI, ImageBarrierCI};
-use vkbase::ci::pipeline::VertexInputSCI;
-use vkbase::ci::command::{CommandPoolCI, CommandBufferAI};
-use vkbase::ci::VkObjectBuildableCI;
+use crate::ci::buffer::BufferCI;
+use crate::ci::memory::MemoryAI;
+use crate::ci::image::{ImageCI, ImageViewCI, SamplerCI, ImageBarrierCI};
+use crate::ci::pipeline::VertexInputSCI;
+use crate::ci::command::{CommandPoolCI, CommandBufferAI};
+use crate::ci::VkObjectBuildableCI;
 
-use vkbase::command::VkCmdRecorder;
-use vkbase::command::{IGraphics, CmdGraphicsApi};
-use vkbase::command::{ITransfer, CmdTransferApi};
+use crate::command::VkCmdRecorder;
+use crate::command::{IGraphics, CmdGraphicsApi};
+use crate::command::{ITransfer, CmdTransferApi};
 
-use vkbase::context::VkDevice;
-use vkbase::utils::color::VkColor;
+use crate::context::{VkDevice, VkSwapchain};
+use crate::utils::color::VkColor;
 
-use vkbase::{vkuint, vkbytes, vkptr};
-use vkbase::{VkResult, VkError};
+use crate::{vkuint, vkbytes, vkptr};
+use crate::{VkResult, VkError};
 
+/// the ascii character range that render to sampled glyph.
 const ASCII_RANGE: Range<u8> = (33..127_u8);
-const VERTEX_PER_CHARACTER: usize = 6; // each character use 6 vertex to draw.
-const TEXT_CAPABILITY_LENGTH: usize = 1024;
+/// each character use 6 vertex to draw.
+const VERTEX_PER_CHARACTER: usize = 6;
+/// the maximum sentence count that the buffer can contain.
+const MAXIMUM_SENTENCE_COUNT: usize = 10;
+/// the maximum character count that a sentence may contain.
+const MAXIMUM_SENTENCE_TEXT_COUNT: usize = 50;
 /// Control the font size of sampled glyph.
 const FONT_SCALE: f32 = 48.0;
-const DISPLAY_SCALE_FIX: f32 = 1.0 / 32.0; // magic number.
+/// A magic number.
+const DISPLAY_SCALE_FIX: f32 = 1.0 / 32.0;
+/// The padding attach to sampled glyph image.
 const IMAGE_PADDING: usize = 20;
 
 type CharacterID = char;
@@ -56,13 +65,13 @@ struct GlyphLayout {
 
 pub struct GlyphImages {
 
-    pub text_sampler: vk::Sampler,
-    pub glyph_image: vk::Image,
-    pub glyph_view : vk::ImageView,
+    text_sampler: vk::Sampler,
+    glyph_image: vk::Image,
+    glyph_view : vk::ImageView,
 
     memory: vk::DeviceMemory,
 
-    layouts: GlyphLayouts,
+    layouts: HashMap<CharacterID, GlyphLayout>,
 }
 
 impl GlyphImages {
@@ -71,7 +80,7 @@ impl GlyphImages {
 
         let (layouts, image_bytes, image_dimension) =
             generate_ascii_glyphs_bytes(bytes, FONT_SCALE)?;
-        let (glyph_image, memory) = allocate_image(device, image_bytes, image_dimension)?;
+        let (glyph_image, memory) = allocate_glyph_image(device, image_bytes, image_dimension)?;
 
         // Just store alpha value in the image.
         let glyph_view = ImageViewCI::new(glyph_image, vk::ImageViewType::TYPE_2D, vk::Format::R8_UNORM)
@@ -93,19 +102,59 @@ impl GlyphImages {
     }
 }
 
-
-pub struct TextPool {
-
-    hidpi_factor: f32,
-    // screen dimension.
-    dimension: vk::Extent2D,
-    texts: Vec<TextInfo>,
-    texts_length: usize,
-
+struct TextAttrtorage {
+    /// the starting pointer of the memory of text attributes.
     data_ptr: vkptr,
+    /// the buffer which store the text attributes.
     buffer: vk::Buffer,
     memory: vk::DeviceMemory,
 }
+
+impl TextAttrtorage {
+
+    fn new(device: &VkDevice) -> VkResult<TextAttrtorage> {
+
+        let pool_size = (::std::mem::size_of::<CharacterVertex>() * MAXIMUM_SENTENCE_COUNT * MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER) as vkbytes;
+        let (buffer, requirement) = BufferCI::new(pool_size)
+            .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
+            .build(device)?;
+
+        let memory_type = device.get_memory_type(requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+        let memory = MemoryAI::new(requirement.size, memory_type)
+            .build(device)?;
+        device.bind_memory(buffer, memory, 0)?;
+        // keep the memory mapping during the whole program running.
+        let data_ptr = device.map_memory(memory, 0, vk::WHOLE_SIZE)?;
+
+        let result = TextAttrtorage { data_ptr, buffer, memory };
+        Ok(result)
+    }
+
+    fn discard(&self, device: &VkDevice) {
+
+        device.unmap_memory(self.memory);
+        device.discard(self.buffer);
+        device.discard(self.memory);
+    }
+}
+
+
+pub struct TextRender {
+
+    /// the dpi factor of current window system.
+    dpi_factor: f32,
+    /// screen dimension of current window.
+    dimension: vk::Extent2D,
+    /// the vulkan resource to render text.
+    pipeline_asset: pipeline::TextPipelineAsset,
+    /// all the texts to be rendered.
+    texts: Vec<TextInfo>,
+    /// `attributes` contains the resource for rendering texts.
+    attributes: TextAttrtorage,
+    /// `glyph_layouts` records the layout information to generate text attributes.
+    glyphs: GlyphImages,
+}
+
 
 pub struct TextInfo {
     pub content: String,
@@ -122,46 +171,44 @@ pub enum TextHAlign {
     Right,
 }
 
-impl TextPool {
+impl TextRender {
 
-    pub fn new(device: &VkDevice, dimension: vk::Extent2D, hidpi_factor: f32) -> VkResult<TextPool> {
+    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, dpi_factor: f32) -> VkResult<TextRender> {
 
-        let pool_size = (::std::mem::size_of::<CharacterVertex>() * TEXT_CAPABILITY_LENGTH * VERTEX_PER_CHARACTER) as vkbytes;
-        let (buffer, requirement) = BufferCI::new(pool_size)
-            .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
-            .build(device)?;
+        let attributes = TextAttrtorage::new(device)?;
 
-        let memory_type = device.get_memory_type(requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-        let memory = MemoryAI::new(requirement.size, memory_type)
-            .build(device)?;
-        device.bind_memory(buffer, memory, 0)?;
-        // keep the memory mapping during the whole program running.
-        let data_ptr = device.map_memory(memory, 0, vk::WHOLE_SIZE)?;
+        let font_bytes = include_bytes!("../../examples/assets/fonts/Roboto-Regular.ttf");
+        let glyphs = GlyphImages::from_font(device, font_bytes)?;
+        let pipeline_asset = pipeline::TextPipelineAsset::new(device, swapchain, &glyphs)?;
 
-        let result = TextPool {
+        let result = TextRender {
+            dimension: swapchain.dimension,
             texts: Vec::new(),
-            texts_length: 0,
-            hidpi_factor, buffer, memory, dimension, data_ptr,
+            dpi_factor, attributes, glyphs, pipeline_asset,
         };
         Ok(result)
     }
 
     pub fn add_text(&mut self, mut text: TextInfo) -> VkResult<()> {
 
-        if self.texts_length + text.content.len() <= TEXT_CAPABILITY_LENGTH {
-            text.scale *= DISPLAY_SCALE_FIX * self.hidpi_factor;
-            self.texts_length += text.content.len();
-            self.texts.push(text);
-            Ok(())
+        if text.content.len() < MAXIMUM_SENTENCE_COUNT {
+            if text.content.len() <= MAXIMUM_SENTENCE_TEXT_COUNT {
+                text.scale *= DISPLAY_SCALE_FIX * self.dpi_factor;
+                self.texts.push(text);
+
+                Ok(())
+            } else {
+                Err(VkError::custom(format!("Each sentence can't contain more that {} character.", MAXIMUM_SENTENCE_TEXT_COUNT)))
+            }
         } else {
-            Err(VkError::custom("There is not enough room left for new text."))
+            Err(VkError::custom(format!("The text pool can't contain more than {} sentence.", MAXIMUM_SENTENCE_COUNT)))
         }
     }
 
     pub fn update_texts(&self, device: &VkDevice, glyphs: &GlyphImages) -> VkResult<()> {
 
         // calculate vertex attributes of rendering texts.
-        let mut char_vertices = Vec::with_capacity(self.texts_length * VERTEX_PER_CHARACTER);
+        let mut char_vertices = Vec::with_capacity(self.texts.len() * MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER);
 
         for text in self.texts.iter() {
 
@@ -232,25 +279,28 @@ impl TextPool {
                         unimplemented!()
                     },
                 }
-
             }
         }
 
         // upload vertex attributes to memory.
-        device.copy_to_ptr(self.data_ptr, &char_vertices);
+        device.copy_to_ptr(self.attributes.data_ptr, &char_vertices);
 
         Ok(())
     }
 
     pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>) {
 
-        recorder.bind_vertex_buffers(0, &[self.buffer], &[0]);
+        recorder.bind_vertex_buffers(0, &[self.attributes.buffer], &[0]);
 
-        let vertex_count = (self.texts_length * VERTEX_PER_CHARACTER) as vkuint;
-        recorder.draw(vertex_count, 1, 0, 0);
+        let mut first_vertex = 0;
+        for text in self.texts.iter() {
+
+            recorder.draw((text.content.len() * VERTEX_PER_CHARACTER) as vkuint, 1, first_vertex, 0);
+            first_vertex += MAXIMUM_SENTENCE_TEXT_COUNT;
+        }
     }
 
-    pub fn input_descriptions() -> VertexInputSCI {
+    fn input_descriptions() -> VertexInputSCI {
 
         VertexInputSCI::new()
             .add_binding(vk::VertexInputBindingDescription {
@@ -280,9 +330,8 @@ impl TextPool {
 
     pub fn discard(&self, device: &VkDevice) {
 
-        device.unmap_memory(self.memory);
-        device.discard(self.buffer);
-        device.discard(self.memory);
+        self.attributes.discard(device);
+        self.glyphs.discard(device);
     }
 }
 
@@ -368,7 +417,7 @@ fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(
     Ok((glyph_layouts, image_bytes, dimension))
 }
 
-fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::Extent2D) -> VkResult<(vk::Image, vk::DeviceMemory)> {
+fn allocate_glyph_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::Extent2D) -> VkResult<(vk::Image, vk::DeviceMemory)> {
 
     // create vk::Image and its memory.
     let (glyphs_image, image_reqs) = ImageCI::new_2d(vk::Format::R8_UNORM, image_dimension)

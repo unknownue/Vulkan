@@ -14,6 +14,7 @@ pub mod platforms;
 pub mod gltf;
 
 mod error;
+mod text;
 mod camera;
 mod workflow;
 mod input;
