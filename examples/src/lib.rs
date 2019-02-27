@@ -28,7 +28,7 @@ pub struct VkExampleBackendRes {
     /// render command buffer for each framebuffer.
     pub commands: Vec<vk::CommandBuffer>,
 
-    ui_renderer: UIRenderer,
+    pub ui_renderer: UIRenderer,
 
     depth_image: DepthImage,
     is_use_depth_attachment: bool,
@@ -50,7 +50,7 @@ impl VkExampleBackendRes {
         let await_rendering = device.build(&SemaphoreCI::new())?;
 
         // TODO: Fix dpi_factor.
-        let ui_renderer = UIRenderer::new(device, swapchain, command_pool, renderpass, 1.0)?;
+        let ui_renderer = UIRenderer::new(device, swapchain, renderpass, 2.0)?;
 
         let mut target = VkExampleBackendRes {
             depth_image, await_rendering, ui_renderer,
@@ -94,6 +94,7 @@ impl VkExampleBackendRes {
     pub fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain, render_pass: vk::RenderPass) -> VkResult<()> {
 
         self.dimension = new_chain.dimension;
+        self.ui_renderer.swapchain_reload(device, new_chain, render_pass)?;
 
         device.discard(self.depth_image.view);
         device.discard(self.depth_image.image);
@@ -108,7 +109,6 @@ impl VkExampleBackendRes {
             device.logic.handle.reset_command_pool(self.command_pool, vk::CommandPoolResetFlags::empty())
                 .map_err(|_| VkError::device("Reset Command Pool"))?;
         }
-
         Ok(())
     }
 

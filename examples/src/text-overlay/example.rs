@@ -12,7 +12,7 @@ use vkbase::FrameAction;
 use vkbase::VkResult;
 
 use vkexamples::VkExampleBackendRes;
-use crate::text::{TextPool, TextInfo, TextHAlign, GlyphImages};
+use crate::text::{TextPool, TextInfo, GlyphImages};
 
 const TEXT_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/text-overlay/text.vert.glsl";
 const TEXT_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/text-overlay/text.frag.glsl";
@@ -67,7 +67,6 @@ impl vkbase::RenderWorkflow for VulkanExample {
         let text = TextInfo {
             content: String::from(RENDERING_TEXT),
             scale  : 24.0,
-            align  : TextHAlign::Left,
             color: VkColor::new_u8(128, 0, 128, 255),
             location: vk::Offset2D { x: 0, y: 0 },
         };

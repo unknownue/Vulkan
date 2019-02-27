@@ -43,6 +43,7 @@ impl Default for PhysicalDevConfig {
 
 pub struct VkPhysicalDevice {
 
+    pub device_name: String,
     pub handle: vk::PhysicalDevice,
     pub memories: vk::PhysicalDeviceMemoryProperties,
     pub depth_format: vk::Format,
@@ -86,6 +87,7 @@ impl VkPhysicalDevice {
             let depth_format = query_depth_format(instance, &phy_device);
 
             let dst_device = VkPhysicalDevice {
+                device_name: chars2string(&phy_device.property.device_name),
                 handle: phy_device.handle,
                 limits: phy_device.property.limits,
                 features_enable: enable_feature_if_support(&phy_device, &config),

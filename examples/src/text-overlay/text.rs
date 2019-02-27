@@ -110,16 +110,8 @@ pub struct TextPool {
 pub struct TextInfo {
     pub content: String,
     pub scale  : f32,
-    pub align  : TextHAlign,
     pub color  : VkColor,
     pub location: vk::Offset2D,
-}
-
-/// The horizontal align of a specific text.
-pub enum TextHAlign {
-    Left,
-    Center,
-    Right,
 }
 
 impl TextPool {
@@ -179,60 +171,48 @@ impl TextPool {
                 let glyph_width  = (glyph_layout.bounding_box.width()  * text.scale) / self.dimension.width  as f32;
                 let glyph_height = (glyph_layout.bounding_box.height() * text.scale) / self.dimension.height as f32;
 
-                match text.align {
-                    | TextHAlign::Left => {
+                // the x coordinate of top-left position(map to range [-1.0, 1.0]).
+                let min_x = (origin_x + x_offset) * 2.0 - 1.0;
+                // the y coordinate of top-left position.(map to range [-1.0, 1.0]).
+                let min_y = (origin_y + y_offset) * 2.0 - 1.0;
+                // the x coordinate of bottom-right position(map to range [-1.0, 1.0]).
+                let max_x = (origin_x + glyph_width + x_offset) * 2.0 - 1.0;
+                // the y coordinate of bottom-right position(map to range [-1.0, 1.0]).
+                let max_y = (origin_y + glyph_height + y_offset) * 2.0 - 1.0;
 
-                        // the x coordinate of top-left position(map to range [-1.0, 1.0]).
-                        let min_x = (origin_x + x_offset) * 2.0 - 1.0;
-                        // the y coordinate of top-left position.(map to range [-1.0, 1.0]).
-                        let min_y = (origin_y + y_offset) * 2.0 - 1.0;
-                        // the x coordinate of bottom-right position(map to range [-1.0, 1.0]).
-                        let max_x = (origin_x + glyph_width + x_offset) * 2.0 - 1.0;
-                        // the y coordinate of bottom-right position(map to range [-1.0, 1.0]).
-                        let max_y = (origin_y + glyph_height + y_offset) * 2.0 - 1.0;
+                let top_left = CharacterVertex {
+                    pos: [min_x, min_y],
+                    uv: glyph_layout.min_uv,
+                    color: text.color.into(),
+                };
+                let bottom_left = CharacterVertex {
+                    pos: [min_x, max_y],
+                    uv: [
+                        glyph_layout.min_uv[0],
+                        glyph_layout.max_uv[1],
+                    ],
+                    color: text.color.into(),
+                };
+                let bottom_right = CharacterVertex {
+                    pos: [max_x, max_y],
+                    uv: glyph_layout.max_uv,
+                    color: text.color.into(),
+                };
+                let top_right = CharacterVertex {
+                    pos: [max_x, min_y],
+                    uv: [
+                        glyph_layout.max_uv[0],
+                        glyph_layout.min_uv[1],
+                    ],
+                    color: text.color.into(),
+                };
 
-                        let top_left = CharacterVertex {
-                            pos: [min_x, min_y],
-                            uv: glyph_layout.min_uv,
-                            color: text.color.into(),
-                        };
-                        let bottom_left = CharacterVertex {
-                            pos: [min_x, max_y],
-                            uv: [
-                                glyph_layout.min_uv[0],
-                                glyph_layout.max_uv[1],
-                            ],
-                            color: text.color.into(),
-                        };
-                        let bottom_right = CharacterVertex {
-                            pos: [max_x, max_y],
-                            uv: glyph_layout.max_uv,
-                            color: text.color.into(),
-                        };
-                        let top_right = CharacterVertex {
-                            pos: [max_x, min_y],
-                            uv: [
-                                glyph_layout.max_uv[0],
-                                glyph_layout.min_uv[1],
-                            ],
-                            color: text.color.into(),
-                        };
+                char_vertices.extend_from_slice(&[
+                    top_left, bottom_left, bottom_right, // triangle 1
+                    top_left, bottom_right, top_right,   // triangle 2
+                ]);
 
-                        char_vertices.extend_from_slice(&[
-                            top_left, bottom_left, bottom_right, // triangle 1
-                            top_left, bottom_right, top_right,   // triangle 2
-                        ]);
-
-                        origin_x += (glyph_layout.h_metrics.advance_width * text.scale) / self.dimension.width as f32;
-                    },
-                    | TextHAlign::Center => {
-                        unimplemented!()
-                    },
-                    | TextHAlign::Right => {
-                        unimplemented!()
-                    },
-                }
-
+                origin_x += (glyph_layout.h_metrics.advance_width * text.scale) / self.dimension.width as f32;
             }
         }
 

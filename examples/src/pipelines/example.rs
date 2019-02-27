@@ -11,7 +11,9 @@ use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
 use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 use vkbase::gltf::VkglTFModel;
+use vkbase::ui::{TextInfo, TextHAlign};
 use vkbase::context::VulkanContext;
+use vkbase::utils::color::VkColor;
 use vkbase::{FlightCamera, FrameAction};
 use vkbase::{vkbytes, vkptr, Point3F, Matrix4F, Vector4F};
 use vkbase::VkResult;
@@ -94,6 +96,55 @@ impl VulkanExample {
 impl vkbase::RenderWorkflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
+
+        let screen_width  = super::WINDOW_WIDTH  as i32;
+        let screen_height = super::WINDOW_HEIGHT as i32;
+
+        let text1 = TextInfo {
+            content: String::from(super::WINDOW_TITLE),
+            scale: 12.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: 5, y: 0 },
+        };
+        let text2 = TextInfo {
+            content: device.phy.device_name.clone(),
+            scale: 12.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: 5, y: 20 },
+        };
+
+        let phong_text = TextInfo {
+            content: String::from("Phong Shading Pipeline"),
+            scale: 16.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: screen_width / 12, y: screen_height / 8 * 7 },
+        };
+
+        let toon_text = TextInfo {
+            content: String::from("Toon Shading Pipeline"),
+            scale: 16.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: screen_width / 12 * 5, y: screen_height / 8 * 7 },
+        };
+
+        let wireframe_text = TextInfo {
+            content: String::from("Wireframe Shading Pipeline"),
+            scale: 16.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: screen_width / 12 * 9, y: screen_height / 8 * 7 },
+        };
+
+        self.backend_res.ui_renderer.add_text(text1)?;
+        self.backend_res.ui_renderer.add_text(text2)?;
+        self.backend_res.ui_renderer.add_text(phong_text)?;
+        self.backend_res.ui_renderer.add_text(toon_text)?;
+        self.backend_res.ui_renderer.add_text(wireframe_text)?;
+
 
         self.record_commands(device, self.backend_res.dimension)?;
         Ok(())
@@ -227,6 +278,8 @@ impl VulkanExample {
                     self.model.record_command(&recorder, &render_params);
                 }
             }
+
+            self.backend_res.ui_renderer.record_command(&recorder);
 
             recorder
                 .end_render_pass()

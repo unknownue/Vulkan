@@ -186,10 +186,13 @@ impl TextPool {
 
     pub fn add_text(&mut self, mut text: TextInfo) -> VkResult<()> {
 
-        if text.content.len() < MAXIMUM_SENTENCE_COUNT {
+        if self.texts.len() < MAXIMUM_SENTENCE_COUNT {
             if text.content.len() <= MAXIMUM_SENTENCE_TEXT_COUNT {
+
                 text.scale *= DISPLAY_SCALE_FIX * self.dpi_factor;
                 self.texts.push(text);
+                // update the text that is newly added.
+                self.update_texts(self.texts.len() - 1)?;
 
                 Ok(())
             } else {
@@ -200,85 +203,88 @@ impl TextPool {
         }
     }
 
-    pub fn update_texts(&self, device: &VkDevice, glyphs: &GlyphImages) -> VkResult<()> {
+    fn update_texts(&self, update_index: usize) -> VkResult<()> {
 
         // calculate vertex attributes of rendering texts.
         let mut char_vertices = Vec::with_capacity(self.texts.len() * MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER);
 
-        for text in self.texts.iter() {
+        let text = &self.texts[update_index];
 
-            let mut origin_x = text.location.x as f32 / self.dimension.width as f32;
-            let origin_y = text.location.y as f32 / self.dimension.height as f32;
+        let mut origin_x = text.location.x as f32 * self.dpi_factor / self.dimension.width as f32;
+        let origin_y = text.location.y as f32 * self.dpi_factor / self.dimension.height as f32;
 
-            for ch in text.content.as_bytes() {
+        for ch in text.content.as_bytes() {
 
-                let character_id = ch.clone() as char;
-                let glyph_layout = glyphs.layouts.get(&character_id)
-                    .ok_or(VkError::custom(format!("Find invalid character: {}({}).", character_id, character_id as u8)))?;
+            let character_id = ch.clone() as char;
+            let glyph_layout = self.glyphs.layouts.get(&character_id)
+                .ok_or(VkError::custom(format!("Find invalid character: {}({}).", character_id, character_id as u8)))?;
 
-                let x_offset = (glyph_layout.bounding_box.min.x * text.scale) / self.dimension.width  as f32;
-                let y_offset = (glyph_layout.bounding_box.min.y * text.scale) / self.dimension.height as f32;
-                let glyph_width  = (glyph_layout.bounding_box.width()  * text.scale) / self.dimension.width  as f32;
-                let glyph_height = (glyph_layout.bounding_box.height() * text.scale) / self.dimension.height as f32;
+            let x_offset = (glyph_layout.bounding_box.min.x * text.scale) / self.dimension.width  as f32;
+            let y_offset = (glyph_layout.bounding_box.min.y * text.scale) / self.dimension.height as f32;
+            let glyph_width  = (glyph_layout.bounding_box.width()  * text.scale) / self.dimension.width  as f32;
+            let glyph_height = (glyph_layout.bounding_box.height() * text.scale) / self.dimension.height as f32;
 
-                match text.align {
-                    | TextHAlign::Left => {
+            match text.align {
+                | TextHAlign::Left => {
 
-                        // the x coordinate of top-left position(map to range [-1.0, 1.0]).
-                        let min_x = (origin_x + x_offset) * 2.0 - 1.0;
-                        // the y coordinate of top-left position.(map to range [-1.0, 1.0]).
-                        let min_y = (origin_y + y_offset) * 2.0 - 1.0;
-                        // the x coordinate of bottom-right position(map to range [-1.0, 1.0]).
-                        let max_x = (origin_x + glyph_width + x_offset) * 2.0 - 1.0;
-                        // the y coordinate of bottom-right position(map to range [-1.0, 1.0]).
-                        let max_y = (origin_y + glyph_height + y_offset) * 2.0 - 1.0;
+                    // the x coordinate of top-left position(map to range [-1.0, 1.0]).
+                    let min_x = (origin_x + x_offset) * 2.0 - 1.0;
+                    // the y coordinate of top-left position.(map to range [-1.0, 1.0]).
+                    let min_y = (origin_y + y_offset) * 2.0 - 1.0;
+                    // the x coordinate of bottom-right position(map to range [-1.0, 1.0]).
+                    let max_x = (origin_x + glyph_width + x_offset) * 2.0 - 1.0;
+                    // the y coordinate of bottom-right position(map to range [-1.0, 1.0]).
+                    let max_y = (origin_y + glyph_height + y_offset) * 2.0 - 1.0;
 
-                        let top_left = CharacterVertex {
-                            pos: [min_x, min_y],
-                            uv: glyph_layout.min_uv,
-                            color: text.color.into(),
-                        };
-                        let bottom_left = CharacterVertex {
-                            pos: [min_x, max_y],
-                            uv: [
-                                glyph_layout.min_uv[0],
-                                glyph_layout.max_uv[1],
-                            ],
-                            color: text.color.into(),
-                        };
-                        let bottom_right = CharacterVertex {
-                            pos: [max_x, max_y],
-                            uv: glyph_layout.max_uv,
-                            color: text.color.into(),
-                        };
-                        let top_right = CharacterVertex {
-                            pos: [max_x, min_y],
-                            uv: [
-                                glyph_layout.max_uv[0],
-                                glyph_layout.min_uv[1],
-                            ],
-                            color: text.color.into(),
-                        };
+                    let top_left = CharacterVertex {
+                        pos: [min_x, min_y],
+                        uv: glyph_layout.min_uv,
+                        color: text.color.into(),
+                    };
+                    let bottom_left = CharacterVertex {
+                        pos: [min_x, max_y],
+                        uv: [
+                            glyph_layout.min_uv[0],
+                            glyph_layout.max_uv[1],
+                        ],
+                        color: text.color.into(),
+                    };
+                    let bottom_right = CharacterVertex {
+                        pos: [max_x, max_y],
+                        uv: glyph_layout.max_uv,
+                        color: text.color.into(),
+                    };
+                    let top_right = CharacterVertex {
+                        pos: [max_x, min_y],
+                        uv: [
+                            glyph_layout.max_uv[0],
+                            glyph_layout.min_uv[1],
+                        ],
+                        color: text.color.into(),
+                    };
 
-                        char_vertices.extend_from_slice(&[
-                            top_left, bottom_left, bottom_right, // triangle 1
-                            top_left, bottom_right, top_right,   // triangle 2
-                        ]);
+                    char_vertices.extend_from_slice(&[
+                        top_left, bottom_left, bottom_right, // triangle 1
+                        top_left, bottom_right, top_right,   // triangle 2
+                    ]);
 
-                        origin_x += (glyph_layout.h_metrics.advance_width * text.scale) / self.dimension.width as f32;
-                    },
-                    | TextHAlign::Center => {
-                        unimplemented!()
-                    },
-                    | TextHAlign::Right => {
-                        unimplemented!()
-                    },
-                }
+                    origin_x += (glyph_layout.h_metrics.advance_width * text.scale) / self.dimension.width as f32;
+                },
+                | TextHAlign::Center => {
+                    unimplemented!()
+                },
+                | TextHAlign::Right => {
+                    unimplemented!()
+                },
             }
         }
 
         // upload vertex attributes to memory.
-        device.copy_to_ptr(self.attributes.data_ptr, &char_vertices);
+        unsafe {
+            let target_ptr = (self.attributes.data_ptr as vkptr<CharacterVertex>)
+                .offset((MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER * update_index) as isize);
+            target_ptr.copy_from(char_vertices.as_ptr(), char_vertices.len());
+        }
 
         Ok(())
     }
@@ -290,36 +296,17 @@ impl TextPool {
         let mut first_vertex = 0;
         for text in self.texts.iter() {
             recorder.draw((text.content.len() * VERTEX_PER_CHARACTER) as vkuint, 1, first_vertex, 0);
-            first_vertex += MAXIMUM_SENTENCE_TEXT_COUNT as vkuint;
+            first_vertex += (MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER) as vkuint;
         }
     }
 
-    fn input_descriptions() -> VertexInputSCI {
+    pub fn swapchain_reload(&mut self) -> VkResult<()> {
 
-        VertexInputSCI::new()
-            .add_binding(vk::VertexInputBindingDescription {
-                binding: 0,
-                stride : ::std::mem::size_of::<CharacterVertex>() as _,
-                input_rate: vk::VertexInputRate::VERTEX,
-            })
-            .add_attribute(vk::VertexInputAttributeDescription {
-                location: 0,
-                binding : 0,
-                format  : vk::Format::R32G32_SFLOAT,
-                offset  : offset_of!(CharacterVertex, pos) as _,
-            })
-            .add_attribute(vk::VertexInputAttributeDescription {
-                location: 1,
-                binding : 0,
-                format  : vk::Format::R32G32_SFLOAT,
-                offset  : offset_of!(CharacterVertex, uv) as _,
-            })
-            .add_attribute(vk::VertexInputAttributeDescription {
-                location: 2,
-                binding : 0,
-                format  : vk::Format::R32G32B32A32_SFLOAT,
-                offset  : offset_of!(CharacterVertex, color) as _,
-            })
+        for i in 0..self.texts.len() {
+            self.update_texts(i)?;
+        }
+
+        Ok(())
     }
 
     pub fn glyphs_ref(&self) -> &GlyphImages {

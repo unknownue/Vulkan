@@ -3,15 +3,12 @@ use ash::vk;
 
 use crate::context::{VkDevice, VkSwapchain};
 use crate::ci::shader::{ShaderModuleCI, ShaderStageCI};
-use crate::ci::command::CommandBufferAI;
 use crate::ci::VkObjectBuildableCI;
 use crate::ui::text::GlyphImages;
 use crate::VkResult;
 
 
 pub(super) struct UIPipelineAsset {
-
-    pub command: vk::CommandBuffer,
 
     pub descriptor_pool: vk::DescriptorPool,
     pub descriptor_set: vk::DescriptorSet,
@@ -23,22 +20,30 @@ pub(super) struct UIPipelineAsset {
 
 impl UIPipelineAsset {
 
-    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, command_pool: vk::CommandPool, render_pass: vk::RenderPass, glyphs: &GlyphImages) -> VkResult<UIPipelineAsset> {
+    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, render_pass: vk::RenderPass, glyphs: &GlyphImages) -> VkResult<UIPipelineAsset> {
 
         let (desc_pool, desc_set, desc_set_layout) = setup_descriptor(device, glyphs)?;
         let (pipeline, pipeline_layout) = prepare_pipelines(device, swapchain.dimension, render_pass, desc_set_layout)?;
-
-        let command = CommandBufferAI::new(command_pool, 1)
-            .build(device)?
-            .remove(0);
 
         let result = UIPipelineAsset {
             descriptor_pool: desc_pool,
             descriptor_set: desc_set,
             descriptor_set_layout: desc_set_layout,
-            command, pipeline, pipeline_layout,
+            pipeline, pipeline_layout,
         };
         Ok(result)
+    }
+
+    pub fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<()> {
+
+        device.discard(self.pipeline);
+        device.discard(self.pipeline_layout);
+
+        let (pipeline, pipeline_layout) = prepare_pipelines(device, new_chain.dimension, renderpass, self.descriptor_set_layout)?;
+        self.pipeline = pipeline;
+        self.pipeline_layout = pipeline_layout;
+
+        Ok(())
     }
 
     pub fn discard(&self, device: &VkDevice) {
@@ -138,8 +143,16 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
     pipeline_ci.set_color_blend(blend_state);
 
     let mut shader_compiler = crate::utils::shaderc::VkShaderCompiler::new()?;
-    let vert_codes = shader_compiler.compile_from_str(include_str!("text.vert.glsl"), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
-    let frag_codes = shader_compiler.compile_from_str(include_str!("text.frag.glsl"), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
+    let vert_codes = shader_compiler.compile_from_str(
+        include_str!("text.vert.glsl"),
+        shaderc::ShaderKind::Vertex,
+        "[Vertex Shader]",
+        "main")?;
+    let frag_codes = shader_compiler.compile_from_str(
+        include_str!("text.frag.glsl"),
+        shaderc::ShaderKind::Fragment,
+        "[Fragment Shader]",
+        "main")?;
 
     let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
         .build(device)?;
