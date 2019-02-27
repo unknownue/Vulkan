@@ -37,7 +37,7 @@ struct PipelineStaff {
 
 impl VulkanExample {
 
-    pub fn new(context: &VulkanContext) -> VkResult<VulkanExample> {
+    pub fn new(context: &VulkanContext, hidpi_factor: f32) -> VkResult<VulkanExample> {
 
         let device = &context.device;
         let swapchain = &context.swapchain;
@@ -47,7 +47,7 @@ impl VulkanExample {
         backend_res.enable_depth_attachment(false);
 
         let text_glyphs = GlyphImages::from_font(device, include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))?;
-        let text_pool = TextPool::new(device, dimension)?;
+        let text_pool = TextPool::new(device, dimension, hidpi_factor)?;
         let descriptors = setup_descriptor(device, &text_glyphs)?;
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
@@ -69,8 +69,9 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         let text = TextInfo {
             content: String::from(RENDERING_TEXT),
+            scale  : 24.0,
             location: vk::Offset2D { x: 0, y: 0 },
-            color: VkColor::new_u8(255, 255, 255, 255),
+            color: VkColor::new_u8(128, 0, 128, 255),
         };
         self.text_pool.add_text(text)?;
         self.text_pool.update_texts(device, &self.text_glyphs)?;
@@ -98,8 +99,6 @@ impl vkbase::RenderWorkflow for VulkanExample {
         device.discard(self.pipelines.pipeline);
         device.discard(self.pipelines.render_pass);
 
-        self.text_glyphs.discard(device);
-        self.text_glyphs = GlyphImages::from_font(device, include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))?;
         self.text_pool.update_texts(device, &self.text_glyphs)?;
 
         let renderpass = setup_renderpass(device, new_chain)?;

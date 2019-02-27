@@ -110,4 +110,8 @@ impl WindowContext {
             .and_then(|dim| Some(ash::vk::Extent2D { width : dim.width as _, height: dim.height as _, }))
             .ok_or(VkError::window("Failed to get dimension of current window."))
     }
+
+    pub fn hidpi_factor(&self) -> f32 {
+        self.handle.get_hidpi_factor() as f32
+    }
 }

@@ -11,7 +11,7 @@ layout (binding = 0) uniform sampler2D font_glyphs;
 
 void main() {
 
-    vec4 color = inColor * texture(font_glyphs, inUV);
+    vec4 color = vec4(inColor.xyz, inColor.w * texture(font_glyphs, inUV).r);
 
     if (color.a <= 0.3) {
         discard;

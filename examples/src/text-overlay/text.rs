@@ -2,7 +2,7 @@
 use ash::vk;
 use memoffset::offset_of;
 
-use rusttype::{Rect, HMetrics};
+use rusttype::{Rect, VMetrics, HMetrics};
 
 use std::ops::Range;
 use std::collections::HashMap;
@@ -28,7 +28,9 @@ use vkbase::{VkResult, VkError};
 const ASCII_RANGE: Range<u8> = (33..127_u8);
 const VERTEX_PER_CHARACTER: usize = 6; // each character use 6 vertex to draw.
 const TEXT_CAPABILITY_LENGTH: usize = 1024;
-const FONT_SCALE: f32 = 64.0;
+/// Control the font size of sampled glyph.
+const FONT_SCALE: f32 = 48.0;
+const DISPLAY_SCALE_FIX: f32 = 1.0 / 32.0; // magic number.
 const IMAGE_PADDING: usize = 20;
 
 type CharacterID = char;
@@ -59,6 +61,7 @@ pub struct GlyphImages {
     pub glyph_view : vk::ImageView,
 
     memory: vk::DeviceMemory,
+
     layouts: GlyphLayouts,
 }
 
@@ -66,19 +69,18 @@ impl GlyphImages {
 
     pub fn from_font(device: &VkDevice, bytes: &[u8]) -> VkResult<GlyphImages> {
 
-        let (layouts, image_bytes, image_dimension) = generate_ascii_glyphs_bytes(bytes, FONT_SCALE)?;
+        let (layouts, image_bytes, image_dimension) =
+            generate_ascii_glyphs_bytes(bytes, FONT_SCALE)?;
         let (glyph_image, memory) = allocate_image(device, image_bytes, image_dimension)?;
 
-        // TODO: Just store alpha info.
-        let glyph_view = ImageViewCI::new(glyph_image, vk::ImageViewType::TYPE_2D, vk::Format::R8G8B8A8_UNORM)
+        // Just store alpha value in the image.
+        let glyph_view = ImageViewCI::new(glyph_image, vk::ImageViewType::TYPE_2D, vk::Format::R8_UNORM)
             .aspect_mask(vk::ImageAspectFlags::COLOR)
             .build(device)?;
         let text_sampler = SamplerCI::new()
             .build(device)?;
 
-        let result = GlyphImages {
-            text_sampler, glyph_image, glyph_view, memory, layouts,
-        };
+        let result = GlyphImages { text_sampler, glyph_image, glyph_view, memory, layouts };
         Ok(result)
     }
 
@@ -94,6 +96,7 @@ impl GlyphImages {
 
 pub struct TextPool {
 
+    hidpi_factor: f32,
     // screen dimension.
     dimension: vk::Extent2D,
     texts: Vec<TextInfo>,
@@ -106,13 +109,14 @@ pub struct TextPool {
 
 pub struct TextInfo {
     pub content: String,
+    pub scale  : f32,
     pub color  : VkColor,
     pub location: vk::Offset2D,
 }
 
 impl TextPool {
 
-    pub fn new(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<TextPool> {
+    pub fn new(device: &VkDevice, dimension: vk::Extent2D, hidpi_factor: f32) -> VkResult<TextPool> {
 
         let pool_size = (::std::mem::size_of::<CharacterVertex>() * TEXT_CAPABILITY_LENGTH * VERTEX_PER_CHARACTER) as vkbytes;
         let (buffer, requirement) = BufferCI::new(pool_size)
@@ -129,14 +133,15 @@ impl TextPool {
         let result = TextPool {
             texts: Vec::new(),
             texts_length: 0,
-            buffer, memory, dimension, data_ptr,
+            hidpi_factor, buffer, memory, dimension, data_ptr,
         };
         Ok(result)
     }
 
-    pub fn add_text(&mut self, text: TextInfo) -> VkResult<()> {
+    pub fn add_text(&mut self, mut text: TextInfo) -> VkResult<()> {
 
         if self.texts_length + text.content.len() <= TEXT_CAPABILITY_LENGTH {
+            text.scale *= DISPLAY_SCALE_FIX * self.hidpi_factor;
             self.texts_length += text.content.len();
             self.texts.push(text);
             Ok(())
@@ -152,7 +157,8 @@ impl TextPool {
 
         for text in self.texts.iter() {
 
-            let mut x_advance = 0.0;
+            let mut origin_x = text.location.x as f32 / self.dimension.width as f32;
+            let origin_y = text.location.y as f32 / self.dimension.height as f32;
 
             for ch in text.content.as_bytes() {
 
@@ -160,19 +166,19 @@ impl TextPool {
                 let glyph_layout = glyphs.layouts.get(&character_id)
                     .ok_or(VkError::custom(format!("Find invalid character: {}({}).", character_id, character_id as u8)))?;
 
-                let x_offset = glyph_layout.bounding_box.min.x * 10.0;
-                let y_offset = glyph_layout.bounding_box.min.y * 10.0;
-                let glyph_width  = glyph_layout.bounding_box.width() * 10.0;
-                let glyph_height = glyph_layout.bounding_box.height() * 10.0;
+                let x_offset = (glyph_layout.bounding_box.min.x * text.scale) / self.dimension.width  as f32;
+                let y_offset = (glyph_layout.bounding_box.min.y * text.scale) / self.dimension.height as f32;
+                let glyph_width  = (glyph_layout.bounding_box.width()  * text.scale) / self.dimension.width  as f32;
+                let glyph_height = (glyph_layout.bounding_box.height() * text.scale) / self.dimension.height as f32;
 
-                // the x coordinate of top-left position.
-                let min_x = (text.location.x as f32 + x_advance + x_offset) / self.dimension.width  as f32;
-                // the y coordinate of top-left position.
-                let min_y = (text.location.y as f32 + y_offset) / self.dimension.height as f32;
-                // the x coordinate of bottom-right position.
-                let max_x = (text.location.x as f32 + x_advance + glyph_width + x_offset) / self.dimension.width  as f32;
-                // the y coordinate of bottom-right position.
-                let max_y = (text.location.y as f32 + glyph_height + y_offset) / self.dimension.height as f32;
+                // the x coordinate of top-left position(map to range [-1.0, 1.0]).
+                let min_x = (origin_x + x_offset) * 2.0 - 1.0;
+                // the y coordinate of top-left position.(map to range [-1.0, 1.0]).
+                let min_y = (origin_y + y_offset) * 2.0 - 1.0;
+                // the x coordinate of bottom-right position(map to range [-1.0, 1.0]).
+                let max_x = (origin_x + glyph_width + x_offset) * 2.0 - 1.0;
+                // the y coordinate of bottom-right position(map to range [-1.0, 1.0]).
+                let max_y = (origin_y + glyph_height + y_offset) * 2.0 - 1.0;
 
                 let top_left = CharacterVertex {
                     pos: [min_x, min_y],
@@ -206,7 +212,7 @@ impl TextPool {
                     top_left, bottom_right, top_right,   // triangle 2
                 ]);
 
-                x_advance += glyph_layout.h_metrics.advance_width * 10.0;
+                origin_x += (glyph_layout.h_metrics.advance_width * text.scale) / self.dimension.width as f32;
             }
         }
 
@@ -269,7 +275,6 @@ fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(
     let ascii_bytes: Vec<u8> = ASCII_RANGE.collect();
 
     let ascii_characters = unsafe { String::from_utf8_unchecked(ascii_bytes.clone()) };
-    let color: [u8; 4] = VkColor::WHITE.into();
 
     let scale = Scale::uniform(font_scale);
     let v_metrics = font.v_metrics(scale);
@@ -286,7 +291,7 @@ fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(
 
     let image_width  = (2 * IMAGE_PADDING) + glyphs_width;
     let image_height = (2 * IMAGE_PADDING) + glyphs_height;
-    let bytes_per_pixel = 4;
+    let bytes_per_pixel = 1; // only store the alpha value.
 
     // fill image data with empty bytes.
     let mut image_bytes = vec![0_u8; image_width * image_height * bytes_per_pixel];
@@ -304,10 +309,7 @@ fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(
                 let y = y + bounding_box.min.y as u32;
                 let pos = (x + y * image_width as u32) as usize * bytes_per_pixel;
 
-                image_bytes[pos] = color[0];
-                image_bytes[pos + 1] = color[1];
-                image_bytes[pos + 2] = color[2];
-                image_bytes[pos + 3] = (v * 255.0) as u8;
+                image_bytes[pos] = (v * 255.0) as u8;
             });
 
             let min_uv = [
@@ -318,12 +320,12 @@ fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(
                 bounding_box.max.x as f32 / image_width  as f32,
                 bounding_box.max.y as f32 / image_height as f32,
             ];
-            let glyph_unpositioned = glyph.unpositioned();
 
+            let glyph_unpositioned = glyph.unpositioned();
             let glyph_layout = GlyphLayout {
                 min_uv, max_uv,
                 h_metrics: glyph_unpositioned.h_metrics(),
-                bounding_box: glyph_unpositioned.exact_bounding_box().unwrap(),
+                bounding_box: fix_bounding_box_positive(glyph_unpositioned.exact_bounding_box().unwrap(), &v_metrics),
             };
             glyph_layouts.insert(character as CharacterID, glyph_layout);
         }
@@ -338,6 +340,14 @@ fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(
 
 fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::Extent2D) -> VkResult<(vk::Image, vk::DeviceMemory)> {
 
+    // create vk::Image and its memory.
+    let (glyphs_image, image_reqs) = ImageCI::new_2d(vk::Format::R8_UNORM, image_dimension)
+        .usages(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST)
+        .build(device)?;
+    let image_memory_type_index = device.get_memory_type(image_reqs.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+    let image_memory = MemoryAI::new(image_reqs.size, image_memory_type_index).build(device)?;
+    device.bind_memory(glyphs_image, image_memory, 0)?;
+
     // create vk::Buffer and map image data to it.
     let estimate_buffer_size = (image_bytes.len() as vkbytes) * (::std::mem::size_of::<u8>() as vkbytes);
     let (staging_buffer, staging_reqs) = BufferCI::new(estimate_buffer_size)
@@ -351,15 +361,6 @@ fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::
     let data_ptr = device.map_memory(staging_memory, 0, vk::WHOLE_SIZE)?;
     device.copy_to_ptr(data_ptr, &image_bytes);
     device.unmap_memory(staging_memory);
-
-    // create vk::Image and its memory.
-    let (glyphs_image, image_reqs) = ImageCI::new_2d(vk::Format::R8G8B8A8_UNORM, image_dimension)
-        .usages(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST)
-        .build(device)?;
-    let image_memory = MemoryAI::new(image_reqs.size, device.get_memory_type(
-        image_reqs.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL
-    )).build(device)?;
-    device.bind_memory(glyphs_image, image_memory, 0)?;
 
     // transfer image data from staging buffer to destination image.
     let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
@@ -409,4 +410,14 @@ fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::
     device.discard(staging_memory);
 
     Ok((glyphs_image, image_memory))
+}
+
+
+// TODO: Fix and remove this magic function.
+fn fix_bounding_box_positive(mut rect: Rect<f32>, v_metrics: &VMetrics) -> Rect<f32> {
+
+    rect.min.y += v_metrics.ascent as f32;
+    rect.max.y += v_metrics.ascent as f32;
+
+    rect
 }

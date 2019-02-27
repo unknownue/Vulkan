@@ -33,6 +33,12 @@ pub fn get_memory_type_index(device: &VkDevice, mut type_bits: vkuint, propertie
     panic!("Could not find a suitable memory type")
 }
 
+pub fn is_memory_support_flags(device: &VkDevice, memory_type_index: vkuint, request_flags: vk::MemoryPropertyFlags) -> bool {
+
+    let query_memory = device.phy.memories.memory_types[memory_type_index as usize];
+    query_memory.property_flags.contains(request_flags)
+}
+
 /// Cast any struct to &[u8].
 ///
 /// Copied from https://stackoverflow.com/questions/28127165/how-to-convert-struct-to-u8.
