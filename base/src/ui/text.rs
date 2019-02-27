@@ -1,6 +1,4 @@
 
-mod pipeline;
-
 use ash::vk;
 use memoffset::offset_of;
 
@@ -20,7 +18,7 @@ use crate::command::VkCmdRecorder;
 use crate::command::{IGraphics, CmdGraphicsApi};
 use crate::command::{ITransfer, CmdTransferApi};
 
-use crate::context::{VkDevice, VkSwapchain};
+use crate::context::VkDevice;
 use crate::utils::color::VkColor;
 
 use crate::{vkuint, vkbytes, vkptr};
@@ -65,9 +63,9 @@ struct GlyphLayout {
 
 pub struct GlyphImages {
 
-    text_sampler: vk::Sampler,
-    glyph_image: vk::Image,
-    glyph_view : vk::ImageView,
+    pub text_sampler: vk::Sampler,
+    pub glyph_image: vk::Image,
+    pub glyph_view : vk::ImageView,
 
     memory: vk::DeviceMemory,
 
@@ -139,14 +137,13 @@ impl TextAttrtorage {
 }
 
 
-pub struct TextRender {
+pub struct TextPool {
 
     /// the dpi factor of current window system.
     dpi_factor: f32,
     /// screen dimension of current window.
     dimension: vk::Extent2D,
-    /// the vulkan resource to render text.
-    pipeline_asset: pipeline::TextPipelineAsset,
+
     /// all the texts to be rendered.
     texts: Vec<TextInfo>,
     /// `attributes` contains the resource for rendering texts.
@@ -154,7 +151,6 @@ pub struct TextRender {
     /// `glyph_layouts` records the layout information to generate text attributes.
     glyphs: GlyphImages,
 }
-
 
 pub struct TextInfo {
     pub content: String,
@@ -171,20 +167,19 @@ pub enum TextHAlign {
     Right,
 }
 
-impl TextRender {
+impl TextPool {
 
-    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, dpi_factor: f32) -> VkResult<TextRender> {
+    pub fn new(device: &VkDevice, dimension: vk::Extent2D, dpi_factor: f32) -> VkResult<TextPool> {
 
         let attributes = TextAttrtorage::new(device)?;
 
-        let font_bytes = include_bytes!("../../examples/assets/fonts/Roboto-Regular.ttf");
+        // TODO: Reset font path.
+        let font_bytes = include_bytes!("../../../examples/assets/fonts/Roboto-Regular.ttf");
         let glyphs = GlyphImages::from_font(device, font_bytes)?;
-        let pipeline_asset = pipeline::TextPipelineAsset::new(device, swapchain, &glyphs)?;
 
-        let result = TextRender {
-            dimension: swapchain.dimension,
+        let result = TextPool {
             texts: Vec::new(),
-            dpi_factor, attributes, glyphs, pipeline_asset,
+            dpi_factor, attributes, glyphs, dimension,
         };
         Ok(result)
     }
@@ -294,9 +289,8 @@ impl TextRender {
 
         let mut first_vertex = 0;
         for text in self.texts.iter() {
-
             recorder.draw((text.content.len() * VERTEX_PER_CHARACTER) as vkuint, 1, first_vertex, 0);
-            first_vertex += MAXIMUM_SENTENCE_TEXT_COUNT;
+            first_vertex += MAXIMUM_SENTENCE_TEXT_COUNT as vkuint;
         }
     }
 
@@ -326,6 +320,10 @@ impl TextRender {
                 format  : vk::Format::R32G32B32A32_SFLOAT,
                 offset  : offset_of!(CharacterVertex, color) as _,
             })
+    }
+
+    pub fn glyphs_ref(&self) -> &GlyphImages {
+        &self.glyphs
     }
 
     pub fn discard(&self, device: &VkDevice) {
@@ -499,4 +497,32 @@ fn fix_bounding_box_positive(mut rect: Rect<f32>, v_metrics: &VMetrics) -> Rect<
     rect.max.y += v_metrics.ascent as f32;
 
     rect
+}
+
+pub fn input_descriptions() -> VertexInputSCI {
+
+    VertexInputSCI::new()
+        .add_binding(vk::VertexInputBindingDescription {
+            binding: 0,
+            stride : ::std::mem::size_of::<CharacterVertex>() as _,
+            input_rate: vk::VertexInputRate::VERTEX,
+        })
+        .add_attribute(vk::VertexInputAttributeDescription {
+            location: 0,
+            binding : 0,
+            format  : vk::Format::R32G32_SFLOAT,
+            offset  : offset_of!(CharacterVertex, pos) as _,
+        })
+        .add_attribute(vk::VertexInputAttributeDescription {
+            location: 1,
+            binding : 0,
+            format  : vk::Format::R32G32_SFLOAT,
+            offset  : offset_of!(CharacterVertex, uv) as _,
+        })
+        .add_attribute(vk::VertexInputAttributeDescription {
+            location: 2,
+            binding : 0,
+            format  : vk::Format::R32G32B32A32_SFLOAT,
+            offset  : offset_of!(CharacterVertex, color) as _,
+        })
 }

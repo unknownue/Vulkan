@@ -31,7 +31,6 @@ pub struct VulkanExample {
 
 struct PipelineStaff {
     pipeline: vk::Pipeline,
-    render_pass: vk::RenderPass,
     layout: vk::PipelineLayout,
 }
 
@@ -41,19 +40,17 @@ impl VulkanExample {
 
         let device = &context.device;
         let swapchain = &context.swapchain;
-        let dimension = swapchain.dimension;
 
-        let mut backend_res = VkExampleBackendRes::new(device, swapchain)?;
+        let render_pass = setup_renderpass(device, &context.swapchain)?;
+
+        let mut backend_res = VkExampleBackendRes::new(device, swapchain, render_pass)?;
         backend_res.enable_depth_attachment(false);
 
         let text_glyphs = GlyphImages::from_font(device, include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))?;
-        let text_pool = TextPool::new(device, dimension, hidpi_factor)?;
+        let text_pool = TextPool::new(device, swapchain.dimension, hidpi_factor)?;
         let descriptors = setup_descriptor(device, &text_glyphs)?;
 
-        let render_pass = setup_renderpass(device, &context.swapchain)?;
-        backend_res.setup_framebuffers(device, swapchain, render_pass)?;
-
-        let pipelines = prepare_pipelines(device, dimension, render_pass, descriptors.layout)?;
+        let pipelines = prepare_pipelines(device, swapchain.dimension, backend_res.render_pass, descriptors.layout)?;
 
         let target = VulkanExample {
             backend_res, descriptors, pipelines,
@@ -98,13 +95,12 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         // recreate the resources.
         device.discard(self.pipelines.pipeline);
-        device.discard(self.pipelines.render_pass);
 
         self.text_pool.update_texts(device, &self.text_glyphs)?;
 
-        let renderpass = setup_renderpass(device, new_chain)?;
-        self.backend_res.swapchain_reload(device, new_chain, renderpass)?;
-        self.pipelines = prepare_pipelines(device, self.backend_res.dimension, renderpass, self.descriptors.layout)?;
+        let render_pass = setup_renderpass(device, new_chain)?;
+        self.backend_res.swapchain_reload(device, new_chain, render_pass)?;
+        self.pipelines = prepare_pipelines(device, self.backend_res.dimension, self.backend_res.render_pass, self.descriptors.layout)?;
 
         self.record_commands(device, self.backend_res.dimension)?;
 
@@ -143,7 +139,7 @@ impl VulkanExample {
 
             let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(device, command);
 
-            let render_pass_bi = RenderPassBI::new(self.pipelines.render_pass, self.backend_res.framebuffers[i])
+            let render_pass_bi = RenderPassBI::new(self.backend_res.render_pass, self.backend_res.framebuffers[i])
                 .render_extent(dimension)
                 .clear_values(&clear_values);
 
@@ -168,7 +164,6 @@ impl VulkanExample {
         device.discard(self.descriptors.pool);
 
         device.discard(self.pipelines.pipeline);
-        device.discard(self.pipelines.render_pass);
         device.discard(self.pipelines.layout);
 
         self.text_pool.discard(device);
@@ -331,7 +326,6 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
     let result = PipelineStaff {
         pipeline: text_pipeline,
         layout: pipeline_layout,
-        render_pass,
     };
     Ok(result)
 }

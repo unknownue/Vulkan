@@ -1,45 +1,53 @@
 
-use std::path::Path;
-
 use ash::vk;
 
 use crate::context::{VkDevice, VkSwapchain};
 use crate::ci::shader::{ShaderModuleCI, ShaderStageCI};
-use crate::ci::pipeline::VertexInputSCI;
+use crate::ci::command::CommandBufferAI;
 use crate::ci::VkObjectBuildableCI;
-use crate::text::{GlyphImages, CharacterVertex};
+use crate::ui::text::GlyphImages;
 use crate::VkResult;
 
 
-const TEXT_VERTEX_SHADER_SOURCE_PATH  : &'static str = "base/src/text/text.vert.glsl";
-const TEXT_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "base/src/text/text.frag.glsl";
+pub(super) struct UIPipelineAsset {
 
-pub struct TextPipelineAsset {
+    pub command: vk::CommandBuffer,
 
-    descriptor_pool: vk::DescriptorPool,
-    descriptor_set: vk::DescriptorSet,
-    descriptor_set_layout: vk::DescriptorSetLayout,
+    pub descriptor_pool: vk::DescriptorPool,
+    pub descriptor_set: vk::DescriptorSet,
+    pub descriptor_set_layout: vk::DescriptorSetLayout,
 
-    render_pass: vk::RenderPass,
-    pipeline: vk::Pipeline,
-    pipeline_layout: vk::PipelineLayout,
+    pub pipeline: vk::Pipeline,
+    pub pipeline_layout: vk::PipelineLayout,
 }
 
-impl TextPipelineAsset {
+impl UIPipelineAsset {
 
-    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, glyphs: &GlyphImages) -> VkResult<TextPipelineAsset> {
+    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, command_pool: vk::CommandPool, render_pass: vk::RenderPass, glyphs: &GlyphImages) -> VkResult<UIPipelineAsset> {
 
         let (desc_pool, desc_set, desc_set_layout) = setup_descriptor(device, glyphs)?;
-        let render_pass = setup_renderpass(device, swapchain)?;
-        let (pipeline, pipeline_layout) = prepare_pipelines(device, swapchain.dimension, render_pass, desc_set_layout);
+        let (pipeline, pipeline_layout) = prepare_pipelines(device, swapchain.dimension, render_pass, desc_set_layout)?;
 
-        let result = TextPipelineAsset {
+        let command = CommandBufferAI::new(command_pool, 1)
+            .build(device)?
+            .remove(0);
+
+        let result = UIPipelineAsset {
             descriptor_pool: desc_pool,
             descriptor_set: desc_set,
             descriptor_set_layout: desc_set_layout,
-            render_pass, pipeline, pipeline_layout,
+            command, pipeline, pipeline_layout,
         };
         Ok(result)
+    }
+
+    pub fn discard(&self, device: &VkDevice) {
+
+        device.discard(self.descriptor_set_layout);
+        device.discard(self.descriptor_pool);
+
+        device.discard(self.pipeline);
+        device.discard(self.pipeline_layout);
     }
 }
 
@@ -89,39 +97,6 @@ fn setup_descriptor(device: &VkDevice, glyphs: &GlyphImages) -> VkResult<(vk::De
     Ok((descriptor_pool, descriptor_set, set_layout))
 }
 
-fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::RenderPass> {
-
-    use crate::ci::pipeline::RenderPassCI;
-    use crate::ci::pipeline::{AttachmentDescCI, SubpassDescCI, SubpassDependencyCI};
-
-    // Don't clear the framebuffer (like the renderpass from the example does)
-    let color_attachment = AttachmentDescCI::new(swapchain.backend_format)
-        .op(vk::AttachmentLoadOp::LOAD, vk::AttachmentStoreOp::STORE)
-        .layout(vk::ImageLayout::UNDEFINED, vk::ImageLayout::PRESENT_SRC_KHR);
-
-    let subpass_description = SubpassDescCI::new(vk::PipelineBindPoint::GRAPHICS)
-        .add_color_attachment(0, vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
-
-    let dependency0 = SubpassDependencyCI::new(vk::SUBPASS_EXTERNAL, 0)
-        .stage_mask(vk::PipelineStageFlags::BOTTOM_OF_PIPE, vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
-        .access_mask(vk::AccessFlags::MEMORY_READ, vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
-        .flags(vk::DependencyFlags::BY_REGION);
-
-    let dependency1 = SubpassDependencyCI::new(0, vk::SUBPASS_EXTERNAL)
-        .stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, vk::PipelineStageFlags::BOTTOM_OF_PIPE)
-        .access_mask(vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE, vk::AccessFlags::MEMORY_READ)
-        .flags(vk::DependencyFlags::BY_REGION);
-
-    let render_pass = RenderPassCI::new()
-        .add_attachment(color_attachment.value())
-        .add_subpass(subpass_description.value())
-        .add_dependency(dependency0.value())
-        .add_dependency(dependency1.value())
-        .build(device)?;
-
-    Ok(render_pass)
-}
-
 fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk::RenderPass, set_layout: vk::DescriptorSetLayout) -> VkResult<(vk::Pipeline, vk::PipelineLayout)> {
 
     use crate::ci::pipeline::*;
@@ -157,14 +132,14 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
     // base pipeline.
     let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, pipeline_layout);
 
-    pipeline_ci.set_vertex_input(input_descriptions());
+    pipeline_ci.set_vertex_input(crate::ui::text::input_descriptions());
     pipeline_ci.set_viewport(viewport_state);
     pipeline_ci.set_rasterization(rasterization_state);
     pipeline_ci.set_color_blend(blend_state);
 
     let mut shader_compiler = crate::utils::shaderc::VkShaderCompiler::new()?;
-    let vert_codes = shader_compiler.compile_from_path(Path::new(TEXT_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
-    let frag_codes = shader_compiler.compile_from_path(Path::new(TEXT_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
+    let vert_codes = shader_compiler.compile_from_str(include_str!("text.vert.glsl"), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
+    let frag_codes = shader_compiler.compile_from_str(include_str!("text.frag.glsl"), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
 
     let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
         .build(device)?;
@@ -182,32 +157,4 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
     device.discard(frag_module);
 
     Ok((text_pipeline, pipeline_layout))
-}
-
-fn input_descriptions() -> VertexInputSCI {
-
-    VertexInputSCI::new()
-        .add_binding(vk::VertexInputBindingDescription {
-            binding: 0,
-            stride : ::std::mem::size_of::<CharacterVertex>() as _,
-            input_rate: vk::VertexInputRate::VERTEX,
-        })
-        .add_attribute(vk::VertexInputAttributeDescription {
-            location: 0,
-            binding : 0,
-            format  : vk::Format::R32G32_SFLOAT,
-            offset  : offset_of!(CharacterVertex, pos) as _,
-        })
-        .add_attribute(vk::VertexInputAttributeDescription {
-            location: 1,
-            binding : 0,
-            format  : vk::Format::R32G32_SFLOAT,
-            offset  : offset_of!(CharacterVertex, uv) as _,
-        })
-        .add_attribute(vk::VertexInputAttributeDescription {
-            location: 2,
-            binding : 0,
-            format  : vk::Format::R32G32B32A32_SFLOAT,
-            offset  : offset_of!(CharacterVertex, color) as _,
-        })
 }

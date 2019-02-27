@@ -12,9 +12,9 @@ pub mod utils;
 pub mod command;
 pub mod platforms;
 pub mod gltf;
+pub mod ui;
 
 mod error;
-mod text;
 mod camera;
 mod workflow;
 mod input;

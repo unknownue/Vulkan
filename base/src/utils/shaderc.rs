@@ -73,13 +73,11 @@ impl VkShaderCompiler {
         self.options = options;
     }
 
-    pub fn compile_from_path(&mut self, path: impl AsRef<Path>, stage: shaderc::ShaderKind, input_name: &str, entry_name: &str) -> VkResult<Vec<u8>> {
-
-        let source_text = load_to_string(PathBuf::from(path.as_ref()))?;
+    pub fn compile_from_str(&mut self, source_text: &str, stage: shaderc::ShaderKind, input_name: &str, entry_name: &str) -> VkResult<Vec<u8>> {
 
         let compile_options = self.options.to_shaderc_options()?;
 
-        let result = self.compiler.compile_into_spirv(&source_text, stage, input_name, entry_name, Some(&compile_options))
+        let result = self.compiler.compile_into_spirv(source_text, stage, input_name, entry_name, Some(&compile_options))
             .map_err(|e| VkError::shaderc(format!("Failed to compile {}({})", input_name, e)))?;
 
         if result.get_num_warnings() > 0 {
@@ -88,6 +86,12 @@ impl VkShaderCompiler {
 
         let spirv = result.as_binary_u8().to_owned();
         Ok(spirv)
+    }
+
+    pub fn compile_from_path(&mut self, path: impl AsRef<Path>, stage: shaderc::ShaderKind, input_name: &str, entry_name: &str) -> VkResult<Vec<u8>> {
+
+        let source_text = load_to_string(PathBuf::from(path.as_ref()))?;
+        self.compile_from_str(&source_text, stage, input_name, entry_name)
     }
 }
 
