@@ -46,7 +46,7 @@ impl VulkanExample {
         let mut backend_res = VkExampleBackendRes::new(device, swapchain, render_pass)?;
         backend_res.enable_depth_attachment(false);
 
-        let text_glyphs = GlyphImages::from_font(device, include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))?;
+        let text_glyphs = GlyphImages::from_font(device, include_bytes!("../../../assets/fonts/Roboto-Regular.ttf"))?;
         let text_pool = TextPool::new(device, swapchain.dimension, hidpi_factor)?;
         let descriptors = setup_descriptor(device, &text_glyphs)?;
 

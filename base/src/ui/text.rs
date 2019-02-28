@@ -40,6 +40,7 @@ const DISPLAY_SCALE_FIX: f32 = 1.0 / 768.0;
 /// The padding attach to sampled glyph image.
 const IMAGE_PADDING: usize = 20;
 
+pub type TextID = usize;
 type CharacterID = char;
 type GlyphLayouts = HashMap<CharacterID, GlyphLayout>;
 
@@ -237,8 +238,7 @@ impl TextPool {
 
         let attributes = TextAttrStorage::new(device)?;
 
-        // TODO: Reset font path.
-        let font_bytes = include_bytes!("../../../examples/assets/fonts/Roboto-Regular.ttf");
+        let font_bytes = include_bytes!("../../../assets/fonts/Roboto-Regular.ttf");
         let glyphs = GlyphImages::from_font(device, font_bytes)?;
 
         let result = TextPool {
@@ -249,17 +249,19 @@ impl TextPool {
         Ok(result)
     }
 
-    pub fn add_text(&mut self, mut text: TextInfo) -> VkResult<()> {
+    pub fn add_text(&mut self, mut text: TextInfo) -> VkResult<TextID> {
 
         if self.texts.len() < MAXIMUM_SENTENCE_COUNT {
             if text.content.len() <= MAXIMUM_SENTENCE_TEXT_COUNT {
 
                 text.scale *= DISPLAY_SCALE_FIX / FONT_SCALE;
+
+                let new_text_id = self.texts.len();
                 self.texts.push(text);
                 // update the text that is newly added.
-                self.update_texts(self.texts.len() - 1);
+                self.update_texts(new_text_id);
 
-                Ok(())
+                Ok(new_text_id)
             } else {
                 Err(VkError::custom(format!("Each sentence can't contain more that {} character.", MAXIMUM_SENTENCE_TEXT_COUNT)))
             }
@@ -268,18 +270,18 @@ impl TextPool {
         }
     }
 
-    pub fn change_text(&mut self, content: String, update_index: usize) {
+    pub fn change_text(&mut self, content: String, update_text: TextID) {
 
-        self.texts[update_index].content = content;
-        self.update_texts(update_index);
+        self.texts[update_text].content = content;
+        self.update_texts(update_text);
     }
 
-    fn update_texts(&self, update_index: usize) {
+    fn update_texts(&self, update_text: TextID) {
 
         // calculate vertex attributes of rendering texts.
         let mut char_vertices = Vec::with_capacity(self.texts.len() * MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER);
 
-        let text = &self.texts[update_index];
+        let text = &self.texts[update_text];
 
         let mut origin_x = text.location.x as f32 / self.dimension.width as f32;
         let origin_y = text.location.y as f32 / self.dimension.height as f32;
@@ -355,7 +357,7 @@ impl TextPool {
         // upload vertex attributes to memory.
         unsafe {
             let target_ptr = (self.attributes.data_ptr as vkptr<CharacterVertex>)
-                .offset((MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER * update_index) as isize);
+                .offset((MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER * update_text) as isize);
             target_ptr.copy_from(char_vertices.as_ptr(), char_vertices.len());
         }
     }

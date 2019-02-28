@@ -26,7 +26,7 @@ const TOON_VERTEX_SHADER_SOURCE_PATH       : &'static str = "examples/src/pipeli
 const TOON_FRAGMENT_SHADER_SOURCE_PATH     : &'static str = "examples/src/pipelines/toon.frag.glsl";
 const WIREFRAME_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/pipelines/wireframe.vert.glsl";
 const WIREFRAME_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/pipelines/wireframe.frag.glsl";
-const MODEL_PATH: &'static str = "examples/assets/models/treasure_smooth.gltf";
+const MODEL_PATH: &'static str = "assets/models/treasure_smooth.gltf";
 
 
 pub struct VulkanExample {
@@ -97,35 +97,10 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
 
+        self.backend_res.set_basic_ui(device, super::WINDOW_TITLE)?;
+
         let screen_width  = self.backend_res.dimension.width  as i32;
         let screen_height = self.backend_res.dimension.height as i32;
-
-        let text1 = TextInfo {
-            content: String::from(super::WINDOW_TITLE),
-            scale: 12.0,
-            align: TextHAlign::Left,
-            color: VkColor::WHITE,
-            location: vk::Offset2D { x: 5, y: 0 },
-            capacity: None,
-        };
-
-        let fps_text = TextInfo {
-            content: String::from("FPS:"),
-            scale: 12.0,
-            align: TextHAlign::Left,
-            color: VkColor::WHITE,
-            location: vk::Offset2D { x: 5, y: 40 },
-            capacity: Some(15),
-        };
-
-        let text2 = TextInfo {
-            content: device.phy.device_name.clone(),
-            scale: 12.0,
-            align: TextHAlign::Left,
-            color: VkColor::WHITE,
-            location: vk::Offset2D { x: 5, y: 80 },
-            capacity: None,
-        };
 
         let phong_text = TextInfo {
             content: String::from("Phong Shading Pipeline"),
@@ -135,6 +110,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             location: vk::Offset2D { x: screen_width / 12, y: screen_height / 8 * 7 },
             capacity: None,
         };
+        self.backend_res.ui_renderer.add_text(phong_text)?;
 
         let toon_text = TextInfo {
             content: String::from("Toon Shading Pipeline"),
@@ -144,6 +120,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             location: vk::Offset2D { x: screen_width / 12 * 5, y: screen_height / 8 * 7 },
             capacity: None,
         };
+        self.backend_res.ui_renderer.add_text(toon_text)?;
 
         let wireframe_text = TextInfo {
             content: String::from("Wireframe Pipeline"),
@@ -153,16 +130,10 @@ impl vkbase::RenderWorkflow for VulkanExample {
             location: vk::Offset2D { x: screen_width / 12 * 9, y: screen_height / 8 * 7 },
             capacity: None,
         };
-
-        self.backend_res.ui_renderer.add_text(text1)?;
-        self.backend_res.ui_renderer.add_text(fps_text)?;
-        self.backend_res.ui_renderer.add_text(text2)?;
-        self.backend_res.ui_renderer.add_text(phong_text)?;
-        self.backend_res.ui_renderer.add_text(toon_text)?;
         self.backend_res.ui_renderer.add_text(wireframe_text)?;
 
-
         self.record_commands(device, self.backend_res.dimension)?;
+
         Ok(())
     }
 
@@ -213,11 +184,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             self.is_toggle_event = false;
         }
 
-        // update text on fps per second.
-        if inputer.fps_counter.is_tick_second() {
-            let fps = format!("FPS: {}", inputer.fps_counter.fps());
-            self.backend_res.ui_renderer.change_text(fps, 1);
-        }
+        self.backend_res.update_fps_text(inputer);
 
         FrameAction::Rendering
     }

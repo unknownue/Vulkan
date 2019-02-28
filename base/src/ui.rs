@@ -1,5 +1,5 @@
 
-pub use self::text::{TextInfo, TextHAlign};
+pub use self::text::{TextInfo, TextID, TextHAlign};
 
 mod pipeline;
 mod text;
@@ -50,12 +50,12 @@ impl UIRenderer {
         Ok(())
     }
 
-    pub fn add_text(&mut self, text: TextInfo) -> VkResult<()> {
+    pub fn add_text(&mut self, text: TextInfo) -> VkResult<TextID> {
         self.text_pool.add_text(text)
     }
 
-    pub fn change_text(&mut self, content: String, update_index: usize) {
-        self.text_pool.change_text(content, update_index);
+    pub fn change_text(&mut self, content: String, update_text: TextID) {
+        self.text_pool.change_text(content, update_text);
     }
 
     pub fn discard(&self, device: &VkDevice) {

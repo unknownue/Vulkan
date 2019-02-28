@@ -5,7 +5,8 @@ use ash::version::DeviceV1_0;
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::sync::SemaphoreCI;
-use vkbase::ui::UIRenderer;
+use vkbase::ui::{UIRenderer, TextInfo, TextID, TextHAlign};
+use vkbase::utils::color::VkColor;
 use vkbase::vkuint;
 use vkbase::{VkResult, VkError};
 
@@ -29,6 +30,7 @@ pub struct VkExampleBackendRes {
     pub commands: Vec<vk::CommandBuffer>,
 
     pub ui_renderer: UIRenderer,
+    fps_text_id: Option<TextID>,
 
     depth_image: DepthImage,
     is_use_depth_attachment: bool,
@@ -55,6 +57,7 @@ impl VkExampleBackendRes {
         let mut target = VkExampleBackendRes {
             depth_image, await_rendering, ui_renderer,
             commands, command_pool, dimension,
+            fps_text_id: None,
             render_pass: renderpass,
             framebuffers: Vec::new(),
             is_use_depth_attachment: true,
@@ -110,6 +113,54 @@ impl VkExampleBackendRes {
                 .map_err(|_| VkError::device("Reset Command Pool"))?;
         }
         Ok(())
+    }
+
+    pub fn set_basic_ui(&mut self, device: &VkDevice, title: &str) -> VkResult<()> {
+
+        let title_text = TextInfo {
+            content: String::from(title),
+            scale: 12.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: 5, y: 0 },
+            capacity: None,
+        };
+
+        let device_text = TextInfo {
+            content: device.phy.device_name.clone(),
+            scale: 12.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: 5, y: 40 },
+            capacity: None,
+        };
+
+        let fps_text = TextInfo {
+            content: String::from("FPS:"),
+            scale: 12.0,
+            align: TextHAlign::Left,
+            color: VkColor::WHITE,
+            location: vk::Offset2D { x: 5, y: 80 },
+            capacity: Some(15),
+        };
+
+        self.ui_renderer.add_text(title_text)?;
+        self.ui_renderer.add_text(device_text)?;
+        self.fps_text_id = Some(self.ui_renderer.add_text(fps_text)?);
+
+        Ok(())
+    }
+
+    pub fn update_fps_text(&mut self, inputer: &vkbase::EventController) {
+
+        // update text on fps per second.
+        if inputer.fps_counter.is_tick_second() {
+
+            if let Some(text_id) = self.fps_text_id {
+                let fps = format!("FPS: {}", inputer.fps_counter.fps());
+                self.ui_renderer.change_text(fps, text_id);
+            }
+        }
     }
 
     pub fn discard(&self, device: &VkDevice) {
