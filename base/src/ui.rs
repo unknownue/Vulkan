@@ -1,5 +1,5 @@
 
-pub use self::text::{TextInfo, TextID, TextHAlign};
+pub use self::text::{TextInfo, TextID, TextType, TextHAlign};
 
 mod pipeline;
 mod text;

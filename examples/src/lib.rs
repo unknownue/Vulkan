@@ -5,7 +5,7 @@ use ash::version::DeviceV1_0;
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::sync::SemaphoreCI;
-use vkbase::ui::{UIRenderer, TextInfo, TextID, TextHAlign};
+use vkbase::ui::{UIRenderer, TextInfo, TextID, TextType, TextHAlign};
 use vkbase::utils::color::VkColor;
 use vkbase::vkuint;
 use vkbase::{VkResult, VkError};
@@ -51,7 +51,6 @@ impl VkExampleBackendRes {
         let depth_image = setup_depth_image(device, swapchain.dimension)?;
         let await_rendering = device.build(&SemaphoreCI::new())?;
 
-        // TODO: Fix dpi_factor.
         let ui_renderer = UIRenderer::new(device, swapchain, renderpass)?;
 
         let mut target = VkExampleBackendRes {
@@ -123,7 +122,7 @@ impl VkExampleBackendRes {
             align: TextHAlign::Left,
             color: VkColor::WHITE,
             location: vk::Offset2D { x: 5, y: 0 },
-            capacity: None,
+            r#type: TextType::Static,
         };
 
         let device_text = TextInfo {
@@ -132,16 +131,16 @@ impl VkExampleBackendRes {
             align: TextHAlign::Left,
             color: VkColor::WHITE,
             location: vk::Offset2D { x: 5, y: 40 },
-            capacity: None,
+            r#type: TextType::Static,
         };
 
         let fps_text = TextInfo {
-            content: String::from("FPS:"),
+            content: String::from("FPS: 00.00"),
             scale: 12.0,
             align: TextHAlign::Left,
             color: VkColor::WHITE,
             location: vk::Offset2D { x: 5, y: 80 },
-            capacity: Some(15),
+            r#type: TextType::Dynamic { capacity: 15 },
         };
 
         self.ui_renderer.add_text(title_text)?;

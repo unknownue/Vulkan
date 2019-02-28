@@ -25,8 +25,7 @@ use crate::utils::color::VkColor;
 use crate::{vkuint, vkbytes, vkptr};
 use crate::{VkResult, VkError};
 
-/// the ascii character range that render to sampled glyph.
-const ASCII_RANGE: Range<u8> = (33..127_u8);
+
 /// each character use 6 vertex to draw.
 const VERTEX_PER_CHARACTER: usize = 6;
 /// the maximum sentence count that the buffer can contain.
@@ -71,7 +70,7 @@ pub struct GlyphImages {
 
     memory: vk::DeviceMemory,
 
-    layouts: HashMap<CharacterID, GlyphLayout>,
+    layouts: GlyphLayouts,
 }
 
 impl GlyphImages {
@@ -165,10 +164,19 @@ pub struct TextInfo {
     pub color  : VkColor,
     /// `location` is the starting position of the first character.
     pub location: vk::Offset2D,
+
+    pub r#type: TextType,
+}
+
+pub enum TextType {
+    /// Render static text to screen. The text can not change after first set.
+    Static,
+    /// Render text that is dynamically changed in runtime.
+    ///
     /// `capacity` is the maximum length of the text to rendering.
     ///
-    /// If the content of text is change in runtime, you have to specify this value, or leave it None if not.
-    pub capacity: Option<usize>,
+    /// Use `change_text` method to set the content of text in runtime.
+    Dynamic { capacity: usize },
 }
 
 pub struct TextIter<'a> {
@@ -205,23 +213,18 @@ impl TextInfo {
         let char_bytes = self.content.as_bytes();
         let bytes_length = char_bytes.len();
 
-        if let Some(capacity) = self.capacity {
-            debug_assert!(capacity >= bytes_length);
+        let mut iter = TextIter {
+            content: char_bytes,
+            current: 0,
+            len: bytes_length,
+            capacity: 0,
+        };
 
-            TextIter {
-                content: char_bytes,
-                current: 0,
-                len: bytes_length,
-                capacity,
-            }
-        } else {
-            TextIter {
-                content: char_bytes,
-                current: 0,
-                len: bytes_length,
-                capacity: bytes_length,
-            }
-        }
+        iter.capacity = match self.r#type {
+            | TextType::Static => bytes_length,
+            | TextType::Dynamic { capacity } => capacity,
+        };
+        iter
     }
 }
 
@@ -299,59 +302,70 @@ impl TextPool {
             let glyph_width  = glyph_layout.bounding_box.width()  * text.scale;
             let glyph_height = glyph_layout.bounding_box.height() * text.scale * self.aspect_ratio;
 
-            match text.align {
-                | TextHAlign::Left => {
+            // the x coordinate of top-left position(map to range [-1.0, 1.0]).
+            let min_x = (origin_x + x_offset) * 2.0 - 1.0;
+            // the y coordinate of top-left position.(map to range [-1.0, 1.0]).
+            let min_y = (origin_y + y_offset) * 2.0 - 1.0;
+            // the x coordinate of bottom-right position(map to range [-1.0, 1.0]).
+            let max_x = (origin_x + glyph_width + x_offset) * 2.0 - 1.0;
+            // the y coordinate of bottom-right position(map to range [-1.0, 1.0]).
+            let max_y = (origin_y + glyph_height + y_offset) * 2.0 - 1.0;
 
-                    // the x coordinate of top-left position(map to range [-1.0, 1.0]).
-                    let min_x = (origin_x + x_offset) * 2.0 - 1.0;
-                    // the y coordinate of top-left position.(map to range [-1.0, 1.0]).
-                    let min_y = (origin_y + y_offset) * 2.0 - 1.0;
-                    // the x coordinate of bottom-right position(map to range [-1.0, 1.0]).
-                    let max_x = (origin_x + glyph_width + x_offset) * 2.0 - 1.0;
-                    // the y coordinate of bottom-right position(map to range [-1.0, 1.0]).
-                    let max_y = (origin_y + glyph_height + y_offset) * 2.0 - 1.0;
+            let top_left = CharacterVertex {
+                pos: [min_x, min_y],
+                uv: glyph_layout.min_uv,
+                color: text.color.into(),
+            };
+            let bottom_left = CharacterVertex {
+                pos: [min_x, max_y],
+                uv: [
+                    glyph_layout.min_uv[0],
+                    glyph_layout.max_uv[1],
+                ],
+                color: text.color.into(),
+            };
+            let bottom_right = CharacterVertex {
+                pos: [max_x, max_y],
+                uv: glyph_layout.max_uv,
+                color: text.color.into(),
+            };
+            let top_right = CharacterVertex {
+                pos: [max_x, min_y],
+                uv: [
+                    glyph_layout.max_uv[0],
+                    glyph_layout.min_uv[1],
+                ],
+                color: text.color.into(),
+            };
 
-                    let top_left = CharacterVertex {
-                        pos: [min_x, min_y],
-                        uv: glyph_layout.min_uv,
-                        color: text.color.into(),
-                    };
-                    let bottom_left = CharacterVertex {
-                        pos: [min_x, max_y],
-                        uv: [
-                            glyph_layout.min_uv[0],
-                            glyph_layout.max_uv[1],
-                        ],
-                        color: text.color.into(),
-                    };
-                    let bottom_right = CharacterVertex {
-                        pos: [max_x, max_y],
-                        uv: glyph_layout.max_uv,
-                        color: text.color.into(),
-                    };
-                    let top_right = CharacterVertex {
-                        pos: [max_x, min_y],
-                        uv: [
-                            glyph_layout.max_uv[0],
-                            glyph_layout.min_uv[1],
-                        ],
-                        color: text.color.into(),
-                    };
+            char_vertices.extend_from_slice(&[
+                top_left, bottom_left, bottom_right, // triangle 1
+                top_left, bottom_right, top_right,   // triangle 2
+            ]);
 
-                    char_vertices.extend_from_slice(&[
-                        top_left, bottom_left, bottom_right, // triangle 1
-                        top_left, bottom_right, top_right,   // triangle 2
-                    ]);
+            origin_x += glyph_layout.h_metrics.advance_width * text.scale;
+        }
 
-                    origin_x += glyph_layout.h_metrics.advance_width * text.scale;
-                },
-                | TextHAlign::Center => {
-                    unimplemented!()
-                },
-                | TextHAlign::Right => {
-                    unimplemented!()
-                },
-            }
+        // adjust the position of each vertex to make text alignment.
+        match text.align {
+            | TextHAlign::Left => {
+                // currently the text is left align.
+            },
+            | TextHAlign::Center => {
+                // move the text the center position.
+                let text_half_length = origin_x - text.location.x as f32 / self.dimension.width as f32;
+                for char_vertex in char_vertices.iter_mut() {
+                    char_vertex.pos[0] -= text_half_length;
+                }
+            },
+            | TextHAlign::Right => {
+                // make text align to right.
+                let text_half_length = origin_x - text.location.x as f32 / self.dimension.width as f32;
+                let text_length = text_half_length * 2.0;
+                for char_vertex in char_vertices.iter_mut() {
+                    char_vertex.pos[0] -= text_length; // pos[0] is the x coordinate.
+                }
+            },
         }
 
         // upload vertex attributes to memory.
@@ -369,7 +383,11 @@ impl TextPool {
         let mut first_vertex = 0;
         for text in self.texts.iter() {
 
-            let render_vertex_count = (text.capacity.unwrap_or(text.content.len()) * VERTEX_PER_CHARACTER) as vkuint;
+            let character_count = match text.r#type {
+                | TextType::Static => text.content.len(),
+                | TextType::Dynamic { capacity } => capacity,
+            };
+            let render_vertex_count = (character_count * VERTEX_PER_CHARACTER) as vkuint;
             recorder.draw(render_vertex_count, 1, first_vertex, 0);
             first_vertex += (MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER) as vkuint;
         }
@@ -396,6 +414,9 @@ impl TextPool {
 fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(GlyphLayouts, Vec<u8>, vk::Extent2D)> {
 
     use rusttype::{Font, Scale, PositionedGlyph, point};
+
+    /// the ascii character range that render to sampled glyph.
+    const ASCII_RANGE: Range<u8> = (33..127_u8);
 
     let font = Font::from_bytes(font_bytes)
         .map_err(|e| VkError::custom(e.to_string()))?;
@@ -462,8 +483,9 @@ fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(
         }
     }
 
-    // set the layout of space the same with 't'.
+    // set the layout of space the same with 't', since space does not have a bounding box.
     let mut space_layout = glyph_layouts.get(&'t').unwrap().clone();
+    // set the same uv for min and max position, so that nothing will be render for space.
     space_layout.max_uv = space_layout.min_uv;
     glyph_layouts.insert(' ', space_layout);
 

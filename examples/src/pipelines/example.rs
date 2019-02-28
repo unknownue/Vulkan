@@ -11,7 +11,7 @@ use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
 use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 use vkbase::gltf::VkglTFModel;
-use vkbase::ui::{TextInfo, TextHAlign};
+use vkbase::ui::{TextInfo, TextType, TextHAlign};
 use vkbase::context::VulkanContext;
 use vkbase::utils::color::VkColor;
 use vkbase::{FlightCamera, FrameAction};
@@ -105,30 +105,30 @@ impl vkbase::RenderWorkflow for VulkanExample {
         let phong_text = TextInfo {
             content: String::from("Phong Shading Pipeline"),
             scale: 16.0,
-            align: TextHAlign::Left,
+            align: TextHAlign::Right,
             color: VkColor::WHITE,
-            location: vk::Offset2D { x: screen_width / 12, y: screen_height / 8 * 7 },
-            capacity: None,
+            location: vk::Offset2D { x: screen_width / 3, y: screen_height / 8 * 7 },
+            r#type: TextType::Static,
         };
         self.backend_res.ui_renderer.add_text(phong_text)?;
 
         let toon_text = TextInfo {
             content: String::from("Toon Shading Pipeline"),
             scale: 16.0,
-            align: TextHAlign::Left,
+            align: TextHAlign::Center,
             color: VkColor::WHITE,
-            location: vk::Offset2D { x: screen_width / 12 * 5, y: screen_height / 8 * 7 },
-            capacity: None,
+            location: vk::Offset2D { x: screen_width / 6 * 3, y: screen_height / 8 * 7 },
+            r#type: TextType::Static,
         };
         self.backend_res.ui_renderer.add_text(toon_text)?;
 
         let wireframe_text = TextInfo {
             content: String::from("Wireframe Pipeline"),
             scale: 16.0,
-            align: TextHAlign::Left,
+            align: TextHAlign::Center,
             color: VkColor::WHITE,
-            location: vk::Offset2D { x: screen_width / 12 * 9, y: screen_height / 8 * 7 },
-            capacity: None,
+            location: vk::Offset2D { x: screen_width / 6 * 5 , y: screen_height / 8 * 7 },
+            r#type: TextType::Static,
         };
         self.backend_res.ui_renderer.add_text(wireframe_text)?;
 
