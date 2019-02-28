@@ -36,7 +36,7 @@ const MAXIMUM_SENTENCE_TEXT_COUNT: usize = 50;
 /// Control the font size of sampled glyph.
 const FONT_SCALE: f32 = 48.0;
 /// A magic number.
-const DISPLAY_SCALE_FIX: f32 = 1.0 / 32.0;
+const DISPLAY_SCALE_FIX: f32 = 1.0 / 768.0;
 /// The padding attach to sampled glyph image.
 const IMAGE_PADDING: usize = 20;
 
@@ -101,7 +101,7 @@ impl GlyphImages {
     }
 }
 
-struct TextAttrtorage {
+struct TextAttrStorage {
     /// the starting pointer of the memory of text attributes.
     data_ptr: vkptr,
     /// the buffer which store the text attributes.
@@ -109,9 +109,9 @@ struct TextAttrtorage {
     memory: vk::DeviceMemory,
 }
 
-impl TextAttrtorage {
+impl TextAttrStorage {
 
-    fn new(device: &VkDevice) -> VkResult<TextAttrtorage> {
+    fn new(device: &VkDevice) -> VkResult<TextAttrStorage> {
 
         let pool_size = (::std::mem::size_of::<CharacterVertex>() * MAXIMUM_SENTENCE_COUNT * MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER) as vkbytes;
         let (buffer, requirement) = BufferCI::new(pool_size)
@@ -125,7 +125,7 @@ impl TextAttrtorage {
         // keep the memory mapping during the whole program running.
         let data_ptr = device.map_memory(memory, 0, vk::WHOLE_SIZE)?;
 
-        let result = TextAttrtorage { data_ptr, buffer, memory };
+        let result = TextAttrStorage { data_ptr, buffer, memory };
         Ok(result)
     }
 
@@ -140,15 +140,15 @@ impl TextAttrtorage {
 
 pub struct TextPool {
 
-    /// the dpi factor of current window system.
-    dpi_factor: f32,
     /// screen dimension of current window.
     dimension: vk::Extent2D,
+    // the aspect ratio of current screen dimension.
+    aspect_ratio: f32,
 
     /// all the texts to be rendered.
     texts: Vec<TextInfo>,
     /// `attributes` contains the resource for rendering texts.
-    attributes: TextAttrtorage,
+    attributes: TextAttrStorage,
     /// `glyph_layouts` records the layout information to generate text attributes.
     glyphs: GlyphImages,
 }
@@ -233,9 +233,9 @@ pub enum TextHAlign {
 
 impl TextPool {
 
-    pub fn new(device: &VkDevice, dimension: vk::Extent2D, dpi_factor: f32) -> VkResult<TextPool> {
+    pub fn new(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<TextPool> {
 
-        let attributes = TextAttrtorage::new(device)?;
+        let attributes = TextAttrStorage::new(device)?;
 
         // TODO: Reset font path.
         let font_bytes = include_bytes!("../../../examples/assets/fonts/Roboto-Regular.ttf");
@@ -243,7 +243,8 @@ impl TextPool {
 
         let result = TextPool {
             texts: Vec::new(),
-            dpi_factor, attributes, glyphs, dimension,
+            aspect_ratio: dimension.width as f32 / dimension.height as f32,
+            attributes, glyphs, dimension,
         };
         Ok(result)
     }
@@ -253,7 +254,7 @@ impl TextPool {
         if self.texts.len() < MAXIMUM_SENTENCE_COUNT {
             if text.content.len() <= MAXIMUM_SENTENCE_TEXT_COUNT {
 
-                text.scale *= DISPLAY_SCALE_FIX * self.dpi_factor;
+                text.scale *= DISPLAY_SCALE_FIX / FONT_SCALE;
                 self.texts.push(text);
                 // update the text that is newly added.
                 self.update_texts(self.texts.len() - 1);
@@ -280,8 +281,8 @@ impl TextPool {
 
         let text = &self.texts[update_index];
 
-        let mut origin_x = text.location.x as f32 * self.dpi_factor / self.dimension.width as f32;
-        let origin_y = text.location.y as f32 * self.dpi_factor / self.dimension.height as f32;
+        let mut origin_x = text.location.x as f32 / self.dimension.width as f32;
+        let origin_y = text.location.y as f32 / self.dimension.height as f32;
 
         for ch in text.iter() {
 
@@ -291,10 +292,10 @@ impl TextPool {
             let glyph_layout = self.glyphs.layouts.get(&character_id)
                 .expect(&format!("Find invalid character: {}({}).", character_id, character_id as u8));
 
-            let x_offset = (glyph_layout.bounding_box.min.x * text.scale) / self.dimension.width  as f32;
-            let y_offset = (glyph_layout.bounding_box.min.y * text.scale) / self.dimension.height as f32;
-            let glyph_width  = (glyph_layout.bounding_box.width()  * text.scale) / self.dimension.width  as f32;
-            let glyph_height = (glyph_layout.bounding_box.height() * text.scale) / self.dimension.height as f32;
+            let x_offset     = glyph_layout.bounding_box.min.x    * text.scale;
+            let y_offset     = glyph_layout.bounding_box.min.y    * text.scale * self.aspect_ratio;
+            let glyph_width  = glyph_layout.bounding_box.width()  * text.scale;
+            let glyph_height = glyph_layout.bounding_box.height() * text.scale * self.aspect_ratio;
 
             match text.align {
                 | TextHAlign::Left => {
@@ -340,7 +341,7 @@ impl TextPool {
                         top_left, bottom_right, top_right,   // triangle 2
                     ]);
 
-                    origin_x += (glyph_layout.h_metrics.advance_width * text.scale) / self.dimension.width as f32;
+                    origin_x += glyph_layout.h_metrics.advance_width * text.scale;
                 },
                 | TextHAlign::Center => {
                     unimplemented!()

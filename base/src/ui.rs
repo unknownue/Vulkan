@@ -25,9 +25,9 @@ pub struct UIRenderer {
 
 impl UIRenderer {
 
-    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, renderpass: vk::RenderPass, dpi_factor: f32) -> VkResult<UIRenderer> {
+    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<UIRenderer> {
 
-        let text_pool = TextPool::new(device, swapchain.dimension, dpi_factor)?;
+        let text_pool = TextPool::new(device, swapchain.dimension)?;
         let pipeline_asset = pipeline::UIPipelineAsset::new(device, swapchain, renderpass, text_pool.glyphs_ref())?;
 
         let renderer = UIRenderer { pipeline_asset, text_pool };

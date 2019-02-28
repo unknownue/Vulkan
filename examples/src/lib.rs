@@ -50,7 +50,7 @@ impl VkExampleBackendRes {
         let await_rendering = device.build(&SemaphoreCI::new())?;
 
         // TODO: Fix dpi_factor.
-        let ui_renderer = UIRenderer::new(device, swapchain, renderpass, 2.0)?;
+        let ui_renderer = UIRenderer::new(device, swapchain, renderpass)?;
 
         let mut target = VkExampleBackendRes {
             depth_image, await_rendering, ui_renderer,

@@ -97,8 +97,8 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
 
-        let screen_width  = super::WINDOW_WIDTH  as i32;
-        let screen_height = super::WINDOW_HEIGHT as i32;
+        let screen_width  = self.backend_res.dimension.width  as i32;
+        let screen_height = self.backend_res.dimension.height as i32;
 
         let text1 = TextInfo {
             content: String::from(super::WINDOW_TITLE),
@@ -114,7 +114,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             scale: 12.0,
             align: TextHAlign::Left,
             color: VkColor::WHITE,
-            location: vk::Offset2D { x: 5, y: 20 },
+            location: vk::Offset2D { x: 5, y: 40 },
             capacity: Some(15),
         };
 
@@ -123,7 +123,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             scale: 12.0,
             align: TextHAlign::Left,
             color: VkColor::WHITE,
-            location: vk::Offset2D { x: 5, y: 40 },
+            location: vk::Offset2D { x: 5, y: 80 },
             capacity: None,
         };
 
@@ -146,7 +146,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         };
 
         let wireframe_text = TextInfo {
-            content: String::from("Wireframe Shading Pipeline"),
+            content: String::from("Wireframe Pipeline"),
             scale: 16.0,
             align: TextHAlign::Left,
             color: VkColor::WHITE,
