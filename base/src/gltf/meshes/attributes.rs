@@ -48,34 +48,9 @@ impl AttributesData {
         BufferCI::new(vertices_size)
     }
 
-    // TODO: Implement this function in macros.
+    #[inline]
     pub fn input_descriptions(&self) -> VertexInputSCI {
-
-        let input_binding = vk::VertexInputBindingDescription {
-            binding: 0,
-            stride : ::std::mem::size_of::<AttrVertexPN>() as _,
-            input_rate: vk::VertexInputRate::VERTEX,
-        };
-
-        let vertex_input_attributes = [
-            vk::VertexInputAttributeDescription {
-                location: 0,
-                binding : 0,
-                format  : vk::Format::R32G32B32_SFLOAT,
-                offset  : memoffset::offset_of!(AttrVertexPN, position) as _,
-            },
-            vk::VertexInputAttributeDescription {
-                location: 1,
-                binding : 0,
-                format  : vk::Format::R32G32B32_SFLOAT,
-                offset  : memoffset::offset_of!(AttrVertexPN, normal) as _,
-            },
-        ];
-
-        VertexInputSCI::new()
-            .add_binding(input_binding)
-            .add_attribute(vertex_input_attributes[0])
-            .add_attribute(vertex_input_attributes[1])
+        self.data_content.input_descriptions()
     }
 }
 
@@ -102,11 +77,11 @@ impl AttributeFlags {
     pub const WEIGHTS_0 : AttributeFlags = AttributeFlags(0b10000000);
 
     // POSITION.
-    pub const ATTR_P       : AttributeFlags = AttributeFlags(0b1);
+    pub const ATTR_P: AttributeFlags = AttributeFlags(0b1);
     // POSITION, NORMAL.
-    pub const ATTR_PN      : AttributeFlags = AttributeFlags(0b11);
+    pub const ATTR_PN: AttributeFlags = AttributeFlags(0b11);
     // POSITION, NORMAL, TEXCOORD_0.
-    pub const ATTR_NTE0    : AttributeFlags = AttributeFlags(0b1011);
+    pub const ATTR_NTE0: AttributeFlags = AttributeFlags(0b1011);
     // POSITION, NORMAL, TANGENT, TEXCOORD_0, TEXCOORD_1, COLOR_0, JOINTS_0, WEIGHTS_0.
     pub const ATTR_ALL: AttributeFlags = AttributeFlags(0b11111111);
 
@@ -185,6 +160,8 @@ pub trait VertexAttributes {
     fn length(&self) -> usize;
 
     fn map_data(&self, memory_ptr: vkptr);
+
+    fn input_descriptions(&self) -> VertexInputSCI;
 }
 
 macro_rules! attribute_type {
@@ -207,6 +184,17 @@ macro_rules! attribute_default {
     (color_0)    => { nalgebra::zero() };
     (joints_0)   => { nalgebra::zero() };
     (weights_0)  => { nalgebra::zero() };
+}
+
+macro_rules! attribute_format {
+    (position)   => { vk::Format::R32G32B32_SFLOAT };
+    (normal)     => { vk::Format::R32G32B32_SFLOAT };
+    (tangents)   => { vk::Format::R32G32B32A32_SFLOAT };
+    (texcoord_0) => { vk::Format::R32G32_SFLOAT };
+    (texcoord_1) => { vk::Format::R32G32_SFLOAT };
+    (color_0)    => { vk::Format::R32G32B32A32_SFLOAT };
+    (joints_0)   => { vk::Format::R16G16B16A16_UNORM };
+    (weights_0)  => { vk::Format::R32G32B32A32_SFLOAT };
 }
 
 macro_rules! read_attribute {
@@ -410,27 +398,44 @@ macro_rules! define_attributes {
                     (memory_ptr as vkptr<$name_vertex>).copy_from(self.data.as_ptr(), self.data.len());
                 }
             }
+
+            fn input_descriptions(&self) -> VertexInputSCI {
+
+                let input_binding = vk::VertexInputBindingDescription {
+                    binding: 0,
+                    stride : ::std::mem::size_of::<$name_vertex>() as _,
+                    input_rate: vk::VertexInputRate::VERTEX,
+                };
+
+                let mut sci = VertexInputSCI::new()
+                    .add_binding(input_binding);
+
+                $(
+                    sci = sci.add_attribute(vk::VertexInputAttributeDescription {
+                        location: 0,
+                        binding : 0,
+                        format  : attribute_format!($attribute),
+                        offset  : memoffset::offset_of!($name_vertex, $attribute) as _,
+                    });
+                )*
+
+                sci.inner_set_attribute_locations();
+
+                sci
+            }
         }
     };
 }
 
 // glTF Primitive with only position attribute.
-define_attributes!(Attr_P, AttrVertex_P, {
-    position,
-});
+define_attributes!(Attr_P, AttrVertex_P, { position, });
 
 /// glTF Primitive with position and normal attributes.
-define_attributes!(Attr_PN, AttrVertexPN, {
-    position, normal,
-});
+define_attributes!(Attr_PN, AttrVertexPN, { position, normal, });
 
 /// glTF Primitive with position, normal and texcoord_0 attributes.
-define_attributes!(Attr_PNTe0, AttrVertex_PNTe0, {
-    position, normal, texcoord_0,
-});
+define_attributes!(Attr_PNTe0, AttrVertex_PNTe0, { position, normal, texcoord_0, });
 
 /// glTF Primitive with all attributes.
-define_attributes!(Attr_All, AttrVertex_Ultimate, {
-    position, normal, tangents, texcoord_0, texcoord_1, color_0, joints_0, weights_0,
-});
+define_attributes!(Attr_All, AttrVertex_Ultimate, { position, normal, tangents, texcoord_0, texcoord_1, color_0, joints_0, weights_0, });
 // --------------------------------------------------------------------------------------

@@ -65,6 +65,13 @@ impl VertexInputSCI {
     pub fn flags(mut self, flags: vk::PipelineVertexInputStateCreateFlags) -> VertexInputSCI {
         self.sci.flags = flags; self
     }
+
+    // For crate inner use.
+    pub(crate) fn inner_set_attribute_locations(&mut self) {
+        for (i, attribute) in self.attributes.iter_mut().enumerate() {
+            attribute.location = i as _;
+        }
+    }
 }
 // ----------------------------------------------------------------------------------------------
 

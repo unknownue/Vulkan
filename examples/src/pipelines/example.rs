@@ -105,9 +105,9 @@ impl vkbase::RenderWorkflow for VulkanExample {
         let phong_text = TextInfo {
             content: String::from("Phong Shading Pipeline"),
             scale: 16.0,
-            align: TextHAlign::Right,
+            align: TextHAlign::Center,
             color: VkColor::WHITE,
-            location: vk::Offset2D { x: screen_width / 3, y: screen_height / 8 * 7 },
+            location: vk::Offset2D { x: screen_width / 6, y: screen_height / 8 * 7 },
             r#type: TextType::Static,
         };
         self.backend_res.ui_renderer.add_text(phong_text)?;
