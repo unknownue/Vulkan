@@ -31,7 +31,7 @@ impl Vertex {
     pub fn input_description() -> InputDescriptionStaff {
 
         // Vertex input binding
-        // This example uses a single vertex input binding at binding point 0 (see vkCmdBindVertexBuffers).
+        // This example uses a single vertices input binding at binding point 0 (see vkCmdBindVertexBuffers).
         let input_bindings = vec![
             vk::VertexInputBindingDescription {
                 binding: 0,
@@ -79,7 +79,7 @@ impl Vertex {
 
 /// Vertex buffer.
 pub struct VertexBuffer {
-    /// handle to the device memory of current vertex buffer.
+    /// handle to the device memory of current vertices buffer.
     pub memory: vk::DeviceMemory,
     /// handle to the vk::Buffer object that the memory is bound to.
     pub buffer: vk::Buffer,
@@ -122,7 +122,7 @@ pub struct DepthImage {
 }
 
 
-// Prepare vertex buffer and index buffer for an indexed triangle.
+// Prepare vertices buffer and index buffer for an indexed triangle.
 pub fn prepare_vertices(device: &VkDevice, command_pool: vk::CommandPool) -> VkResult<(VertexBuffer, IndexBuffer)> {
 
     // A note on memory management in Vulkan in general:
@@ -201,7 +201,7 @@ struct BufferResourceTmp {
 
 fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::BufferUsageFlags) -> VkResult<BufferResourceTmp> {
 
-    // Static data like vertex and index buffer should be stored on the device memory for optimal (and fastest) access by the GPU.
+    // Static data like vertices and index buffer should be stored on the device memory for optimal (and fastest) access by the GPU.
     //
     // To achieve this we use so-called "staging buffers":
     // - Create a buffer that's visible to the host (and can be mapped).
@@ -225,7 +225,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
         p_queue_family_indices  : ptr::null(),
     };
 
-    // Create a host-visible buffer to copy the vertex data to (staging buffer).
+    // Create a host-visible buffer to copy the vertices data to (staging buffer).
     let staging_buffer = unsafe {
         device.logic.handle.create_buffer(&staging_buffer_ci, None)
             .map_err(|_| VkError::create("Staging Buffer"))?
@@ -264,7 +264,7 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     }
 
 
-    // Create a device local buffer to which the (host local) vertex data will be copied and which will be used for rendering.
+    // Create a device local buffer to which the (host local) vertices data will be copied and which will be used for rendering.
     let target_buffer_ci = vk::BufferCreateInfo {
         usage: buffer_usage | vk::BufferUsageFlags::TRANSFER_DST,
         ..staging_buffer_ci
@@ -304,7 +304,7 @@ pub fn prepare_uniform(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<U
     // Single uniforms like in OpenGL are no longer present in Vulkan.
     // All Shader uniforms are passed via uniform buffer blocks.
 
-    // Uniform buffer block in vertex shader.
+    // Uniform buffer block in vertices shader.
     let uniform_buffer_ci = vk::BufferCreateInfo {
         s_type: vk::StructureType::BUFFER_CREATE_INFO,
         p_next: ptr::null(),

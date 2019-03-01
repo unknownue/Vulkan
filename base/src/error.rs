@@ -117,6 +117,9 @@ pub enum VkErrorKind {
     /// An error occurred while communicate with Window.
     #[fail(display = "Failed to interact with Window: {}.", description)]
     Window { description: String },
+    /// An error occurred while using Vulkan Memory Allocator(VMA).
+    #[fail(display = "VMA Error: {}.", _0)]
+    Vma(#[cause] vma::Error),
     /// An error that occurred while working with a file path.
     #[fail(display = "Failed to locate file at: {:?}", path)]
     Path { path: PathBuf },

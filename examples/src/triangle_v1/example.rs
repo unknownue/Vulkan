@@ -17,7 +17,7 @@ pub struct VulkanExample {
 
     // the size of current window.
     dimension: vk::Extent2D,
-    // the resource about vertex buffer.
+    // the resource about vertices buffer.
     vertex_buffer: VertexBuffer,
     // the resource about index buffer.
     index_buffer: IndexBuffer,
@@ -188,7 +188,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &VkDevice) -> VkResult<()> {
+    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device);
         Ok(())
@@ -263,7 +263,7 @@ impl VulkanExample {
                 // binding it will set all the states specified at pipeline creation time.
                 device.logic.handle.cmd_bind_pipeline(command.clone(), vk::PipelineBindPoint::GRAPHICS, self.pipeline);
 
-                // bind triangle vertex buffer (contains position and colors).
+                // bind triangle vertices buffer (contains position and colors).
                 device.logic.handle.cmd_bind_vertex_buffers(command.clone(), 0, &[self.vertex_buffer.buffer], &[0]);
                 // bind triangle index buffer.
                 device.logic.handle.cmd_bind_index_buffer(command.clone(), self.index_buffer.buffer, 0, vk::IndexType::UINT32);
@@ -284,7 +284,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &VkDevice) {
+    fn discard(&self, device: &mut VkDevice) {
 
         let destructor = &device.logic.handle;
         // clean up used Vulkan resources.
@@ -725,7 +725,7 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
     // Construct the different states making up the pipeline
 
     // Input assembly state describes how primitives are assembled.
-    // This pipeline will assemble vertex data as a triangle lists.
+    // This pipeline will assemble vertices data as a triangle lists.
     let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo {
         s_type: vk::StructureType::PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         p_next: ptr::null(),
@@ -854,7 +854,7 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
 
 
     // Vertex input descriptions
-    // Specifies the vertex input parameters for a pipeline
+    // Specifies the vertices input parameters for a pipeline
     let input_descriptions = Vertex::input_description();
 
 

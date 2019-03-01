@@ -22,7 +22,7 @@ bincode        = "1.0.1"
 memoffset      = "0.2"
 num            = "0.2"
 rusttype       = "0.7.5"
-
+vma = { package = "vk-mem", version = "0.1.3", path = "../../../Rust/vk-mem-rs" }
 
 # vulkan platform dependencies on macOS.
 [target.'cfg(target_os = "macos")'.dependencies]

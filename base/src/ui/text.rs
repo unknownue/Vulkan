@@ -26,7 +26,7 @@ use crate::{vkuint, vkbytes, vkptr};
 use crate::{VkResult, VkError};
 
 
-/// each character use 6 vertex to draw.
+/// each character use 6 vertices to draw.
 const VERTEX_PER_CHARACTER: usize = 6;
 /// the maximum sentence count that the buffer can contain.
 const MAXIMUM_SENTENCE_COUNT: usize = 10;
@@ -43,7 +43,7 @@ pub type TextID = usize;
 type CharacterID = char;
 type GlyphLayouts = HashMap<CharacterID, GlyphLayout>;
 
-/// The vertex attributes for each character.
+/// The vertices attributes for each character.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 struct CharacterVertex {
@@ -281,7 +281,7 @@ impl TextPool {
 
     fn update_texts(&self, update_text: TextID) {
 
-        // calculate vertex attributes of rendering texts.
+        // calculate vertices attributes of rendering texts.
         let mut char_vertices = Vec::with_capacity(self.texts.len() * MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER);
 
         let text = &self.texts[update_text];
@@ -346,7 +346,7 @@ impl TextPool {
             origin_x += glyph_layout.h_metrics.advance_width * text.scale;
         }
 
-        // adjust the position of each vertex to make text alignment.
+        // adjust the position of each vertices to make text alignment.
         match text.align {
             | TextHAlign::Left => {
                 // currently the text is left align.
@@ -368,7 +368,7 @@ impl TextPool {
             },
         }
 
-        // upload vertex attributes to memory.
+        // upload vertices attributes to memory.
         unsafe {
             let target_ptr = (self.attributes.data_ptr as vkptr<CharacterVertex>)
                 .offset((MAXIMUM_SENTENCE_TEXT_COUNT * VERTEX_PER_CHARACTER * update_text) as isize);
@@ -528,7 +528,7 @@ fn allocate_glyph_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension
         .build(device)?
         .remove(0);
 
-    let recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
+    let recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
 
     let copy_region = vk::BufferImageCopy {
         buffer_offset: 0,
@@ -561,7 +561,7 @@ fn allocate_glyph_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension
         .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[shader_read_barrier.value()])
         .end_record()?;
 
-    recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
+    recorder.flush_copy_command_by_transfer_queue()?;
 
     // clean useless resources.
     device.discard(command_pool);

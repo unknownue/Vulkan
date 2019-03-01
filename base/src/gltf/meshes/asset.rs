@@ -7,17 +7,16 @@ use crate::gltf::meshes::mesh::Mesh;
 use crate::gltf::meshes::attributes::{AttributesData, AttributeFlags};
 use crate::gltf::meshes::indices::IndicesData;
 
-use crate::ci::VkObjectBuildableCI;
+use crate::ci::buffer::BufferCI;
+use crate::ci::vma::{VmaAllocationCI, VmaBuffer};
 use crate::ci::pipeline::VertexInputSCI;
-use crate::ci::memory::MemoryAI;
 
 use crate::command::VkCmdRecorder;
 use crate::command::{IGraphics, CmdGraphicsApi};
 use crate::command::{ITransfer, CmdTransferApi};
 
-use crate::context::VkDevice;
-use crate::utils::memory::{MemorySlice, IntegerAlignable};
-use crate::error::{VkResult, VkTryFrom};
+use crate::error::{VkResult, VkTryFrom, VkErrorKind};
+use crate::vkptr;
 
 
 pub struct MeshAsset {
@@ -30,19 +29,16 @@ pub struct MeshAsset {
 
 struct MeshAssetBlock {
 
-    vertex: MemorySlice<vk::Buffer>,
-    index: Option<MemorySlice<vk::Buffer>>,
-
-    memory: vk::DeviceMemory,
+    vertices: VmaBuffer,
+    indices : Option<VmaBuffer>,
 }
 
 pub struct MeshResource {
 
     pub(crate) list: AssetElementList<Mesh>,
 
-    vertex: MemorySlice<vk::Buffer>,
-    index : Option<MemorySlice<vk::Buffer>>,
-    memory: vk::DeviceMemory,
+    vertices: VmaBuffer,
+    indices: Option<VmaBuffer>,
 
     pub vertex_input: VertexInputSCI,
 }
@@ -79,194 +75,145 @@ impl AssetAbstract for MeshAsset {
 
 impl MeshAsset {
 
-    pub fn allocate(self, device: &VkDevice, cmd_recorder: &VkCmdRecorder<ITransfer>) -> VkResult<MeshResource> {
+    pub fn allocate(self, vma: &mut vma::Allocator, cmd_recorder: &VkCmdRecorder<ITransfer>) -> VkResult<MeshResource> {
 
         // allocate staging buffer.
-        let staging_block = self.allocate_staging(device)?;
+        let staging_block = self.allocate_staging(vma)?;
         // allocate mesh buffer.
-        let mesh_block = self.allocate_mesh(device)?;
+        let mesh_block = self.allocate_mesh(vma)?;
 
         // copy data from staging buffer to mesh buffer.
-        MeshAsset::copy_staging2mesh(device, cmd_recorder, &staging_block, &mesh_block)?;
+        MeshAsset::copy_staging2mesh(cmd_recorder, &staging_block, &mesh_block)?;
 
         // discard staging resource.
-        staging_block.discard(device);
+        staging_block.discard(vma)?;
 
         let result = MeshResource {
-            vertex: mesh_block.vertex,
-            index : mesh_block.index,
-            memory: mesh_block.memory,
-            list  : self.meshes,
+            vertices: mesh_block.vertices,
+            indices: mesh_block.indices,
+            list: self.meshes,
             vertex_input: self.attributes.input_descriptions(),
         };
         Ok(result)
     }
 
-    fn allocate_mesh(&self, device: &VkDevice) -> VkResult<MeshAssetBlock> {
+    fn allocate_mesh(&self, vma: &mut vma::Allocator) -> VkResult<MeshAssetBlock> {
 
-        use crate::utils::memory::IntegerAlignable;
+        // allocate vertices buffer for glTF attributes.
+        let vertex_buffer = {
 
-        // create buffer and allocate memory for glTF mesh.
-        let (vertex_buffer, vertex_requirement) = self.attributes.buffer_ci()
-            .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
-            .build(device)?;
-        let vertex_aligned_size = vertex_requirement.size.align_to(vertex_requirement.alignment);
+            let vertex_ci = BufferCI::new(self.attributes.buffer_size_estimated())
+                .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
+            let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+            let vertices_allocation = vma.create_buffer(
+                vertex_ci.as_ref(), allocate_ci.as_ref())
+                .map_err(VkErrorKind::Vma)?;
 
-        let mesh_block = if let Some(indices_ci) = self.indices.buffer_ci() {
-            let (index_buffer, index_requirement) = indices_ci
-                .usage(vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
-                .build(device)?;
-            let index_aligned_size = index_requirement.size.align_to(index_requirement.alignment);
-
-            let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-            let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
-                .build(device)?;
-
-            MeshAssetBlock {
-                vertex: MemorySlice {
-                    handle: vertex_buffer,
-                    offset: 0,
-                    size  : vertex_aligned_size,
-                },
-                index: Some(MemorySlice {
-                    handle: index_buffer,
-                    offset: vertex_aligned_size,
-                    size  : index_aligned_size,
-                }),
-                memory: mesh_memory,
-            }
-        } else {
-            let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-            let mesh_memory = MemoryAI::new(vertex_aligned_size, memory_type)
-                .build(device)?;
-
-            MeshAssetBlock {
-                vertex: MemorySlice {
-                    handle: vertex_buffer,
-                    offset: 0,
-                    size  : vertex_aligned_size,
-                },
-                index: None,
-                memory: mesh_memory,
-            }
+            VmaBuffer::from(vertices_allocation)
         };
 
-        // bind vertex buffer to memory.
-        device.bind_memory(mesh_block.vertex.handle, mesh_block.memory, mesh_block.vertex.offset)?;
-        // bind index buffer to memory.
-        if let Some(ref index_buffer) = mesh_block.index {
-            device.bind_memory(index_buffer.handle, mesh_block.memory, index_buffer.offset)?;
-        }
+        // allocate index buffer for glTF attributes.
+        let index_buffer = if let Some(indices_size) = self.indices.buffer_size_estimated() {
+
+            let indices_ci = BufferCI::new(indices_size)
+                .usage(vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
+            let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+            let indices_allocation = vma.create_buffer(
+                indices_ci.as_ref(), allocate_ci.as_ref())
+                .map_err(VkErrorKind::Vma)?;
+
+            Some(VmaBuffer::from(indices_allocation))
+        } else {
+            None
+        };
+
+        let mesh_block = MeshAssetBlock {
+            vertices: vertex_buffer,
+            indices : index_buffer,
+        };
         Ok(mesh_block)
     }
 
-    fn allocate_staging(&self, device: &VkDevice) -> VkResult<MeshAssetBlock> {
+    fn allocate_staging(&self, vma: &mut vma::Allocator) -> VkResult<MeshAssetBlock> {
 
-        // create staging buffer and allocate memory.
-        let (vertex_buffer, vertex_requirement) = self.attributes.buffer_ci()
-            .usage(vk::BufferUsageFlags::TRANSFER_SRC)
-            .build(device)?;
-        let vertex_aligned_size = vertex_requirement.size.align_to(vertex_requirement.alignment);
+        let staging_vertices = {
 
-        let mesh_block = if let Some(indices_ci) = self.indices.buffer_ci() {
-            let (index_buffer, index_requirement) = indices_ci
-                .usage(vk::BufferUsageFlags::TRANSFER_SRC)
-                .build(device)?;
-            let index_aligned_size = index_requirement.size.align_to(index_requirement.alignment);
+            let vertex_ci = BufferCI::new(self.attributes.buffer_size_estimated())
+                .usage(vk::BufferUsageFlags::TRANSFER_SRC);
+            let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+            let (handle, allocation, info) = vma.create_buffer(
+                vertex_ci.as_ref(), allocate_ci.as_ref())
+                .map_err(VkErrorKind::Vma)?;
 
-            let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits | index_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-            let mesh_memory = MemoryAI::new(vertex_aligned_size + index_aligned_size, memory_type)
-                .build(device)?;
+            let data_ptr = vma.map_memory(&allocation)
+                .map_err(VkErrorKind::Vma)? as vkptr;
 
-            MeshAssetBlock {
-                vertex: MemorySlice {
-                    handle: vertex_buffer,
-                    offset: 0,
-                    size  : vertex_aligned_size,
-                },
-                index: Some(MemorySlice {
-                    handle: index_buffer,
-                    offset: vertex_aligned_size,
-                    size  : index_aligned_size,
-                }),
-                memory: mesh_memory,
-            }
-        } else {
-            let memory_type = device.get_memory_type(vertex_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-            let mesh_memory = MemoryAI::new(vertex_aligned_size, memory_type)
-                .build(device)?;
-
-            MeshAssetBlock {
-                vertex: MemorySlice {
-                    handle: vertex_buffer,
-                    offset: 0,
-                    size  : vertex_aligned_size,
-                },
-                index: None,
-                memory: mesh_memory,
-            }
-        };
-
-        // bind vertex buffer to memory.
-        device.bind_memory(mesh_block.vertex.handle, mesh_block.memory, mesh_block.vertex.offset)?;
-        // bind index buffer to memory.
-        if let Some(ref index_buffer) = mesh_block.index {
-            device.bind_memory(index_buffer.handle, mesh_block.memory, index_buffer.offset)?;
-        }
-
-        // map and bind staging buffer to memory.
-        if let Some(ref index_buffer) = mesh_block.index {
-            // get the starting pointer of host memory.
-            let data_ptr = device.map_memory(mesh_block.memory, mesh_block.vertex.offset, vk::WHOLE_SIZE)?;
-            // map vertex data.
             self.attributes.data_content.map_data(data_ptr);
 
-            let data_ptr = unsafe {
-                data_ptr.offset(index_buffer.offset as isize)
-            };
-            // map index data.
+            vma.unmap_memory(&allocation)
+                .map_err(VkErrorKind::Vma)?;
+
+            VmaBuffer { handle, allocation, info }
+        };
+
+        // allocate index buffer for glTF attributes.
+        let staging_indices = if let Some(indices_size) = self.indices.buffer_size_estimated() {
+
+            let indices_ci = BufferCI::new(indices_size)
+                .usage(vk::BufferUsageFlags::TRANSFER_SRC);
+            let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+            let (handle, allocation, info) = vma.create_buffer(
+                indices_ci.as_ref(), allocate_ci.as_ref())
+                .map_err(VkErrorKind::Vma)?;
+
+            let data_ptr = vma.map_memory(&allocation)
+                .map_err(VkErrorKind::Vma)? as vkptr;
+
             self.indices.map_data(data_ptr);
+
+            vma.unmap_memory(&allocation)
+                .map_err(VkErrorKind::Vma)?;
+
+            Some(VmaBuffer { handle, allocation, info })
         } else {
-            // map vertex data.
-            let data_ptr = device.map_memory(mesh_block.memory, mesh_block.vertex.offset, mesh_block.vertex.size)?;
-            self.attributes.data_content.map_data(data_ptr);
-        }
+            None
+        };
 
-        // unmap the memory.
-        device.unmap_memory(mesh_block.memory);
-
-        Ok(mesh_block)
+        let staging_meshes = MeshAssetBlock {
+            vertices: staging_vertices,
+            indices : staging_indices,
+        };
+        Ok(staging_meshes)
     }
 
-    fn copy_staging2mesh(device: &VkDevice, cmd_recorder: &VkCmdRecorder<ITransfer>, staging: &MeshAssetBlock, mesh: &MeshAssetBlock) -> VkResult<()> {
+    fn copy_staging2mesh(cmd_recorder: &VkCmdRecorder<ITransfer>, staging: &MeshAssetBlock, meshes: &MeshAssetBlock) -> VkResult<()> {
 
         cmd_recorder.reset_command(vk::CommandBufferResetFlags::empty())?;
+        cmd_recorder.begin_record()?;
 
         let vertex_copy_region = vk::BufferCopy {
             src_offset: 0, // the starting offset of buffer.
             dst_offset: 0,
-            size: staging.vertex.size,
+            size      : staging.vertices.info.get_size()   as _,
         };
-
-        // copy vertex data to target buffer.
-        cmd_recorder.begin_record()?
-            .copy_buf2buf(staging.vertex.handle, mesh.vertex.handle, &[vertex_copy_region]);
+        // copy vertices data to target buffer.
+        cmd_recorder.copy_buf2buf(staging.vertices.handle, meshes.vertices.handle, &[vertex_copy_region]);
 
         // copy index data to target buffer.
-        if let Some(ref staging_index) = staging.index {
-            if let Some(ref mesh_index) = mesh.index {
+        if let Some(ref staging_index) = staging.indices {
+            if let Some(ref meshes_indices) = meshes.indices {
                 let index_copy_region = vk::BufferCopy {
                     src_offset: 0,
                     dst_offset: 0,
-                    size: staging_index.size,
+                    size      : staging_index.info.get_size()    as _,
                 };
-                cmd_recorder.copy_buf2buf(staging_index.handle, mesh_index.handle, &[index_copy_region]);
+                cmd_recorder.copy_buf2buf(staging_index.handle, meshes_indices.handle, &[index_copy_region]);
             }
         }
 
         cmd_recorder.end_record()?;
         // execute and wait the copy operation.
-        cmd_recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
+        cmd_recorder.flush_copy_command_by_transfer_queue()?;
 
         Ok(())
     }
@@ -274,13 +221,18 @@ impl MeshAsset {
 
 impl MeshAssetBlock {
 
-    fn discard(&self, device: &VkDevice) {
+    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
 
-        device.discard(self.vertex.handle);
-        if let Some(ref index_buffer) = self.index {
-            device.discard(index_buffer.handle);
+        vma.destroy_buffer(self.vertices.handle, &self.vertices.allocation)
+            .map_err(VkErrorKind::Vma)?;
+
+        if let Some(ref indices) = self.indices {
+
+            vma.destroy_buffer(indices.handle, &indices.allocation)
+                .map_err(VkErrorKind::Vma)?;
         }
-        device.discard(self.memory);
+
+        Ok(())
     }
 }
 
@@ -288,19 +240,24 @@ impl MeshResource {
 
     pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>) {
 
-        recorder.bind_vertex_buffers(0, &[self.vertex.handle], &[0]);
+        recorder.bind_vertex_buffers(0, &[self.vertices.handle], &[0]);
 
-        if let Some(ref index_buffer) = self.index {
+        if let Some(ref index_buffer) = self.indices {
             recorder.bind_index_buffer(index_buffer.handle, vk::IndexType::UINT32, 0);
         }
     }
 
-    pub fn discard(&self, device: &VkDevice) {
+    pub fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
 
-        device.discard(self.vertex.handle);
-        if let Some(ref index_buffer) = self.index {
-            device.discard(index_buffer.handle);
+        vma.destroy_buffer(self.vertices.handle, &self.vertices.allocation)
+            .map_err(VkErrorKind::Vma)?;
+
+        if let Some(ref indices) = self.indices {
+
+            vma.destroy_buffer(indices.handle, &indices.allocation)
+                .map_err(VkErrorKind::Vma)?;
         }
-        device.discard(self.memory);
+
+        Ok(())
     }
 }

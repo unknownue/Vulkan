@@ -2,19 +2,9 @@
 use ash::vk;
 
 use crate::context::VkDevice;
-use crate::{vkuint, vkbytes};
+use crate::vkuint;
 use std::ops::{Add, Sub, Not, BitAnd};
 
-
-pub struct MemorySlice<T> where T: Copy {
-
-    /// the handle of vk::Buffer or vk::Image.
-    pub handle: T,
-    /// the starting offset of this memory slice.
-    pub offset: vkbytes,
-    /// the size of this memory slice.
-    pub size  : vkbytes,
-}
 
 pub fn get_memory_type_index(device: &VkDevice, mut type_bits: vkuint, properties: vk::MemoryPropertyFlags) -> vkuint {
 

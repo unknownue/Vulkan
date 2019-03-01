@@ -30,11 +30,11 @@ fn main() {
     phy_config.request_features.fill_mode_non_solid = ash::vk::TRUE;
     phy_config.request_features.wide_lines = ash::vk::TRUE;
 
-    let vk_context = VulkanContext::new(&window)
+    let mut vk_context = VulkanContext::new(&window)
         .with_physical_device_config(phy_config)
         .build().expect("Error when creating Vulkan Context");
 
-    let app = example::VulkanExample::new(&vk_context)
+    let app = example::VulkanExample::new(&mut vk_context)
         .expect("Error when initializing application");
 
     let mut entry = ProcPipeline::new(window, vk_context).unwrap();

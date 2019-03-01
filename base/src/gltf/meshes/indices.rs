@@ -1,6 +1,5 @@
 
 use crate::gltf::asset::GltfDocument;
-use crate::ci::buffer::BufferCI;
 use crate::error::{VkResult, VkError};
 
 use crate::{vkuint, vkbytes, vkptr};
@@ -43,12 +42,11 @@ impl IndicesData {
         Ok(result)
     }
 
-    pub fn buffer_ci(&self) -> Option<BufferCI> {
+    pub fn buffer_size_estimated(&self) -> Option<vkbytes> {
 
         if self.start_index > 0 {
-
             let indices_size = (self.data_content.len() * ::std::mem::size_of::<vkuint>()) as vkbytes;
-            Some(BufferCI::new(indices_size))
+            Some(indices_size)
         } else {
             None
         }

@@ -98,7 +98,7 @@ pub struct UboVS {
     pub model: Matrix4F,
 }
 
-// Prepare vertex buffer and index buffer for an indexed triangle.
+// Prepare vertices buffer and index buffer for an indexed triangle.
 pub fn prepare_vertices(device: &VkDevice) -> VkResult<(VertexBuffer, IndexBuffer)> {
 
     let vertices_data = [
@@ -145,7 +145,7 @@ fn transfer_staging_data(device: &VkDevice, vertices: &BufferResourceTmp, indice
         .build(device)?
         .remove(0);
 
-    let cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
+    let cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
 
     let vertex_copy_region = vk::BufferCopy {
         src_offset: 0,

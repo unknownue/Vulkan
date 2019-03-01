@@ -44,7 +44,7 @@ impl ProcPipeline {
         self.main_loop(&mut app)?;
 
         self.vulkan.wait_idle()?;
-        app.deinit(&self.vulkan.device)?;
+        app.deinit(&mut self.vulkan.device)?;
         // free the program specific resource.
         drop(app);
         // and then free vulkan context resource.

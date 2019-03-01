@@ -98,4 +98,11 @@ impl VkObjectBindable for vk::Buffer {
         }
     }
 }
+
+impl AsRef<vk::BufferCreateInfo> for BufferCI {
+
+    fn as_ref(&self) -> &vk::BufferCreateInfo {
+        &self.ci
+    }
+}
 // ----------------------------------------------------------------------------------------------

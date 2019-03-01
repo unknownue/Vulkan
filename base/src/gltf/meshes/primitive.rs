@@ -30,7 +30,7 @@ impl Primitive {
             return Err(VkError::unimplemented(format!("{} render mode.", translate_draw_mode(doc_primitive.mode()))))
         }
 
-        // read vertex attribute data of glTF::Primitive.
+        // read vertices attribute data of glTF::Primitive.
         let attribute_info = attributes.data_content.extend(&doc_primitive, source);
 
         let render_params = match doc_primitive.indices() {

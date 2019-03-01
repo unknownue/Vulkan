@@ -114,7 +114,7 @@ impl NodeAsset {
             .copy_buf2buf(staging_buffer, attachments_buffer, &[copy_region])
             .end_record()?;
 
-        cmd_recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
+        cmd_recorder.flush_copy_command_by_transfer_queue()?;
 
         // destroy staging buffer and memory.
         device.discard(staging_buffer);

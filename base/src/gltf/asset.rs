@@ -86,7 +86,7 @@ impl AssetRepository {
         Ok(repository)
     }
 
-    pub fn allocate(self, device: &VkDevice, scene: Scene) -> VkResult<VkglTFModel> {
+    pub fn allocate(self, device: &mut VkDevice, scene: Scene) -> VkResult<VkglTFModel> {
 
         use crate::ci::command::{CommandBufferAI, CommandPoolCI};
         use crate::command::{VkCmdRecorder, ITransfer};
@@ -98,13 +98,16 @@ impl AssetRepository {
             .build(device)?
             .remove(0);
 
-        let mut cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
+        let mut cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
         cmd_recorder.set_usage(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        let nodes_allocated  = self.nodes.allocate(device, &cmd_recorder)?;
+        let meshes_allocated = self.meshes.allocate(&mut device.vma, &cmd_recorder)?;
 
         let result = VkglTFModel {
             scene,
-            meshes: self.meshes.allocate(device, &cmd_recorder)?,
-            nodes : self.nodes.allocate(device, &cmd_recorder)?,
+            meshes: meshes_allocated,
+            nodes : nodes_allocated,
             materials: self.materials,
         };
 
@@ -144,10 +147,12 @@ impl VkglTFModel {
 
 impl VkglTFModel {
 
-    pub fn discard(&self, device: &VkDevice) {
+    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.meshes.discard(device);
+        self.meshes.discard(&mut device.vma)?;
         self.nodes.discard(device);
+
+        Ok(())
     }
 }
 // --------------------------------------------------------------------------------------

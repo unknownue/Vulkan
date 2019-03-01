@@ -2,7 +2,7 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::context::VkDevice;
+use crate::context::VkLogicalDevice;
 use crate::error::{VkResult, VkError};
 
 use std::marker::PhantomData;
@@ -12,14 +12,14 @@ pub struct VkCmdRecorder<'a, T> {
 
     phantom_marker: PhantomData<T>,
 
-    pub(super) device: &'a VkDevice,
+    pub(super) device: &'a VkLogicalDevice,
     pub(super) command: vk::CommandBuffer,
     usage  : vk::CommandBufferUsageFlags,
 }
 
 impl<'a, 'd: 'a, T> VkCmdRecorder<'a, T> {
 
-    pub fn new(device: &'d VkDevice, command: vk::CommandBuffer) -> VkCmdRecorder<'a, T> {
+    pub fn new(device: &'d VkLogicalDevice, command: vk::CommandBuffer) -> VkCmdRecorder<'a, T> {
 
         VkCmdRecorder {
             device, command,
@@ -42,7 +42,7 @@ impl<'a, 'd: 'a, T> VkCmdRecorder<'a, T> {
         };
 
         unsafe {
-            self.device.logic.handle.begin_command_buffer(self.command, &begin_ci)
+            self.device.handle.begin_command_buffer(self.command, &begin_ci)
                 .or(Err(VkError::device("Begin Command Buffer.")))?;
         }
         Ok(self)
@@ -51,7 +51,7 @@ impl<'a, 'd: 'a, T> VkCmdRecorder<'a, T> {
     pub fn end_record(&self) -> VkResult<()> {
 
         unsafe {
-            self.device.logic.handle.end_command_buffer(self.command)
+            self.device.handle.end_command_buffer(self.command)
                 .or(Err(VkError::device("End Command Buffer.")))?;
         }
 
@@ -61,7 +61,7 @@ impl<'a, 'd: 'a, T> VkCmdRecorder<'a, T> {
     pub fn reset_command(&self, flags: vk::CommandBufferResetFlags) -> VkResult<()> {
 
         unsafe {
-            self.device.logic.handle.reset_command_buffer(self.command, flags)
+            self.device.handle.reset_command_buffer(self.command, flags)
                 .or(Err(VkError::device("End Command Buffer.")))?;
         }
         Ok(())

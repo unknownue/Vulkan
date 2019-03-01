@@ -54,9 +54,9 @@ struct PipelineStaff {
 
 impl VulkanExample {
 
-    pub fn new(context: &VulkanContext) -> VkResult<VulkanExample> {
+    pub fn new(context: &mut VulkanContext) -> VkResult<VulkanExample> {
 
-        let device = &context.device;
+        let device = &mut context.device;
         let swapchain = &context.swapchain;
         let dimension = swapchain.dimension;
 
@@ -189,10 +189,9 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &VkDevice) -> VkResult<()> {
+    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.discard(device);
-        Ok(())
+        self.discard(device)
     }
 }
 
@@ -227,7 +226,7 @@ impl VulkanExample {
                 min_depth: 0.0, max_depth: 1.0,
             };
 
-            let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(device, command);
+            let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
 
             let render_pass_bi = RenderPassBI::new(self.backend_res.render_pass, self.backend_res.framebuffers[i])
                 .render_extent(dimension)
@@ -288,7 +287,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &VkDevice) {
+    fn discard(&mut self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.layout);
         device.discard(self.descriptors.pool);
@@ -302,20 +301,22 @@ impl VulkanExample {
         device.discard(self.uniform_buffer.buffer);
         device.discard(self.uniform_buffer.memory);
 
-        self.model.discard(device);
+        self.model.discard(device)?;
         self.backend_res.discard(device);
+
+        Ok(())
     }
 }
 
 // Prepare model from glTF file.
-pub fn prepare_model(device: &VkDevice) -> VkResult<VkglTFModel> {
+pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 
     use vkbase::gltf::{GltfModelInfo, load_gltf};
     use vkbase::gltf::{AttributeFlags, NodeAttachmentFlags};
 
     let model_info = GltfModelInfo {
         path: Path::new(MODEL_PATH),
-        attribute: AttributeFlags::POSITION | AttributeFlags::NORMAL, // specify model's vertex layout.
+        attribute: AttributeFlags::POSITION | AttributeFlags::NORMAL, // specify model's vertices layout.
         node: NodeAttachmentFlags::TRANSFORM_MATRIX, // specify model's node attachment layout.
     };
 

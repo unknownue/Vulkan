@@ -143,4 +143,11 @@ impl VkObjectWaitable for vk::Fence {
         }
     }
 }
+
+impl AsRef<vk::FenceCreateInfo> for FenceCI {
+
+    fn as_ref(&self) -> &vk::FenceCreateInfo {
+        &self.ci
+    }
+}
 // ----------------------------------------------------------------------------------------------

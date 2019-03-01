@@ -4,6 +4,7 @@ pub mod pipeline;
 pub mod device;
 pub mod image;
 pub mod buffer;
+pub mod vma;
 pub mod descriptor;
 pub mod memory;
 pub mod command;

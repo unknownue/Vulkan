@@ -2,7 +2,6 @@
 use ash::vk;
 
 use crate::gltf::asset::GltfDocument;
-use crate::ci::buffer::BufferCI;
 use crate::ci::pipeline::VertexInputSCI;
 use crate::error::{VkTryFrom, VkResult, VkError};
 use crate::{vkbytes, vkptr};
@@ -20,9 +19,9 @@ type Vector4U = nalgebra::Vector4<u16>;
 
 pub struct AttributesData {
 
-    /// the size of each vertex.
+    /// the size of each vertices.
     pub vertex_size: vkbytes,
-    /// the vertex attributes data of all primitive.
+    /// the vertices attributes data of all primitive.
     pub data_content: Box<dyn VertexAttributes>,
 }
 
@@ -42,10 +41,8 @@ impl VkTryFrom<AttributeFlags> for AttributesData {
 
 impl AttributesData {
 
-    pub fn buffer_ci(&self) -> BufferCI {
-
-        let vertices_size = (self.data_content.length() as vkbytes) * self.vertex_size;
-        BufferCI::new(vertices_size)
+    pub fn buffer_size_estimated(&self) -> vkbytes {
+        (self.data_content.length() as vkbytes) * self.vertex_size
     }
 
     #[inline]

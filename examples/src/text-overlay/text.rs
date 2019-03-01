@@ -25,7 +25,7 @@ use vkbase::{vkuint, vkbytes, vkptr};
 use vkbase::{VkResult, VkError};
 
 const ASCII_RANGE: Range<u8> = (33..127_u8);
-const VERTEX_PER_CHARACTER: usize = 6; // each character use 6 vertex to draw.
+const VERTEX_PER_CHARACTER: usize = 6; // each character use 6 vertices to draw.
 const TEXT_CAPABILITY_LENGTH: usize = 1024;
 /// Control the font size of sampled glyph.
 const FONT_SCALE: f32 = 48.0;
@@ -35,7 +35,7 @@ const IMAGE_PADDING: usize = 20;
 type CharacterID = char;
 type GlyphLayouts = HashMap<CharacterID, GlyphLayout>;
 
-/// The vertex attributes for each character.
+/// The vertices attributes for each character.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 struct CharacterVertex {
@@ -152,7 +152,7 @@ impl TextPool {
 
     pub fn update_texts(&self, device: &VkDevice, glyphs: &GlyphImages) -> VkResult<()> {
 
-        // calculate vertex attributes of rendering texts.
+        // calculate vertices attributes of rendering texts.
         let mut char_vertices = Vec::with_capacity(self.texts_length * VERTEX_PER_CHARACTER);
 
         for text in self.texts.iter() {
@@ -216,7 +216,7 @@ impl TextPool {
             }
         }
 
-        // upload vertex attributes to memory.
+        // upload vertices attributes to memory.
         device.copy_to_ptr(self.data_ptr, &char_vertices);
 
         Ok(())
@@ -379,7 +379,7 @@ fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::
         .build(device)?
         .remove(0);
 
-    let recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(device, copy_command);
+    let recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
 
     let copy_region = vk::BufferImageCopy {
         buffer_offset: 0,

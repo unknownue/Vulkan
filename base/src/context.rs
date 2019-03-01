@@ -1,5 +1,5 @@
 
-pub use self::device::VkDevice;
+pub use self::device::{VkDevice, VkLogicalDevice, VkPhysicalDevice};
 pub use self::device::{VkObjectDiscardable, VkObjectAllocatable, VkObjectBindable};
 pub use self::device::{VkObjectWaitable, VkSubmitCI};
 pub use self::swapchain::{VkSwapchain, SwapchainSyncError};
@@ -18,7 +18,7 @@ mod swapchain;
 
 use ash::version::DeviceV1_0;
 use crate::workflow::WindowContext;
-use crate::error::{VkResult, VkError};
+use crate::error::{VkResult, VkError, VkErrorKind};
 
 #[derive(Default)]
 pub struct VulkanConfig {
@@ -118,12 +118,35 @@ impl<'a> VulkanContextBuilder<'a> {
 
         let phy_device = device::VkPhysicalDevice::new(&instance, self.config.dev_phy)?;
         let logic_device = device::VkLogicalDevice::new(&instance, &phy_device, self.config.dev_logic)?;
-        let device = device::VkDevice::new(logic_device, phy_device)?;
+        let vma = VulkanContextBuilder::build_vma(&instance, &phy_device, &logic_device)?;
+        let device = device::VkDevice::new(logic_device, phy_device, vma)?;
 
         let dimension = self.window.dimension()?;
         let swapchain = swapchain::VkSwapchain::new(&instance, &device, &surface, self.config.swapchain, dimension)?;
 
         let context = VulkanContext { instance, debugger, surface, device, swapchain };
         Ok(context)
+    }
+
+    /// Create Vulkan Memory Allocator object for VkDevice.
+    fn build_vma(instance: &instance::VkInstance, phy_device: &VkPhysicalDevice, logic_device: &VkLogicalDevice) -> VkResult<vma::Allocator> {
+
+        let allocator_ci = vma::AllocatorCreateInfo {
+            physical_device: phy_device.handle,
+            device: logic_device.handle.clone(),
+            instance: instance.handle.clone(),
+            // handle synchronization by myself.
+            flags: vma::AllocatorCreateFlags::EXTERNALLY_SYNCHRONIZED,
+            // tell vma use default block size.
+            preferred_large_heap_block_size: 0,
+            // this crate does not use `lost allocations` feature, so this field does not matter.
+            frame_in_use_count: 0,
+            // disable limitation on memory heap.
+            heap_size_limits: None,
+        };
+
+        let allocator = vma::Allocator::new(&allocator_ci)
+            .map_err(VkErrorKind::Vma)?;
+        Ok(allocator)
     }
 }

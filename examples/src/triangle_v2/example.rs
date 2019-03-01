@@ -98,7 +98,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &VkDevice) -> VkResult<()> {
+    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device);
         Ok(())
@@ -130,7 +130,7 @@ impl VulkanExample {
             use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
             use vkbase::ci::pipeline::RenderPassBI;
 
-            let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(device, command);
+            let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
 
             let render_pass_bi = RenderPassBI::new(self.backend_res.render_pass, self.backend_res.framebuffers[i])
                 .render_extent(dimension)
@@ -152,7 +152,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &VkDevice) {
+    fn discard(&self, device: &mut VkDevice) {
 
         device.discard(self.descriptors.set_layout);
         device.discard(self.descriptors.descriptor_pool);

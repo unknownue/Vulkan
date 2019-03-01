@@ -34,5 +34,5 @@ pub trait RenderWorkflow {
 
     fn receive_input(&mut self, inputer: &EventController, delta_time: f32) -> FrameAction;
 
-    fn deinit(&mut self, device: &VkDevice) -> VkResult<()>;
+    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()>;
 }
