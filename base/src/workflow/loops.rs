@@ -37,7 +37,7 @@ impl ProcPipeline {
         self.vulkan.swapchain.frame_in_flight()
     }
 
-    pub fn launch(&mut self, mut app: impl RenderWorkflow) -> VkResult<()> {
+    pub fn launch(mut self, mut app: impl RenderWorkflow) -> VkResult<()> {
 
         app.init(&self.vulkan.device)?;
 

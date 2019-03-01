@@ -32,7 +32,7 @@ fn main() {
     let app = example::VulkanExample::new(&vk_context)
         .expect("Error when initializing application");
 
-    let mut entry = vkbase::ProcPipeline::new(window, vk_context).unwrap();
+    let entry = vkbase::ProcPipeline::new(window, vk_context).unwrap();
 
     match entry.launch(app) {
         | Ok(_) => {},

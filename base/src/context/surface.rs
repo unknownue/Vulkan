@@ -70,10 +70,13 @@ impl VkSurface {
                 .or(Err(VkError::query("Surface Present Modes")))
         }
     }
+}
 
-    /// Destroy the `vk::SurfaceKHR` object.
-    pub fn discard(&self) {
+impl Drop for VkSurface {
 
+    fn drop(&mut self) {
+
+        // Destroy the `vk::SurfaceKHR` object.
         unsafe {
             self.loader.destroy_surface(self.handle, None);
         }

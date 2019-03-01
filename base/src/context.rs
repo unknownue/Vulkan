@@ -67,13 +67,16 @@ impl VulkanContext {
         Ok(())
     }
 
-    pub(super) fn discard(&self) {
+    pub(super) fn discard(self) {
 
         self.swapchain.discard(&self.device);
-        self.device.discard_self();
-        self.surface.discard();
-        self.debugger.discard();
-        self.instance.discard();
+        drop(self.swapchain);
+
+        self.device.drop_self();
+
+        drop(self.surface);
+        drop(self.debugger);
+        drop(self.instance);
     }
 }
 
@@ -86,28 +89,23 @@ pub struct VulkanContextBuilder<'a> {
 impl<'a> VulkanContextBuilder<'a> {
 
     pub fn with_instance_config(mut self, config: InstanceConfig) -> VulkanContextBuilder<'a> {
-        self.config.instance = config;
-        self
+        self.config.instance = config; self
     }
 
     pub fn with_debugger_config(mut self, config: ValidationConfig) -> VulkanContextBuilder<'a> {
-        self.config.debugger = config;
-        self
+        self.config.debugger = config; self
     }
 
     pub fn with_logic_device_config(mut self, config: LogicDevConfig) -> VulkanContextBuilder<'a> {
-        self.config.dev_logic = config;
-        self
+        self.config.dev_logic = config; self
     }
 
     pub fn with_physical_device_config(mut self, config: PhysicalDevConfig) -> VulkanContextBuilder<'a> {
-        self.config.dev_phy = config;
-        self
+        self.config.dev_phy = config; self
     }
 
     pub fn with_swapchain_config(mut self, config: SwapchainConfig) -> VulkanContextBuilder<'a> {
-        self.config.swapchain = config;
-        self
+        self.config.swapchain = config; self
     }
 
     pub fn build(self) -> VkResult<VulkanContext> {

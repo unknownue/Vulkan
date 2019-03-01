@@ -66,8 +66,11 @@ impl VkDebugger {
         let result = VkDebugger { target: debugger };
         Ok(result)
     }
+}
 
-    pub fn discard(&self) {
+impl Drop for VkDebugger {
+
+    fn drop(&mut self) {
 
         if let Some(ref debugger) = self.target {
             unsafe {

@@ -33,7 +33,7 @@ fn main() {
     let app = example::VulkanExample::new(&vk_context, window.hidpi_factor())
         .expect("Error when initializing application");
 
-    let mut entry = ProcPipeline::new(window, vk_context).unwrap();
+    let entry = ProcPipeline::new(window, vk_context).unwrap();
 
     match entry.launch(app) {
         | Ok(_) => {},

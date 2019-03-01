@@ -108,15 +108,17 @@ impl VkLogicalDevice {
         let device = VkLogicalDevice { handle, queues };
         Ok(device)
     }
+}
 
-    pub(crate) fn discard(&self) {
+impl Drop for VkLogicalDevice {
+
+    fn drop(&mut self) {
 
         unsafe {
             self.handle.destroy_device(None);
         }
     }
 }
-
 
 #[derive(Default)]
 struct QueuesRequestInfo {

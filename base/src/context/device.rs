@@ -37,9 +37,11 @@ impl VkDevice {
         Ok(device)
     }
 
-    pub(super) fn discard_self(&self) {
+    pub(super) fn drop_self(self) {
+
         self.discard(self.pipeline_cache);
-        self.logic.discard();
+        // destroy vma manually, so that vma will be destroyed before logic device.
+        drop(self.vma);
     }
 }
 
