@@ -106,6 +106,11 @@ impl VkDevice {
     }
 
     #[inline]
+    pub fn vma_discard(&mut self, object: &impl VmaResourceDiscardable) -> VkResult<()> {
+        object.discard(&mut self.vma)
+    }
+
+    #[inline]
     pub fn free<T>(&self, object: T, pool: T::AllocatePool)
         where
             T: VkObjectAllocatable {
@@ -124,6 +129,11 @@ impl VkDevice {
 pub trait VkObjectDiscardable: Copy {
 
     fn discard(self, device: &VkDevice);
+}
+
+pub trait VmaResourceDiscardable {
+
+    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()>;
 }
 
 pub trait VkObjectAllocatable: Copy {

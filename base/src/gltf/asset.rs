@@ -7,7 +7,7 @@ use crate::gltf::material::{MaterialAsset, MaterialResource};
 use crate::gltf::scene::Scene;
 
 use crate::command::{VkCmdRecorder, IGraphics};
-use crate::context::VkDevice;
+use crate::context::{VkDevice, VmaResourceDiscardable};
 use crate::ci::VkObjectBuildableCI;
 use crate::error::{VkResult, VkTryFrom};
 
@@ -101,7 +101,7 @@ impl AssetRepository {
         let mut cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
         cmd_recorder.set_usage(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
-        let nodes_allocated  = self.nodes.allocate(device, &cmd_recorder)?;
+        let nodes_allocated  = self.nodes.allocate(&mut device.vma, &cmd_recorder, device.phy.limits.min_uniform_buffer_offset_alignment)?;
         let meshes_allocated = self.meshes.allocate(&mut device.vma, &cmd_recorder)?;
 
         let result = VkglTFModel {
@@ -145,14 +145,12 @@ impl VkglTFModel {
     }
 }
 
-impl VkglTFModel {
+impl VmaResourceDiscardable for VkglTFModel {
 
-    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
 
-        self.meshes.discard(&mut device.vma)?;
-        self.nodes.discard(device);
-
-        Ok(())
+        self.meshes.discard(vma)?;
+        self.nodes.discard(vma)
     }
 }
 // --------------------------------------------------------------------------------------

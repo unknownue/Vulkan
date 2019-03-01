@@ -55,14 +55,17 @@ impl RenderPassBI {
         }
     }
 
+    #[inline(always)]
     pub fn render_extent(mut self, area: vk::Extent2D) -> RenderPassBI {
         self.bi.render_area.extent = area; self
     }
 
+    #[inline(always)]
     pub fn render_area_offset(mut self, offset: vk::Offset2D) -> RenderPassBI {
         self.bi.render_area.offset = offset; self
     }
 
+    #[inline(always)]
     pub fn clear_values(mut self, values: &[vk::ClearValue]) -> RenderPassBI {
         self.clears.extend_from_slice(values); self
     }
@@ -144,18 +147,22 @@ impl RenderPassCI {
         }
     }
 
+    #[inline(always)]
     pub fn add_attachment(mut self, attachment: vk::AttachmentDescription) -> RenderPassCI {
         self.attachments.push(attachment); self
     }
 
+    #[inline(always)]
     pub fn add_subpass(mut self, subpass: vk::SubpassDescription) -> RenderPassCI {
         self.subpasses.push(subpass); self
     }
 
+    #[inline(always)]
     pub fn add_dependency(mut self, dependency: vk::SubpassDependency) -> RenderPassCI {
         self.dependencies.push(dependency); self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::RenderPassCreateFlags) -> RenderPassCI {
         self.ci.flags = flags; self
     }
@@ -209,29 +216,35 @@ impl AttachmentDescCI {
         }
     }
 
+    #[inline(always)]
     pub fn value(&self) -> vk::AttachmentDescription {
         self.ci.clone()
     }
 
+    #[inline(always)]
     pub fn sample_count(mut self, count: vk::SampleCountFlags) -> AttachmentDescCI {
         self.ci.samples = count; self
     }
 
+    #[inline(always)]
     pub fn op(mut self, load: vk::AttachmentLoadOp, store: vk::AttachmentStoreOp) -> AttachmentDescCI {
         self.ci.load_op  = load;
         self.ci.store_op = store; self
     }
 
+    #[inline(always)]
     pub fn stencil_op(mut self, load: vk::AttachmentLoadOp, store: vk::AttachmentStoreOp) -> AttachmentDescCI {
         self.ci.stencil_load_op  = load;
         self.ci.stencil_store_op = store; self
     }
 
+    #[inline(always)]
     pub fn layout(mut self, initial: vk::ImageLayout, r#final: vk::ImageLayout) -> AttachmentDescCI {
         self.ci.initial_layout = initial;
         self.ci.final_layout   = r#final; self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::AttachmentDescriptionFlags) -> AttachmentDescCI {
         self.ci.flags = flags; self
     }
@@ -314,6 +327,7 @@ impl SubpassDescCI {
         }
     }
 
+    #[inline(always)]
     pub fn add_input_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
         self.inputs.push(vk::AttachmentReference {
             attachment: attachment_index,
@@ -321,6 +335,7 @@ impl SubpassDescCI {
         }); self
     }
 
+    #[inline(always)]
     pub fn add_color_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
         self.colors.push(vk::AttachmentReference {
             attachment: attachment_index,
@@ -328,6 +343,7 @@ impl SubpassDescCI {
         }); self
     }
 
+    #[inline(always)]
     pub fn add_resolve_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
         self.resolves.push(vk::AttachmentReference {
             attachment: attachment_index,
@@ -335,6 +351,7 @@ impl SubpassDescCI {
         }); self
     }
 
+    #[inline(always)]
     pub fn add_preserve_attachment(mut self, attachment_index: vkuint) -> SubpassDescCI {
         self.preserves.push(attachment_index); self
     }
@@ -353,6 +370,7 @@ impl SubpassDescCI {
         self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::SubpassDescriptionFlags) -> SubpassDescCI {
         self.ci.flags = flags; self
     }
@@ -397,20 +415,24 @@ impl SubpassDependencyCI {
         }
     }
 
+    #[inline(always)]
     pub fn value(&self) -> vk::SubpassDependency {
         self.ci.clone()
     }
 
+    #[inline(always)]
     pub fn stage_mask(mut self, src: vk::PipelineStageFlags, dst: vk::PipelineStageFlags) -> SubpassDependencyCI {
         self.ci.src_stage_mask = src;
         self.ci.dst_stage_mask = dst; self
     }
 
+    #[inline(always)]
     pub fn access_mask(mut self, src: vk::AccessFlags, dst: vk::AccessFlags) -> SubpassDependencyCI {
         self.ci.src_access_mask = src;
         self.ci.dst_access_mask = dst; self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::DependencyFlags) -> SubpassDependencyCI {
         self.ci.dependency_flags = flags; self
     }

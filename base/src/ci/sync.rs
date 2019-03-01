@@ -53,6 +53,7 @@ impl SemaphoreCI {
         }
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::SemaphoreCreateFlags) {
         self.ci.flags = flags;
     }

@@ -104,10 +104,12 @@ impl ShaderModuleCI {
         }
     }
 
+    #[inline(always)]
     pub fn main(mut self, name: impl AsRef<str>) -> ShaderModuleCI {
         self.main = String::from(name.as_ref()); self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::ShaderModuleCreateFlags) -> ShaderModuleCI {
         self.ci.flags = flags; self
     }
@@ -165,15 +167,18 @@ impl ShaderStageCI {
         }
     }
 
+    #[inline(always)]
     pub fn main(mut self, name: impl AsRef<str>) -> ShaderStageCI {
         self.main = CString::new(name.as_ref().to_owned())
             .expect("Invalid name of main func in shader."); self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineShaderStageCreateFlags) -> ShaderStageCI {
         self.ci.flags = flags; self
     }
 
+    #[inline(always)]
     pub fn specialization(mut self, info: vk::SpecializationInfo) -> ShaderStageCI {
         self.specialization = Some(info); self
     }

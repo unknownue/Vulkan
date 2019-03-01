@@ -106,7 +106,7 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let vertices_allocation = vma.create_buffer(
-                vertex_ci.as_ref(), allocate_ci.as_ref())
+                &vertex_ci.value(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             VmaBuffer::from(vertices_allocation)
@@ -119,7 +119,7 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let indices_allocation = vma.create_buffer(
-                indices_ci.as_ref(), allocate_ci.as_ref())
+                &indices_ci.value(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             Some(VmaBuffer::from(indices_allocation))
@@ -142,7 +142,7 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let (handle, allocation, info) = vma.create_buffer(
-                vertex_ci.as_ref(), allocate_ci.as_ref())
+                &vertex_ci.value(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             let data_ptr = vma.map_memory(&allocation)
@@ -163,7 +163,7 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let (handle, allocation, info) = vma.create_buffer(
-                indices_ci.as_ref(), allocate_ci.as_ref())
+                &indices_ci.value(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             let data_ptr = vma.map_memory(&allocation)
@@ -194,7 +194,7 @@ impl MeshAsset {
         let vertex_copy_region = vk::BufferCopy {
             src_offset: 0, // the starting offset of buffer.
             dst_offset: 0,
-            size      : staging.vertices.info.get_size()   as _,
+            size      : staging.vertices.info.get_size() as _,
         };
         // copy vertices data to target buffer.
         cmd_recorder.copy_buf2buf(staging.vertices.handle, meshes.vertices.handle, &[vertex_copy_region]);
@@ -205,7 +205,7 @@ impl MeshAsset {
                 let index_copy_region = vk::BufferCopy {
                     src_offset: 0,
                     dst_offset: 0,
-                    size      : staging_index.info.get_size()    as _,
+                    size      : staging_index.info.get_size() as _,
                 };
                 cmd_recorder.copy_buf2buf(staging_index.handle, meshes_indices.handle, &[index_copy_region]);
             }

@@ -2,6 +2,8 @@
 use ash::vk;
 
 use crate::ci::VulkanCI;
+use crate::context::VmaResourceDiscardable;
+use crate::{VkResult, VkErrorKind};
 use crate::{vkuint, vkptr};
 
 // ----------------------------------------------------------------------------------------------
@@ -26,6 +28,15 @@ impl From<(vk::Buffer, vma::Allocation, vma::AllocationInfo)> for VmaBuffer {
     }
 }
 
+impl VmaResourceDiscardable for VmaBuffer {
+
+    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
+        vma.destroy_buffer(self.handle, &self.allocation)
+            .map_err(VkErrorKind::Vma)?;
+        Ok(())
+    }
+}
+
 pub struct VmaImage {
 
     /// the handle of vk::Image.
@@ -45,6 +56,15 @@ impl From<(vk::Image, vma::Allocation, vma::AllocationInfo)> for VmaImage {
             allocation: content.1,
             info: content.2,
         }
+    }
+}
+
+impl VmaResourceDiscardable for VmaImage {
+
+    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
+        vma.destroy_image(self.handle, &self.allocation)
+            .map_err(VkErrorKind::Vma)?;
+        Ok(())
     }
 }
 // ----------------------------------------------------------------------------------------------
@@ -87,26 +107,32 @@ impl VmaAllocationCI {
         }
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vma::AllocationCreateFlags) -> VmaAllocationCI {
         self.ci.flags = flags; self
     }
 
+    #[inline(always)]
     pub fn preferred_flags(mut self, flags: vk::MemoryPropertyFlags) -> VmaAllocationCI {
         self.ci.preferred_flags = flags; self
     }
 
+    #[inline(always)]
     pub fn accept_memory_types(mut self, acceptable_type_bits: vkuint) -> VmaAllocationCI {
         self.ci.memory_type_bits = acceptable_type_bits; self
     }
 
+    #[inline(always)]
     pub fn with_pool(mut self, pool: vma::AllocatorPool) -> VmaAllocationCI {
         self.ci.pool = Some(pool); self
     }
 
+    #[inline(always)]
     pub fn with_user_data(mut self, data_ptr: vkptr) -> VmaAllocationCI {
         self.ci.user_data = Some(data_ptr); self
     }
 
+    #[inline(always)]
     pub fn value(&self) -> vma::AllocationCreateInfo {
         self.ci.clone()
     }

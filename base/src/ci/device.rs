@@ -49,18 +49,18 @@ impl SubmitCI {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn add_command(mut self, command: vk::CommandBuffer) -> SubmitCI {
         self.commands.push(command); self
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn add_wait(mut self, stage: vk::PipelineStageFlags, semaphore: vk::Semaphore) -> SubmitCI {
         self.wait_stage.push(stage);
         self.wait_semaphores.push(semaphore); self
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn add_signal(mut self, semaphore: vk::Semaphore) -> SubmitCI {
         self.signal_semaphores.push(semaphore); self
     }

@@ -58,6 +58,7 @@ impl CommandBufferAI {
         }
     }
 
+    #[inline(always)]
     pub fn level(mut self, level: vk::CommandBufferLevel) -> CommandBufferAI {
         self.ai.level = level; self
     }
@@ -129,6 +130,7 @@ impl CommandPoolCI {
         }
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::CommandPoolCreateFlags) -> CommandPoolCI {
         self.ci.flags = flags; self
     }

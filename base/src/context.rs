@@ -1,6 +1,7 @@
 
 pub use self::device::{VkDevice, VkLogicalDevice, VkPhysicalDevice};
 pub use self::device::{VkObjectDiscardable, VkObjectAllocatable, VkObjectBindable};
+pub use self::device::VmaResourceDiscardable;
 pub use self::device::{VkObjectWaitable, VkSubmitCI};
 pub use self::swapchain::{VkSwapchain, SwapchainSyncError};
 

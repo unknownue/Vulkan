@@ -54,14 +54,17 @@ impl VertexInputSCI {
         }
     }
 
+    #[inline(always)]
     pub fn add_binding(mut self, binding: vk::VertexInputBindingDescription) -> VertexInputSCI {
         self.bindings.push(binding); self
     }
 
+    #[inline(always)]
     pub fn add_attribute(mut self, attribute: vk::VertexInputAttributeDescription) -> VertexInputSCI {
         self.attributes.push(attribute); self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineVertexInputStateCreateFlags) -> VertexInputSCI {
         self.sci.flags = flags; self
     }
@@ -99,6 +102,7 @@ impl VulkanCI for InputAssemblySCI {
 
 impl InputAssemblySCI {
 
+    #[inline(always)]
     pub fn new() -> InputAssemblySCI {
 
         InputAssemblySCI {
@@ -106,18 +110,22 @@ impl InputAssemblySCI {
         }
     }
 
+    #[inline(always)]
     pub fn value(&self) -> vk::PipelineInputAssemblyStateCreateInfo {
         self.sci.clone()
     }
 
+    #[inline(always)]
     pub fn topology(mut self, topology: vk::PrimitiveTopology) -> InputAssemblySCI {
         self.sci.topology = topology; self
     }
 
+    #[inline(always)]
     pub fn primitive_restart(mut self, is_enable: bool) -> InputAssemblySCI {
         self.sci.primitive_restart_enable = if is_enable { vk::TRUE } else { vk::FALSE }; self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineInputAssemblyStateCreateFlags) -> InputAssemblySCI {
         self.sci.flags = flags; self
     }
@@ -163,6 +171,7 @@ impl VulkanCI for RasterizationSCI {
 
 impl RasterizationSCI {
 
+    #[inline(always)]
     pub fn new() -> RasterizationSCI {
 
         RasterizationSCI {
@@ -170,34 +179,41 @@ impl RasterizationSCI {
         }
     }
 
+    #[inline(always)]
     pub fn value(&self) -> vk::PipelineRasterizationStateCreateInfo {
         self.sci.clone()
     }
 
+    #[inline(always)]
     pub fn depth_clamp(mut self, is_enable: bool, bias: vkfloat) -> RasterizationSCI {
         self.sci.depth_clamp_enable = if is_enable { vk::TRUE } else { vk::FALSE };
         self.sci.depth_bias_clamp = bias; self
     }
 
+    #[inline(always)]
     pub fn rasterizer_discard(mut self, is_enable: bool) -> RasterizationSCI {
         self.sci.rasterizer_discard_enable = if is_enable { vk::TRUE } else { vk::FALSE }; self
     }
 
+    #[inline(always)]
     pub fn cull_face(mut self, mode: vk::CullModeFlags, front_face: vk::FrontFace) -> RasterizationSCI {
         self.sci.cull_mode = mode;
         self.sci.front_face = front_face; self
     }
 
+    #[inline(always)]
     pub fn polygon(mut self, mode: vk::PolygonMode) -> RasterizationSCI {
         self.sci.polygon_mode = mode; self
     }
 
+    #[inline(always)]
     pub fn depth_bias(mut self, is_enable: bool, constant_factor: vkfloat, slope_factor: vkfloat) -> RasterizationSCI {
         self.sci.depth_bias_enable = if is_enable { vk::TRUE } else { vk::FALSE };
         self.sci.depth_bias_constant_factor = constant_factor;
         self.sci.depth_bias_slope_factor = slope_factor; self
     }
 
+    #[inline(always)]
     pub fn line_width(mut self, width: vkfloat) -> RasterizationSCI {
         self.sci.line_width = width; self
     }
@@ -257,19 +273,23 @@ impl ColorBlendSCI {
         }
     }
 
+    #[inline(always)]
     pub fn add_attachment(mut self, attachment: vk::PipelineColorBlendAttachmentState) -> ColorBlendSCI {
         self.attachments.push(attachment); self
     }
 
+    #[inline(always)]
     pub fn logic_op(mut self, is_enable: bool, op: vk::LogicOp) -> ColorBlendSCI {
         self.sci.logic_op_enable = if is_enable { vk::TRUE } else { vk::FALSE };
         self.sci.logic_op = op; self
     }
 
+    #[inline(always)]
     pub fn blend_constants(mut self, constants: [vkfloat; 4]) -> ColorBlendSCI {
         self.sci.blend_constants = constants; self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineColorBlendStateCreateFlags) -> ColorBlendSCI {
         self.sci.flags = flags; self
     }
@@ -301,6 +321,7 @@ impl VulkanCI for BlendAttachmentSCI {
 
 impl BlendAttachmentSCI {
 
+    #[inline(always)]
     pub fn new() -> BlendAttachmentSCI {
 
         BlendAttachmentSCI {
@@ -308,26 +329,31 @@ impl BlendAttachmentSCI {
         }
     }
 
+    #[inline(always)]
     pub fn value(self) -> vk::PipelineColorBlendAttachmentState {
         self.sci
     }
 
+    #[inline(always)]
     pub fn blend_enable(mut self, is_enable: bool) -> BlendAttachmentSCI {
         self.sci.blend_enable = if is_enable { vk::TRUE } else { vk::FALSE }; self
     }
 
+    #[inline(always)]
     pub fn color(mut self, op: vk::BlendOp, src_factor: vk::BlendFactor, dst_factor: vk::BlendFactor) -> BlendAttachmentSCI {
         self.sci.src_color_blend_factor = src_factor;
         self.sci.dst_color_blend_factor = dst_factor;
         self.sci.color_blend_op = op; self
     }
 
+    #[inline(always)]
     pub fn alpha(mut self, op: vk::BlendOp, src_factor: vk::BlendFactor, dst_factor: vk::BlendFactor) -> BlendAttachmentSCI {
         self.sci.src_alpha_blend_factor = src_factor;
         self.sci.dst_alpha_blend_factor = dst_factor;
         self.sci.alpha_blend_op = op; self
     }
 
+    #[inline(always)]
     pub fn color_write_mask(mut self, mask: vk::ColorComponentFlags) -> BlendAttachmentSCI {
         self.sci.color_write_mask = mask; self
     }
@@ -389,14 +415,17 @@ impl ViewportSCI {
         }
     }
 
+    #[inline(always)]
     pub fn add_viewport(mut self, viewport: vk::Viewport) -> ViewportSCI {
         self.viewports.push(viewport); self
     }
 
+    #[inline(always)]
     pub fn add_scissor(mut self, scissor: vk::Rect2D) -> ViewportSCI {
         self.scissors.push(scissor); self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineViewportStateCreateFlags) -> ViewportSCI {
         self.sci.flags = flags; self
     }
@@ -445,6 +474,7 @@ impl VulkanCI for DepthStencilSCI {
 
 impl DepthStencilSCI {
 
+    #[inline(always)]
     pub fn new() -> DepthStencilSCI {
 
         DepthStencilSCI {
@@ -452,28 +482,33 @@ impl DepthStencilSCI {
         }
     }
 
+    #[inline(always)]
     pub fn value(&self) -> vk::PipelineDepthStencilStateCreateInfo {
         self.sci.clone()
     }
 
+    #[inline(always)]
     pub fn depth_test(mut self, is_enable_test: bool, is_enable_write: bool, compare_op: vk::CompareOp) -> DepthStencilSCI {
         self.sci.depth_test_enable = if is_enable_test { vk::TRUE } else { vk::FALSE };
         self.sci.depth_write_enable = if is_enable_write { vk::TRUE } else { vk::FALSE };
         self.sci.depth_compare_op = compare_op; self
     }
 
+    #[inline(always)]
     pub fn depth_bounds(mut self, is_enable: bool, min: vkfloat, max: vkfloat) -> DepthStencilSCI {
         self.sci.depth_bounds_test_enable = if is_enable { vk::TRUE } else { vk::FALSE };
         self.sci.min_depth_bounds = min;
         self.sci.max_depth_bounds = max; self
     }
 
+    #[inline(always)]
     pub fn stencil(mut self, is_enable: bool, front: vk::StencilOpState, back: vk::StencilOpState) -> DepthStencilSCI {
         self.sci.stencil_test_enable =  if is_enable { vk::TRUE } else { vk::FALSE };
         self.sci.front = front;
         self.sci.back  = back; self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineDepthStencilStateCreateFlags) -> DepthStencilSCI {
         self.sci.flags = flags; self
     }
@@ -534,24 +569,29 @@ impl MultisampleSCI {
         }
     }
 
+    #[inline(always)]
     pub fn sample_count(mut self, count: vk::SampleCountFlags) -> MultisampleSCI {
         self.sci.rasterization_samples = count; self
     }
 
+    #[inline(always)]
     pub fn sample_shading(mut self, is_enable: bool, min: vkfloat) -> MultisampleSCI {
         self.sci.sample_shading_enable = if is_enable { vk::TRUE } else { vk::FALSE };
         self.sci.min_sample_shading = min; self
     }
 
+    #[inline(always)]
     pub fn sample_mask(mut self, mask: vk::SampleMask) -> MultisampleSCI {
         self.sample_mask = Some(mask); self
     }
 
+    #[inline(always)]
     pub fn alpha(mut self, is_enable_alpha2coverage: bool, is_enable_alpha2one: bool) -> MultisampleSCI {
         self.sci.alpha_to_coverage_enable = if is_enable_alpha2coverage { vk::TRUE } else { vk::FALSE };
         self.sci.alpha_to_one_enable = if is_enable_alpha2one { vk::TRUE } else { vk::FALSE }; self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineMultisampleStateCreateFlags) -> MultisampleSCI {
         self.sci.flags = flags; self
     }
@@ -599,6 +639,7 @@ impl DynamicSCI {
         }
     }
 
+    #[inline(always)]
     pub fn add_dynamic(mut self, state: vk::DynamicState) -> DynamicSCI {
         self.dynamics.push(state); self
     }

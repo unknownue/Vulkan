@@ -48,14 +48,8 @@ impl VkObjectBuildableCI for ImageCI {
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
-        let image_ci = vk::ImageCreateInfo {
-            queue_family_index_count: self.queue_families.len() as _,
-            p_queue_family_indices  : self.queue_families.as_ptr(),
-            ..self.ci
-        };
-
         let image = unsafe {
-            device.logic.handle.create_image(&image_ci, None)
+            device.logic.handle.create_image(&self.value(), None)
                 .map_err(|_| VkError::create("Image"))?
         };
 
@@ -93,34 +87,51 @@ impl ImageCI {
         ImageCI::new(vk::ImageType::TYPE_2D, format, extent)
     }
 
+    pub fn value(&self) -> vk::ImageCreateInfo {
+
+        vk::ImageCreateInfo {
+            queue_family_index_count: self.queue_families.len() as _,
+            p_queue_family_indices  : self.queue_families.as_ptr(),
+            ..self.ci
+        }
+    }
+
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::ImageCreateFlags) -> ImageCI {
         self.ci.flags = flags; self
     }
 
+    #[inline(always)]
     pub fn usages(mut self, flags: vk::ImageUsageFlags) -> ImageCI {
         self.ci.usage = flags; self
     }
 
+    #[inline(always)]
     pub fn tiling(mut self, tiling: vk::ImageTiling) -> ImageCI {
         self.ci.tiling = tiling; self
     }
 
+    #[inline(always)]
     pub fn samples(mut self, count: vk::SampleCountFlags) -> ImageCI {
         self.ci.samples = count; self
     }
 
+    #[inline(always)]
     pub fn mip_levels(mut self, level: vkuint) -> ImageCI {
         self.ci.mip_levels = level; self
     }
 
+    #[inline(always)]
     pub fn array_layers(mut self, layers: vkuint) -> ImageCI {
         self.ci.array_layers = layers; self
     }
 
+    #[inline(always)]
     pub fn initial_layout(mut self, layout: vk::ImageLayout) -> ImageCI {
         self.ci.initial_layout = layout; self
     }
 
+    #[inline(always)]
     pub fn sharing_queues(mut self, mode: vk::SharingMode, families_indices: Vec<vkuint>) -> ImageCI {
         self.queue_families = families_indices;
         self.ci.sharing_mode = mode; self
@@ -209,23 +220,28 @@ impl ImageViewCI {
         }
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::ImageViewCreateFlags) -> ImageViewCI {
         self.ci.flags = flags; self
     }
 
+    #[inline(always)]
     pub fn components(mut self, components: vk::ComponentMapping) -> ImageViewCI {
         self.ci.components = components;; self
     }
 
+    #[inline(always)]
     pub fn aspect_mask(mut self, aspect: vk::ImageAspectFlags) -> ImageViewCI {
         self.ci.subresource_range.aspect_mask = aspect; self
     }
 
+    #[inline(always)]
     pub fn mip_level(mut self, base_level: vkuint, level_count: vkuint) -> ImageViewCI {
         self.ci.subresource_range.base_mip_level = base_level;
         self.ci.subresource_range.level_count = level_count; self
     }
 
+    #[inline(always)]
     pub fn array_layers(mut self, base_layer: vkuint, layer_count: vkuint) -> ImageViewCI {
         self.ci.subresource_range.base_array_layer = base_layer;
         self.ci.subresource_range.layer_count = layer_count; self
@@ -282,26 +298,27 @@ impl ImageBarrierCI {
         }
     }
 
+    #[inline(always)]
     pub fn value(&self) -> vk::ImageMemoryBarrier {
         self.ci.clone()
     }
 
+    #[inline(always)]
     pub fn access_mask(mut self, from: vk::AccessFlags, to: vk::AccessFlags) -> Self {
         self.ci.src_access_mask = from;
-        self.ci.dst_access_mask = to;
-        self
+        self.ci.dst_access_mask = to; self
     }
 
+    #[inline(always)]
     pub fn layout(mut self, from: vk::ImageLayout, to: vk::ImageLayout) -> Self {
         self.ci.old_layout = from;
-        self.ci.new_layout = to;
-        self
+        self.ci.new_layout = to; self
     }
 
+    #[inline(always)]
     pub fn queue_family_index(mut self, from: vkuint, to: vkuint) -> Self {
         self.ci.src_queue_family_index = from;
-        self.ci.dst_queue_family_index = to;
-        self
+        self.ci.dst_queue_family_index = to; self
     }
 }
 
@@ -349,6 +366,7 @@ impl VulkanCI for SamplerCI {
 
 impl SamplerCI {
 
+    #[inline(always)]
     pub fn new() -> SamplerCI {
         SamplerCI {
             ci: SamplerCI::default_ci(),
@@ -365,8 +383,9 @@ impl SamplerCI {
     }
 
     /// `mag` specifies the magnification filter to apply to lookups.
-        ///
-        /// `min` specifies the minification filter to apply to lookups.
+    ///
+    /// `min` specifies the minification filter to apply to lookups.
+    #[inline(always)]
     pub fn filter(mut self, mag: vk::Filter, min: vk::Filter) -> SamplerCI {
         self.ci.mag_filter = mag;
         self.ci.min_filter = min; self
@@ -375,6 +394,7 @@ impl SamplerCI {
     /// `mode` specifies the mipmap filter to apply to lookups.
     ///
     /// `u`, `v` and `w` specifies the addressing mode for outside [0..1] range for U, V, W coordinate.
+    #[inline(always)]
     pub fn mipmap(mut self, mode: vk::SamplerMipmapMode, u: vk::SamplerAddressMode, v: vk::SamplerAddressMode, w: vk::SamplerAddressMode) -> SamplerCI {
         self.ci.mipmap_mode = mode;
         self.ci.address_mode_u = u;
@@ -387,6 +407,7 @@ impl SamplerCI {
     /// `min` used to clamp the minimum computed LOD value, as described in the Level-of-Detail Operation section.
     ///
     /// `max` used to clamp the maximum computed LOD value, as described in the Level-of-Detail Operation section.
+    #[inline(always)]
     pub fn lod(mut self, mip_bias: vkfloat, min: vkfloat, max: vkfloat) -> SamplerCI {
         self.ci.mip_lod_bias = mip_bias;
         self.ci.min_lod = min;
@@ -398,6 +419,7 @@ impl SamplerCI {
     /// `max` is the anisotropy value clamp used by the sampler.
     ///
     /// If `max` is None, anisotropy will be disabled.
+    #[inline(always)]
     pub fn anisotropy(mut self, max: Option<vkfloat>) -> SamplerCI {
 
         if let Some(max) = max {
@@ -416,6 +438,7 @@ impl SamplerCI {
     /// Set `op` to some value to enable comparison.
     ///
     /// If `op` is None, the compare function will be disabled.
+    #[inline(always)]
     pub fn compare_op(mut self, op: Option<vk::CompareOp>) -> SamplerCI {
 
         if let Some(op) = op  {
@@ -429,6 +452,7 @@ impl SamplerCI {
     }
 
     /// `border_color` specifies the predefined border color to use.
+    #[inline(always)]
     pub fn border_color(mut self, color: vk::BorderColor) -> SamplerCI {
         self.ci.border_color = color; self
     }
@@ -439,6 +463,7 @@ impl SamplerCI {
     /// to the image dimensions for x, y and z.
     ///
     /// When set to false, the range of image coordinates is zero to one.
+    #[inline(always)]
     pub fn unnormalize_coordinates_enable(mut self, enable: bool) -> SamplerCI {
         self.ci.unnormalized_coordinates = if enable { vk::TRUE } else { vk::FALSE }; self
     }

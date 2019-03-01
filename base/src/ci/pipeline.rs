@@ -88,14 +88,17 @@ impl PipelineLayoutCI {
         }
     }
 
+    #[inline(always)]
     pub fn add_set_layout(mut self, set_layout: vk::DescriptorSetLayout) -> PipelineLayoutCI {
         self.set_layouts.push(set_layout); self
     }
 
+    #[inline(always)]
     pub fn add_push_constants(mut self, range: vk::PushConstantRange) -> PipelineLayoutCI {
         self.push_constants.push(range); self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineLayoutCreateFlags) -> PipelineLayoutCI {
         self.ci.flags = flags; self
     }
@@ -184,10 +187,12 @@ impl FramebufferCI {
         FramebufferCI::new(render_pass, extent)
     }
 
+    #[inline(always)]
     pub fn add_attachment(mut self, attachment: vk::ImageView) -> FramebufferCI {
         self.attachments.push(attachment); self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::FramebufferCreateFlags) -> FramebufferCI {
         self.ci.flags = flags; self
     }
@@ -325,54 +330,67 @@ impl GraphicsPipelineCI {
         }
     }
 
+    #[inline(always)]
     pub fn set_use_subpass(&mut self, subpass: vkuint) {
         self.ci.subpass = subpass
     }
 
+    #[inline(always)]
     pub fn set_base_pipeline(&mut self, pipeline: vk::Pipeline) {
         self.ci.base_pipeline_handle = pipeline;
     }
 
+    #[inline(always)]
     pub fn set_flags(&mut self, flags: vk::PipelineCreateFlags) {
         self.ci.flags = flags;
     }
 
+    #[inline(always)]
     pub fn set_shaders(&mut self, cis: Vec<ShaderStageCI>) {
         self.shader_stages = cis;
     }
 
+    #[inline(always)]
     pub fn set_vertex_input(&mut self, sci: VertexInputSCI) {
         self.vertex_input = sci;
     }
 
+    #[inline(always)]
     pub fn set_input_assembly(&mut self, sci: InputAssemblySCI) {
         self.input_assembly = sci;
     }
 
+    #[inline(always)]
     pub fn set_rasterization(&mut self, sci: RasterizationSCI) {
         self.rasterization = sci;
     }
 
+    #[inline(always)]
     pub fn set_color_blend(&mut self, sci: ColorBlendSCI) {
         self.color_blend = sci;
     }
 
+    #[inline(always)]
     pub fn set_viewport(&mut self, sci: ViewportSCI) {
         self.viewport = sci;
     }
 
+    #[inline(always)]
     pub fn set_depth_stencil(&mut self, sci: DepthStencilSCI) {
         self.depth_stencil = sci;
     }
 
+    #[inline(always)]
     pub fn set_multisample(&mut self, sci: MultisampleSCI) {
         self.multisample = sci;
     }
 
+    #[inline(always)]
     pub fn set_dynamic(&mut self, sci: DynamicSCI) {
         self.dynamic = sci;
     }
 
+    #[inline(always)]
     pub fn set_pipeline_cache(&mut self, cache: vk::PipelineCache) {
         self.cache = Some(cache);
     }
@@ -412,12 +430,14 @@ impl VulkanCI for PipelineCacheCI {
 
 impl PipelineCacheCI {
 
+    #[inline(always)]
     pub fn new() -> PipelineCacheCI {
         PipelineCacheCI {
             ci: PipelineCacheCI::default_ci(),
         }
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineCacheCreateFlags) -> PipelineCacheCI {
         self.ci.flags = flags; self
     }

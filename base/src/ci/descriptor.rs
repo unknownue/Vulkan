@@ -67,16 +67,17 @@ impl DescriptorPoolCI {
         }
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::DescriptorPoolCreateFlags) -> DescriptorPoolCI {
         self.ci.flags = flags; self
     }
 
+    #[inline(always)]
     pub fn add_descriptor(mut self, r#type: vk::DescriptorType, count: vkuint) -> DescriptorPoolCI {
-        let new_descriptor = vk::DescriptorPoolSize {
+        self.pool_sizes.push(vk::DescriptorPoolSize {
             ty: r#type,
             descriptor_count: count,
-        };
-        self.pool_sizes.push(new_descriptor); self
+        }); self
     }
 }
 
@@ -143,10 +144,12 @@ impl DescriptorSetLayoutCI {
         }
     }
 
+    #[inline(always)]
     pub fn add_binding(mut self, binding: vk::DescriptorSetLayoutBinding) -> DescriptorSetLayoutCI {
         self.bindings.push(binding); self
     }
 
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::DescriptorSetLayoutCreateFlags) -> DescriptorSetLayoutCI {
         self.ci.flags = flags; self
     }
@@ -286,14 +289,17 @@ impl DescriptorBufferSetWI {
         }
     }
 
+    #[inline(always)]
     pub fn add_buffer(mut self, info: vk::DescriptorBufferInfo) -> DescriptorBufferSetWI {
         self.writes.push(info); self
     }
 
+    #[inline(always)]
     pub fn set_buffer(&mut self, infos: Vec<vk::DescriptorBufferInfo>) {
         self.writes = infos;
     }
 
+    #[inline(always)]
     pub fn dst_array_element(mut self, array_element: vkuint) -> DescriptorBufferSetWI {
         self.wi.dst_array_element = array_element; self
     }
@@ -352,14 +358,17 @@ impl DescriptorImageSetWI {
         }
     }
 
+    #[inline(always)]
     pub fn add_image(mut self, info: vk::DescriptorImageInfo) -> DescriptorImageSetWI {
         self.writes.push(info); self
     }
 
+    #[inline(always)]
     pub fn set_images(&mut self, infos: Vec<vk::DescriptorImageInfo>) {
         self.writes = infos;
     }
 
+    #[inline(always)]
     pub fn dst_array_element(mut self, array_element: vkuint) -> DescriptorImageSetWI {
         self.wi.dst_array_element = array_element; self
     }
@@ -385,18 +394,22 @@ pub struct DescriptorSetsUpdateCI {
 
 impl DescriptorSetsUpdateCI {
 
+    #[inline(always)]
     pub fn new() -> DescriptorSetsUpdateCI {
         DescriptorSetsUpdateCI::default()
     }
 
+    #[inline(always)]
     pub fn add_write(mut self, value: vk::WriteDescriptorSet) -> DescriptorSetsUpdateCI {
         self.writes.push(value); self
     }
 
+    #[inline(always)]
     pub fn add_copy(mut self, value: vk::CopyDescriptorSet) -> DescriptorSetsUpdateCI {
         self.copies.push(value); self
     }
 
+    #[inline(always)]
     pub fn update(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.update_descriptor_sets(&self.writes, &self.copies);

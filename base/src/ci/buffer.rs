@@ -41,7 +41,7 @@ impl VkObjectBuildableCI for BufferCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let buffer = unsafe {
-            device.logic.handle.create_buffer(&self.ci, None)
+            device.logic.handle.create_buffer(&self.value(), None)
                 .map_err(|_| VkError::create("Buffer"))?
         };
 
@@ -66,14 +66,26 @@ impl BufferCI {
         }
     }
 
+    pub fn value(&self) -> vk::BufferCreateInfo {
+
+        vk::BufferCreateInfo {
+            queue_family_index_count: self.queue_families.len() as _,
+            p_queue_family_indices  : self.queue_families.as_ptr(),
+            ..self.ci
+        }
+    }
+
+    #[inline(always)]
     pub fn flags(mut self, flags: vk::BufferCreateFlags) -> BufferCI {
         self.ci.flags = flags; self
     }
 
+    #[inline(always)]
     pub fn usage(mut self, flags: vk::BufferUsageFlags) -> BufferCI {
         self.ci.usage = flags; self
     }
 
+    #[inline(always)]
     pub fn sharing_queues(mut self, mode: vk::SharingMode, families_indices: Vec<vkuint>) -> BufferCI {
         self.queue_families = families_indices;
         self.ci.sharing_mode = mode; self
@@ -96,13 +108,6 @@ impl VkObjectBindable for vk::Buffer {
             device.logic.handle.bind_buffer_memory(self, memory, offset)
                 .map_err(|_| VkError::device("Binding Buffer Memory"))
         }
-    }
-}
-
-impl AsRef<vk::BufferCreateInfo> for BufferCI {
-
-    fn as_ref(&self) -> &vk::BufferCreateInfo {
-        &self.ci
     }
 }
 // ----------------------------------------------------------------------------------------------

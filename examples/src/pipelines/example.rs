@@ -301,7 +301,7 @@ impl VulkanExample {
         device.discard(self.uniform_buffer.buffer);
         device.discard(self.uniform_buffer.memory);
 
-        self.model.discard(device)?;
+        device.vma_discard(&self.model)?;
         self.backend_res.discard(device);
 
         Ok(())
