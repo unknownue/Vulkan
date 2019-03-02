@@ -25,7 +25,7 @@ pub struct UIRenderer {
 
 impl UIRenderer {
 
-    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<UIRenderer> {
+    pub fn new(device: &mut VkDevice, swapchain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<UIRenderer> {
 
         let text_pool = TextPool::new(device, swapchain.dimension)?;
         let pipeline_asset = pipeline::UIPipelineAsset::new(device, swapchain, renderpass, text_pool.glyphs_ref())?;
@@ -58,9 +58,9 @@ impl UIRenderer {
         self.text_pool.change_text(content, update_text);
     }
 
-    pub fn discard(&self, device: &VkDevice) {
+    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
 
         self.pipeline_asset.discard(device);
-        self.text_pool.discard(device);
+        self.text_pool.discard(device)
     }
 }

@@ -36,9 +36,9 @@ struct PipelineStaff {
 
 impl VulkanExample {
 
-    pub fn new(context: &VulkanContext, hidpi_factor: f32) -> VkResult<VulkanExample> {
+    pub fn new(context: &mut VulkanContext, hidpi_factor: f32) -> VkResult<VulkanExample> {
 
-        let device = &context.device;
+        let device = &mut context.device;
         let swapchain = &context.swapchain;
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
@@ -90,7 +90,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         Ok(self.backend_res.await_rendering)
     }
 
-    fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
+    fn swapchain_reload(&mut self, device: &mut VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
         // recreate the resources.
         device.discard(self.pipelines.pipeline);
@@ -120,8 +120,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.discard(device);
-        Ok(())
+        self.discard(device)
     }
 }
 
@@ -157,7 +156,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &mut VkDevice) {
+    fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.layout);
         device.discard(self.descriptors.pool);
@@ -167,7 +166,7 @@ impl VulkanExample {
 
         self.text_pool.discard(device);
         self.text_glyphs.discard(device);
-        self.backend_res.discard(device);
+        self.backend_res.discard(device)
     }
 }
 

@@ -25,10 +25,10 @@ fn main() {
     let window = WindowContext::new(win_config)
         .expect("Error when creating Window Context");
 
-    let vk_context = VulkanContext::new(&window)
+    let mut vk_context = VulkanContext::new(&window)
         .build().expect("Error when creating Vulkan Context");
 
-    let app = example::VulkanExample::new(&vk_context)
+    let app = example::VulkanExample::new(&mut vk_context)
         .expect("Error when initializing application");
 
     let entry = ProcPipeline::new(window, vk_context).unwrap();

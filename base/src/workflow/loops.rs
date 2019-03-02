@@ -68,7 +68,7 @@ impl ProcPipeline {
 
                             self.vulkan.wait_idle()?;
                             self.vulkan.recreate_swapchain(&self.window)?;
-                            app.swapchain_reload(&self.vulkan.device, &self.vulkan.swapchain)?;
+                            app.swapchain_reload(&mut self.vulkan.device, &self.vulkan.swapchain)?;
                         },
                         | FrameAction::Terminal => {
                             break 'loop_marker

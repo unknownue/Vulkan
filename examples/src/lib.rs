@@ -5,10 +5,12 @@ use ash::version::DeviceV1_0;
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::sync::SemaphoreCI;
+use vkbase::ci::image::{ImageCI, ImageViewCI};
+use vkbase::ci::vma::{VmaImage, VmaAllocationCI};
 use vkbase::ui::{UIRenderer, TextInfo, TextID, TextType, TextHAlign};
 use vkbase::utils::color::VkColor;
 use vkbase::vkuint;
-use vkbase::{VkResult, VkError};
+use vkbase::{VkResult, VkError, VkErrorKind};
 
 pub const DEFAULT_CLEAR_COLOR: vk::ClearValue = vk::ClearValue {
     color: vk::ClearColorValue {
@@ -37,14 +39,13 @@ pub struct VkExampleBackendRes {
 }
 
 struct DepthImage {
-    image: vk::Image,
+    image: VmaImage,
     view : vk::ImageView,
-    memory: vk::DeviceMemory,
 }
 
 impl VkExampleBackendRes {
 
-    pub fn new(device: &VkDevice, swapchain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<VkExampleBackendRes> {
+    pub fn new(device: &mut VkDevice, swapchain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<VkExampleBackendRes> {
 
         let dimension = swapchain.dimension;
         let (command_pool, commands) = setup_commands(device, swapchain.frame_in_flight as _)?;
@@ -93,14 +94,13 @@ impl VkExampleBackendRes {
         Ok(())
     }
 
-    pub fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain, render_pass: vk::RenderPass) -> VkResult<()> {
+    pub fn swapchain_reload(&mut self, device: &mut VkDevice, new_chain: &VkSwapchain, render_pass: vk::RenderPass) -> VkResult<()> {
 
         self.dimension = new_chain.dimension;
         self.ui_renderer.swapchain_reload(device, new_chain, render_pass)?;
 
         device.discard(self.depth_image.view);
-        device.discard(self.depth_image.image);
-        device.discard(self.depth_image.memory);
+        device.vma_discard(&self.depth_image.image)?;
         self.depth_image = setup_depth_image(device, self.dimension)?;
 
         device.discard(&self.framebuffers);
@@ -162,9 +162,9 @@ impl VkExampleBackendRes {
         }
     }
 
-    pub fn discard(&self, device: &VkDevice) {
+    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.ui_renderer.discard(device);
+        self.ui_renderer.discard(device)?;
 
         device.discard(self.render_pass);
         device.discard(&self.framebuffers);
@@ -172,35 +172,31 @@ impl VkExampleBackendRes {
         device.discard(self.command_pool);
 
         device.discard(self.depth_image.view);
-        device.discard(self.depth_image.image);
-        device.discard(self.depth_image.memory);
+        device.vma_discard(&self.depth_image.image)?;
 
         device.discard(self.await_rendering);
+
+        Ok(())
     }
 }
 
-fn setup_depth_image(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<DepthImage> {
+fn setup_depth_image(device: &mut VkDevice, dimension: vk::Extent2D) -> VkResult<DepthImage> {
 
-    use vkbase::ci::image::{ImageCI, ImageViewCI};
-    use vkbase::ci::memory::MemoryAI;
-    use vkbase::utils::memory::get_memory_type_index;
+    let image = {
+        let depth_ci = ImageCI::new_2d(device.phy.depth_format, dimension)
+            .usages(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT);
+        let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+        let depth_allocation = device.vma.create_image(
+            &depth_ci.value(), allocation_ci.as_ref())
+            .map_err(VkErrorKind::Vma)?;
+        VmaImage::from(depth_allocation)
+    };
 
-    let (image, image_requirement) = ImageCI::new_2d(device.phy.depth_format, dimension)
-        .usages(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
-        .build(device)?;
-
-    let memory_index = get_memory_type_index(device, image_requirement.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-    let memory = MemoryAI::new(image_requirement.size, memory_index)
-        .build(device)?;
-
-    // bind depth image to memory.
-    device.bind_memory(image, memory, 0)?;
-
-    let view = ImageViewCI::new(image, vk::ImageViewType::TYPE_2D, device.phy.depth_format)
+    let view = ImageViewCI::new(image.handle, vk::ImageViewType::TYPE_2D, device.phy.depth_format)
         .aspect_mask(vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL)
         .build(device)?;
 
-    let result = DepthImage { image, view, memory };
+    let result = DepthImage { image, view };
     Ok(result)
 }
 

@@ -28,7 +28,7 @@ pub trait RenderWorkflow {
 
     fn render_frame(&mut self, device: &VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, delta_time: f32) -> VkResult<vk::Semaphore>;
 
-    fn swapchain_reload(&mut self, _device: &VkDevice, _new_chain: &VkSwapchain) -> VkResult<()> {
+    fn swapchain_reload(&mut self, _device: &mut VkDevice, _new_chain: &VkSwapchain) -> VkResult<()> {
         Ok(())
     }
 

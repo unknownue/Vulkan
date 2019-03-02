@@ -11,6 +11,7 @@ use std::iter::Iterator;
 use crate::ci::buffer::BufferCI;
 use crate::ci::memory::MemoryAI;
 use crate::ci::image::{ImageCI, ImageViewCI, SamplerCI, ImageBarrierCI};
+use crate::ci::vma::{VmaBuffer, VmaImage, VmaAllocationCI};
 use crate::ci::pipeline::VertexInputSCI;
 use crate::ci::command::{CommandPoolCI, CommandBufferAI};
 use crate::ci::VkObjectBuildableCI;
@@ -23,7 +24,7 @@ use crate::context::VkDevice;
 use crate::utils::color::VkColor;
 
 use crate::{vkuint, vkbytes, vkptr};
-use crate::{VkResult, VkError};
+use crate::{VkResult, VkError, VkErrorKind};
 
 
 /// each character use 6 vertices to draw.
@@ -65,39 +66,36 @@ struct GlyphLayout {
 pub struct GlyphImages {
 
     pub text_sampler: vk::Sampler,
-    pub glyph_image: vk::Image,
+    pub glyph_image: VmaImage,
     pub glyph_view : vk::ImageView,
-
-    memory: vk::DeviceMemory,
 
     layouts: GlyphLayouts,
 }
 
 impl GlyphImages {
 
-    pub fn from_font(device: &VkDevice, bytes: &[u8]) -> VkResult<GlyphImages> {
+    pub fn from_font(device: &mut VkDevice, bytes: &[u8]) -> VkResult<GlyphImages> {
 
         let (layouts, image_bytes, image_dimension) =
             generate_ascii_glyphs_bytes(bytes, FONT_SCALE)?;
-        let (glyph_image, memory) = allocate_glyph_image(device, image_bytes, image_dimension)?;
+        let glyph_image = allocate_glyph_image(device, image_bytes, image_dimension)?;
 
         // Just store alpha value in the image.
-        let glyph_view = ImageViewCI::new(glyph_image, vk::ImageViewType::TYPE_2D, vk::Format::R8_UNORM)
+        let glyph_view = ImageViewCI::new(glyph_image.handle, vk::ImageViewType::TYPE_2D, vk::Format::R8_UNORM)
             .aspect_mask(vk::ImageAspectFlags::COLOR)
             .build(device)?;
         let text_sampler = SamplerCI::new()
             .build(device)?;
 
-        let result = GlyphImages { text_sampler, glyph_image, glyph_view, memory, layouts };
+        let result = GlyphImages { text_sampler, glyph_image, glyph_view, layouts };
         Ok(result)
     }
 
-    pub fn discard(&self, device: &VkDevice) {
+    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.text_sampler);
         device.discard(self.glyph_view);
-        device.discard(self.glyph_image);
-        device.discard(self.memory);
+        device.vma_discard(&self.glyph_image)
     }
 }
 
@@ -237,7 +235,7 @@ pub enum TextHAlign {
 
 impl TextPool {
 
-    pub fn new(device: &VkDevice, dimension: vk::Extent2D) -> VkResult<TextPool> {
+    pub fn new(device: &mut VkDevice, dimension: vk::Extent2D) -> VkResult<TextPool> {
 
         let attributes = TextAttrStorage::new(device)?;
 
@@ -404,10 +402,10 @@ impl TextPool {
         &self.glyphs
     }
 
-    pub fn discard(&self, device: &VkDevice) {
+    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
 
         self.attributes.discard(device);
-        self.glyphs.discard(device);
+        self.glyphs.discard(device)
     }
 }
 
@@ -497,29 +495,37 @@ fn generate_ascii_glyphs_bytes(font_bytes: &[u8], font_scale: f32) -> VkResult<(
     Ok((glyph_layouts, image_bytes, dimension))
 }
 
-fn allocate_glyph_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::Extent2D) -> VkResult<(vk::Image, vk::DeviceMemory)> {
+fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimension: vk::Extent2D) -> VkResult<VmaImage> {
 
-    // create vk::Image and its memory.
-    let (glyphs_image, image_reqs) = ImageCI::new_2d(vk::Format::R8_UNORM, image_dimension)
-        .usages(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST)
-        .build(device)?;
-    let image_memory_type_index = device.get_memory_type(image_reqs.memory_type_bits, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-    let image_memory = MemoryAI::new(image_reqs.size, image_memory_type_index).build(device)?;
-    device.bind_memory(glyphs_image, image_memory, 0)?;
+    // create vk::Image to store glyphs data.
+    let glyphs_image = {
 
-    // create vk::Buffer and map image data to it.
-    let estimate_buffer_size = (image_bytes.len() as vkbytes) * (::std::mem::size_of::<u8>() as vkbytes);
-    let (staging_buffer, staging_reqs) = BufferCI::new(estimate_buffer_size)
-        .usage(vk::BufferUsageFlags::TRANSFER_SRC)
-        .build(device)?;
-    let staging_memory = MemoryAI::new(staging_reqs.size, device.get_memory_type(
-        staging_reqs.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
-    )).build(device)?;
-    device.bind_memory(staging_buffer, staging_memory, 0)?;
+        let glyphs_image_ci = ImageCI::new_2d(vk::Format::R8_UNORM, image_dimension)
+            .usages(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST);
+        let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+        let image_allocation = device.vma.create_image(&glyphs_image_ci.value(), allocation_ci.as_ref())
+            .map_err(VkErrorKind::Vma)?;
+        VmaImage::from(image_allocation)
+    };
 
-    let data_ptr = device.map_memory(staging_memory, 0, vk::WHOLE_SIZE)?;
-    device.copy_to_ptr(data_ptr, &image_bytes);
-    device.unmap_memory(staging_memory);
+    // create staging buffer and map image data to it.
+    let staging_buffer = {
+
+        let estimate_buffer_size = (image_bytes.len() as vkbytes) * (::std::mem::size_of::<u8>() as vkbytes);
+        let staging_ci = BufferCI::new(estimate_buffer_size)
+            .usage(vk::BufferUsageFlags::TRANSFER_SRC);
+        let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
+        let staging_allocation = device.vma.create_buffer(&staging_ci.value(), allocation_ci.as_ref())
+            .map_err(VkErrorKind::Vma)?;
+
+        let data_ptr = device.vma.map_memory(&staging_allocation.1)
+            .map_err(VkErrorKind::Vma)? as vkptr;
+        device.copy_to_ptr(data_ptr, &image_bytes);
+        device.vma.unmap_memory(&staging_allocation.1)
+            .map_err(VkErrorKind::Vma)?;
+
+        VmaBuffer::from(staging_allocation)
+    };
 
     // transfer image data from staging buffer to destination image.
     let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
@@ -548,16 +554,16 @@ fn allocate_glyph_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension
         base_mip_level  : 0, level_count: 1,
         base_array_layer: 0, layer_count: 1,
     };
-    let copy_dst_barrier = ImageBarrierCI::new(glyphs_image, image_range)
+    let copy_dst_barrier = ImageBarrierCI::new(glyphs_image.handle, image_range)
         .access_mask(vk::AccessFlags::empty(), vk::AccessFlags::TRANSFER_WRITE)
         .layout(vk::ImageLayout::UNDEFINED, vk::ImageLayout::TRANSFER_DST_OPTIMAL);
-    let shader_read_barrier = ImageBarrierCI::new(glyphs_image, image_range)
+    let shader_read_barrier = ImageBarrierCI::new(glyphs_image.handle, image_range)
         .access_mask(vk::AccessFlags::TRANSFER_WRITE, vk::AccessFlags::SHADER_READ)
         .layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
 
     recorder.begin_record()?
         .image_pipeline_barrier(vk::PipelineStageFlags::TOP_OF_PIPE, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[copy_dst_barrier.value()])
-        .copy_buf2img(staging_buffer, glyphs_image, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &[copy_region])
+        .copy_buf2img(staging_buffer.handle, glyphs_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &[copy_region])
         .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[shader_read_barrier.value()])
         .end_record()?;
 
@@ -565,10 +571,9 @@ fn allocate_glyph_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension
 
     // clean useless resources.
     device.discard(command_pool);
-    device.discard(staging_buffer);
-    device.discard(staging_memory);
+    device.vma_discard(&staging_buffer)?;
 
-    Ok((glyphs_image, image_memory))
+    Ok(glyphs_image)
 }
 
 

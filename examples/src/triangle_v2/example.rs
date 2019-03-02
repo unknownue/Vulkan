@@ -17,7 +17,7 @@ const SHADER_FRAGMENT_PATH: &'static str = "examples/src/triangle_v1/triangle.fr
 
 pub struct VulkanExample {
 
-    backend_res: VkExampleBackendRes,
+    backend: VkExampleBackendRes,
 
     vertex_buffer: VertexBuffer,
     index_buffer: IndexBuffer,
@@ -30,9 +30,9 @@ pub struct VulkanExample {
 
 impl VulkanExample {
 
-    pub fn new(context: &vkbase::context::VulkanContext) -> VkResult<VulkanExample> {
+    pub fn new(context: &mut vkbase::context::VulkanContext) -> VkResult<VulkanExample> {
 
-        let device = &context.device;
+        let device = &mut context.device;
         let swapchain = &context.swapchain;
         let dimension = swapchain.dimension;
 
@@ -47,7 +47,7 @@ impl VulkanExample {
         let pipeline = prepare_pipelines(device, backend_res.render_pass, descriptors.pipeline_layout)?;
 
         let target = VulkanExample {
-            backend_res, descriptors, pipeline,
+            backend: backend_res, descriptors, pipeline,
             vertex_buffer, index_buffer, uniform_buffer,
         };
         Ok(target)
@@ -58,7 +58,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
 
-        self.record_commands(device, self.backend_res.dimension)?;
+        self.record_commands(device, self.backend.dimension)?;
         Ok(())
     }
 
@@ -66,25 +66,25 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         let submit_ci = vkbase::ci::device::SubmitCI::new()
             .add_wait(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, await_present)
-            .add_command(self.backend_res.commands[image_index])
-            .add_signal(self.backend_res.await_rendering);
+            .add_command(self.backend.commands[image_index])
+            .add_signal(self.backend.await_rendering);
 
         // Submit to the graphics queue passing a wait fence.
         device.submit(submit_ci, device.logic.queues.graphics.handle, device_available)?;
 
-        Ok(self.backend_res.await_rendering)
+        Ok(self.backend.await_rendering)
     }
 
-    fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
+    fn swapchain_reload(&mut self, device: &mut VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
         // recreate the resources.
         device.discard(self.pipeline);
 
         let render_pass = setup_renderpass(device, new_chain)?;
-        self.backend_res.swapchain_reload(device, new_chain, render_pass)?;
-        self.pipeline = prepare_pipelines(device, self.backend_res.render_pass, self.descriptors.pipeline_layout)?;
+        self.backend.swapchain_reload(device, new_chain, render_pass)?;
+        self.pipeline = prepare_pipelines(device, self.backend.render_pass, self.descriptors.pipeline_layout)?;
 
-        self.record_commands(device, self.backend_res.dimension)?;
+        self.record_commands(device, self.backend.dimension)?;
 
         Ok(())
     }
@@ -100,8 +100,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.discard(device);
-        Ok(())
+        self.discard(device)
     }
 }
 
@@ -125,14 +124,14 @@ impl VulkanExample {
             offset: vk::Offset2D { x: 0, y: 0 },
         };
 
-        for (i, &command) in self.backend_res.commands.iter().enumerate() {
+        for (i, &command) in self.backend.commands.iter().enumerate() {
 
             use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
             use vkbase::ci::pipeline::RenderPassBI;
 
             let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
 
-            let render_pass_bi = RenderPassBI::new(self.backend_res.render_pass, self.backend_res.framebuffers[i])
+            let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[i])
                 .render_extent(dimension)
                 .clear_values(&clear_values);
 
@@ -152,7 +151,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &mut VkDevice) {
+    fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.set_layout);
         device.discard(self.descriptors.descriptor_pool);
@@ -169,7 +168,7 @@ impl VulkanExample {
         device.discard(self.uniform_buffer.buffer);
         device.discard(self.uniform_buffer.memory);
 
-        self.backend_res.discard(device);
+        self.backend.discard(device)
     }
 }
 

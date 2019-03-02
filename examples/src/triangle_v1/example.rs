@@ -138,7 +138,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         Ok(self.await_rendering)
     }
 
-    fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
+    fn swapchain_reload(&mut self, device: &mut VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
         // when toggle swapchain recreation, all the resources rely on swapchain and pipeline must be cleaned and regenerated.
         // including Pipeline, RenderPass, CommandBuffer, Framebuffer, attachment images(here is depth stencil image).

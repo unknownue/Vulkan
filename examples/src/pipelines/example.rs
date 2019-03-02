@@ -8,7 +8,7 @@ use std::path::Path;
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
-use vkbase::ci::memory::MemoryAI;
+use vkbase::ci::vma::{VmaBuffer, VmaAllocationCI};
 use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 use vkbase::gltf::VkglTFModel;
 use vkbase::ui::{TextInfo, TextType, TextHAlign};
@@ -16,7 +16,7 @@ use vkbase::context::VulkanContext;
 use vkbase::utils::color::VkColor;
 use vkbase::{FlightCamera, FrameAction};
 use vkbase::{vkbytes, vkptr, Point3F, Matrix4F, Vector4F};
-use vkbase::VkResult;
+use vkbase::{VkResult, VkErrorKind};
 
 use vkexamples::VkExampleBackendRes;
 
@@ -31,10 +31,10 @@ const MODEL_PATH: &'static str = "assets/models/treasure_smooth.gltf";
 
 pub struct VulkanExample {
 
-    backend_res: VkExampleBackendRes,
+    backend: VkExampleBackendRes,
 
     model: VkglTFModel,
-    uniform_buffer: UniformBuffer,
+    uniform_buffer: VmaBuffer,
 
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
@@ -86,7 +86,7 @@ impl VulkanExample {
         let pipelines = prepare_pipelines(device, &model, backend_res.render_pass, descriptors.layout)?;
 
         let target = VulkanExample {
-            backend_res, model, uniform_buffer, descriptors, pipelines, camera, ubo_data,
+            backend: backend_res, model, uniform_buffer, descriptors, pipelines, camera, ubo_data,
             is_toggle_event: false,
         };
         Ok(target)
@@ -97,10 +97,10 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn init(&mut self, device: &VkDevice) -> VkResult<()> {
 
-        self.backend_res.set_basic_ui(device, super::WINDOW_TITLE)?;
+        self.backend.set_basic_ui(device, super::WINDOW_TITLE)?;
 
-        let screen_width  = self.backend_res.dimension.width  as i32;
-        let screen_height = self.backend_res.dimension.height as i32;
+        let screen_width  = self.backend.dimension.width  as i32;
+        let screen_height = self.backend.dimension.height as i32;
 
         let phong_text = TextInfo {
             content: String::from("Phong Shading Pipeline"),
@@ -110,7 +110,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             location: vk::Offset2D { x: screen_width / 6, y: screen_height / 8 * 7 },
             r#type: TextType::Static,
         };
-        self.backend_res.ui_renderer.add_text(phong_text)?;
+        self.backend.ui_renderer.add_text(phong_text)?;
 
         let toon_text = TextInfo {
             content: String::from("Toon Shading Pipeline"),
@@ -120,7 +120,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             location: vk::Offset2D { x: screen_width / 6 * 3, y: screen_height / 8 * 7 },
             r#type: TextType::Static,
         };
-        self.backend_res.ui_renderer.add_text(toon_text)?;
+        self.backend.ui_renderer.add_text(toon_text)?;
 
         let wireframe_text = TextInfo {
             content: String::from("Wireframe Pipeline"),
@@ -130,9 +130,9 @@ impl vkbase::RenderWorkflow for VulkanExample {
             location: vk::Offset2D { x: screen_width / 6 * 5 , y: screen_height / 8 * 7 },
             r#type: TextType::Static,
         };
-        self.backend_res.ui_renderer.add_text(wireframe_text)?;
+        self.backend.ui_renderer.add_text(wireframe_text)?;
 
-        self.record_commands(device, self.backend_res.dimension)?;
+        self.record_commands(device, self.backend.dimension)?;
 
         Ok(())
     }
@@ -145,16 +145,16 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         let submit_ci = vkbase::ci::device::SubmitCI::new()
             .add_wait(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, await_present)
-            .add_command(self.backend_res.commands[image_index])
-            .add_signal(self.backend_res.await_rendering);
+            .add_command(self.backend.commands[image_index])
+            .add_signal(self.backend.await_rendering);
 
         // Submit to the graphics queue passing a wait fence.
         device.submit(submit_ci, device.logic.queues.graphics.handle, device_available)?;
 
-        Ok(self.backend_res.await_rendering)
+        Ok(self.backend.await_rendering)
     }
 
-    fn swapchain_reload(&mut self, device: &VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
+    fn swapchain_reload(&mut self, device: &mut VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
         // recreate the resources.
         device.discard(self.pipelines.phong);
@@ -162,10 +162,10 @@ impl vkbase::RenderWorkflow for VulkanExample {
         device.discard(self.pipelines.wireframe);
 
         let render_pass = setup_renderpass(device, new_chain)?;
-        self.backend_res.swapchain_reload(device, new_chain, render_pass)?;
-        self.pipelines = prepare_pipelines(device, &self.model, self.backend_res.render_pass, self.descriptors.layout)?;
+        self.backend.swapchain_reload(device, new_chain, render_pass)?;
+        self.pipelines = prepare_pipelines(device, &self.model, self.backend.render_pass, self.descriptors.layout)?;
 
-        self.record_commands(device, self.backend_res.dimension)?;
+        self.record_commands(device, self.backend.dimension)?;
 
         Ok(())
     }
@@ -184,7 +184,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             self.is_toggle_event = false;
         }
 
-        self.backend_res.update_fps_text(inputer);
+        self.backend.update_fps_text(inputer);
 
         FrameAction::Rendering
     }
@@ -209,7 +209,7 @@ impl VulkanExample {
             offset: vk::Offset2D { x: 0, y: 0 },
         };
 
-        for (i, &command) in self.backend_res.commands.iter().enumerate() {
+        for (i, &command) in self.backend.commands.iter().enumerate() {
 
             use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
             use vkbase::ci::pipeline::RenderPassBI;
@@ -228,7 +228,7 @@ impl VulkanExample {
 
             let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
 
-            let render_pass_bi = RenderPassBI::new(self.backend_res.render_pass, self.backend_res.framebuffers[i])
+            let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[i])
                 .render_extent(dimension)
                 .clear_values(&clear_values);
 
@@ -267,7 +267,7 @@ impl VulkanExample {
                 }
             }
 
-            self.backend_res.ui_renderer.record_command(&recorder);
+            self.backend.ui_renderer.record_command(&recorder);
 
             recorder
                 .end_render_pass()
@@ -282,7 +282,7 @@ impl VulkanExample {
         self.ubo_data[0].view = self.camera.view_matrix();
 
         // dbg!(self.ubo_data[0].view);
-        device.copy_to_ptr(self.uniform_buffer.data_ptr, &self.ubo_data);
+        device.copy_to_ptr(self.uniform_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
 
         Ok(())
     }
@@ -297,14 +297,9 @@ impl VulkanExample {
         device.discard(self.pipelines.wireframe);
         device.discard(self.pipelines.layout);
 
-        device.unmap_memory(self.uniform_buffer.memory);
-        device.discard(self.uniform_buffer.buffer);
-        device.discard(self.uniform_buffer.memory);
-
+        device.vma_discard(&self.uniform_buffer)?;
         device.vma_discard(&self.model)?;
-        self.backend_res.discard(device);
-
-        Ok(())
+        self.backend.discard(device)
     }
 }
 
@@ -325,15 +320,6 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 }
 
 
-/// Uniform buffer block object.
-struct UniformBuffer {
-
-    data_ptr: vkptr,
-    memory: vk::DeviceMemory,
-    buffer: vk::Buffer,
-    descriptor: vk::DescriptorBufferInfo,
-}
-
 // The uniform data that will be transferred to shader.
 //
 // layout (set = 0, binding = 0) uniform UBO {
@@ -350,34 +336,24 @@ struct UboVS {
     light_pos    : Vector4F,
 }
 
-fn prepare_uniform(device: &VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<UniformBuffer> {
+fn prepare_uniform(device: &mut VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<VmaBuffer> {
 
-    let (uniform_buffer, memory_requirement) = BufferCI::new(mem::size_of::<[UboVS; 1]>() as vkbytes)
-        .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
-        .build(device)?;
-
-    let memory_type = device.get_memory_type(memory_requirement.memory_type_bits, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-    let uniform_memory = MemoryAI::new(memory_requirement.size, memory_type)
-        .build(device)?;
-    device.bind_memory(uniform_buffer, uniform_memory, 0)?;
-
-    // Map uniform buffer and update it.
-    // keep the uniform memory map during the program running.
-    let data_ptr = device.map_memory(uniform_memory, 0, mem::size_of::<[UboVS; 1]>() as vkbytes)?;
-    device.copy_to_ptr(data_ptr, ubo_data);
-
-    let uniforms = UniformBuffer {
-        data_ptr,
-        buffer: uniform_buffer,
-        memory: uniform_memory,
-        descriptor: vk::DescriptorBufferInfo {
-            buffer: uniform_buffer,
-            offset: 0,
-            range : mem::size_of::<[UboVS; 1]>() as vkbytes,
-        },
+    let uniform_buffer = {
+        let uniform_ci = BufferCI::new(mem::size_of::<[UboVS; 1]>() as vkbytes)
+            .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
+        let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
+            .flags(vma::AllocationCreateFlags::MAPPED);
+        let uniform_allocation = device.vma.create_buffer(&uniform_ci.value(), allocation_ci.as_ref())
+            .map_err(VkErrorKind::Vma)?;
+        VmaBuffer::from(uniform_allocation)
     };
 
-    Ok(uniforms)
+    // keep the uniform memory map during the program running.
+    let data_ptr = uniform_buffer.info.get_mapped_data() as vkptr;
+    debug_assert_ne!(data_ptr, ptr::null_mut());
+    device.copy_to_ptr(data_ptr, ubo_data);
+
+    Ok(uniform_buffer)
 }
 
 struct DescriptorStaff {
@@ -386,7 +362,7 @@ struct DescriptorStaff {
     layout : vk::DescriptorSetLayout,
 }
 
-fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
+fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
     use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorSetsUpdateCI};
@@ -437,7 +413,11 @@ fn setup_descriptor(device: &VkDevice, uniforms: &UniformBuffer, model: &VkglTFM
     let descriptor_set = descriptor_sets.remove(0);
 
     let ubo_write_info = DescriptorBufferSetWI::new(descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
-        .add_buffer(uniforms.descriptor.clone());
+        .add_buffer(vk::DescriptorBufferInfo {
+            buffer: uniform_buffer.handle,
+            offset: 0,
+            range : mem::size_of::<[UboVS; 1]>() as vkbytes,
+        });
     let node_write_info = DescriptorBufferSetWI::new(descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
         .add_buffer(model.nodes.node_descriptor());
 
