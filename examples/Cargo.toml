@@ -10,12 +10,14 @@ An implementaion of SaschaWillems/Vulkan(https://github.com/SaschaWillems/Vulkan
 '''
 
 [dependencies]
-ash       = "0.27.1"
-winit     = "0.18.1"
-nalgebra  = "0.16"
-shaderc   = "0.3.10"
-memoffset = "0.2"
-rusttype  = "0.7.5"
+ash         = "0.27.1"
+winit       = "0.18.1"
+nalgebra    = "0.16"
+shaderc     = "0.3.10"
+memoffset   = "0.2"
+rusttype    = "0.7.5"
+lazy_static = "1.2.0"
+rand        = "0.6"
 
 vkbase = { package = "vulkan-base", path = "../base" }
 vma    = { package = "vk-mem", version = "0.1.3", path = "../../../Rust/vk-mem-rs" }
@@ -35,6 +37,10 @@ path = "src/triangle_v2/main.rs"
 [[bin]]
 name = "pipelines"
 path = "src/pipelines/main.rs"
+
+[[bin]]
+name = "dynamicuniformbuffer"
+path = "src/dynamicuniformbuffer/main.rs"
 
 [[bin]]
 name = "text-overlay"

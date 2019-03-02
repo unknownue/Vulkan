@@ -128,7 +128,7 @@ impl ProcPipeline {
         // ------------------------------------------------------------------
 
         // call command buffer(activate pipeline to draw) -------------------
-        let await_render = app.render_frame(&self.vulkan.device, fence_ready, self.syncs.await_present, acquire_image_index as _, delta_time)?;
+        let await_render = app.render_frame(&mut self.vulkan.device, fence_ready, self.syncs.await_present, acquire_image_index as _, delta_time)?;
         // ------------------------------------------------------------------
 
         // present image. ---------------------------------------------------

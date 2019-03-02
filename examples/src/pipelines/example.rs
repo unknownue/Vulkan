@@ -137,7 +137,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         Ok(())
     }
 
-    fn render_frame(&mut self, device: &VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
+    fn render_frame(&mut self, device: &mut VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
 
         if self.is_toggle_event {
             self.update_uniforms(device)?;
@@ -373,7 +373,7 @@ fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglT
         .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC, 1)
         .build(device)?;
 
-    // ubo_descriptor represent shader codes as follows:
+    // in phone.vert.glsl:
     // layout (set = 0, binding = 0) uniform UBO {
     //     mat4 projection;
     //     mat4 view;
@@ -389,7 +389,7 @@ fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglT
         p_immutable_samplers: ptr::null(),
     };
 
-    // node_descriptor represent shader codes as follows:
+    // in phone.vert.glsl:
     // layout (set = 0, binding = 1) uniform NodeAttachments {
     //     mat4 transform;
     // } node_attachments;

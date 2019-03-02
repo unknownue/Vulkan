@@ -104,6 +104,7 @@ impl VkExampleBackendRes {
         self.depth_image = setup_depth_image(device, self.dimension)?;
 
         device.discard(&self.framebuffers);
+        device.discard(self.render_pass);
         self.render_pass = render_pass;
         self.setup_framebuffers(device, new_chain)?;
 
