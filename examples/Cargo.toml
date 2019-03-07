@@ -23,29 +23,44 @@ vkbase = { package = "vulkan-base", path = "../base" }
 vma = { package = "vk-mem", version = "0.1.4" }
 gli = { package = "gli-rs", path = "../../gli-rs" }
 
+# Basics ----------------------------------------------
+
+# 00 - Test Ash
 [[bin]]
 name = "ash_test"
 path = "src/ash_test/triangle.rs"
 
+# 01 - Triangle V1
 [[bin]]
 name = "triangle_v1"
 path = "src/triangle_v1/main.rs"
 
+# 02 - Triangle V2
 [[bin]]
 name = "triangle_v2"
 path = "src/triangle_v2/main.rs"
 
+# 03 - Pipelines
 [[bin]]
 name = "pipelines"
 path = "src/pipelines/main.rs"
 
+# 04 - Descriptor sets
+[[bin]]
+name = "descriptorsets"
+path = "src/descriptorsets/main.rs"
+
+# 05 - Dynamic uniform buffers
 [[bin]]
 name = "dynamicuniformbuffer"
 path = "src/dynamicuniformbuffer/main.rs"
 
+# 08 - Texture mapping
 [[bin]]
 name = "texture"
 path = "src/texture/main.rs"
+# -----------------------------------------------------
+
 
 [[bin]]
 name = "text-overlay"

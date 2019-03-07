@@ -251,14 +251,14 @@ impl VulkanExample {
                     .bind_pipeline(self.pipelines.toon);
 
                 // Line width > 1.0f only if wide lines feature is supported.
-                if device.phy.enable_features().wide_lines == vk::TRUE {
+                if device.phy.features_enabled().wide_lines == vk::TRUE {
                     recorder.set_line_width(2.0);
                 }
                 self.model.record_command(&recorder, &render_params);
             }
 
             { // Right: Wireframe
-                if device.phy.enable_features().fill_mode_non_solid == vk::TRUE {
+                if device.phy.features_enabled().fill_mode_non_solid == vk::TRUE {
                     viewport.x = dimension.width as f32 / 3.0 * 2.0;
                     recorder
                         .set_viewport(0, &[viewport])
@@ -495,7 +495,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         .add_dynamic(vk::DynamicState::VIEWPORT)
         .add_dynamic(vk::DynamicState::SCISSOR);
 
-    if device.phy.enable_features().wide_lines == vk::TRUE {
+    if device.phy.features_enabled().wide_lines == vk::TRUE {
         dynamic_state = dynamic_state.add_dynamic(vk::DynamicState::LINE_WIDTH)
     };
 
@@ -595,7 +595,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         ]);
 
         // Non solid rendering is not a mandatory Vulkan feature.
-        if device.phy.enable_features().fill_mode_non_solid == vk::TRUE {
+        if device.phy.features_enabled().fill_mode_non_solid == vk::TRUE {
             rasterization_state = rasterization_state.polygon(vk::PolygonMode::LINE);
             pipeline_ci.set_rasterization(rasterization_state);
         }

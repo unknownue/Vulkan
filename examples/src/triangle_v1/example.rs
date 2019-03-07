@@ -339,7 +339,7 @@ pub fn create_command_buffer(device: &VkDevice, pool: vk::CommandPool, count: vk
 
 fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {
 
-    // We need to tell the API the number of max. requested descriptors per type
+    // We need to tell the API the number of max. requested descriptorsets per type
     let pool_sizes = vec![
         // This example only uses one descriptor type (uniform buffer) and only requests one descriptor of this type.
         vk::DescriptorPoolSize {
@@ -349,7 +349,7 @@ fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {
     ];
 
     // Create the global descriptor pool
-    // All descriptors used in this example are allocated from this pool.
+    // All descriptorsets used in this example are allocated from this pool.
     let descriptor_pool_ci = vk::DescriptorPoolCreateInfo {
         s_type: vk::StructureType::DESCRIPTOR_POOL_CREATE_INFO,
         p_next: ptr::null(),
@@ -371,8 +371,8 @@ fn setup_descriptor_pool(device: &VkDevice) -> VkResult<vk::DescriptorPool> {
 
 fn setup_descriptor_layout(device: &VkDevice) -> VkResult<(vk::DescriptorSetLayout, vk::PipelineLayout)> {
 
-    // Setup layout of descriptors used in this example.
-    // Basically connects the different shader stages to descriptors for binding uniform buffers, image samplers, etc.
+    // Setup layout of descriptorsets used in this example.
+    // Basically connects the different shader stages to descriptorsets for binding uniform buffers, image samplers, etc.
     // So every shader binding should map to one descriptor set layout binding.
 
     let layout_bindings = [

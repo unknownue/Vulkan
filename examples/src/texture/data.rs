@@ -171,8 +171,10 @@ pub struct Texture {
     pub mip_levels: vkuint,
 }
 
-// The following description is copied from SaschaWillems's repository.
+
 /*
+    SaschaWillems's comment:
+
     Upload texture image data to the GPU
 
     Vulkan offers two types of image tiling (memory layout):
@@ -297,7 +299,7 @@ impl Texture {
         };
 
 
-        { // image memory barriers for the texture image.
+        {
 
             // The sub resource range describes the regions of the image that will be transitioned using the memory barriers below.
             let sub_range = vk::ImageSubresourceRange {
@@ -306,11 +308,13 @@ impl Texture {
                 // Start at first mip level.
                 base_mip_level: 0,
                 // We will transition on all mip levels.
-                level_count   : tex_2d.levels() as vkuint,
+                level_count: tex_2d.levels() as vkuint,
                 base_array_layer: 0,
                 // The 2D texture only has one layer.
-                layer_count     : 1,
+                layer_count: 1,
             };
+
+            // image memory barriers for the texture image. -------------
 
             // Transition the texture image layout to transfer target, so we can safely copy our buffer data to it.
             let barrier1 = ImageBarrierCI::new(dst_image.handle, sub_range)
@@ -321,6 +325,7 @@ impl Texture {
             let barrier2 = ImageBarrierCI::new(dst_image.handle, sub_range)
                 .access_mask(vk::AccessFlags::TRANSFER_WRITE, vk::AccessFlags::SHADER_READ)
                 .layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
+            // ----------------------------------------------------------
 
             // prepare vulkan object to transfer data.
             let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
@@ -371,7 +376,7 @@ impl Texture {
 
             // Enable anisotropic filtering.
             // This feature is optional, so we must check if it's supported on the device.
-            if device.phy.enable_features().sampler_anisotropy == vk::TRUE {
+            if device.phy.features_enabled().sampler_anisotropy == vk::TRUE {
                 // Use max level of anisotropy for this example.
                 sampler_ci = sampler_ci.anisotropy(Some(device.phy.limits.max_sampler_anisotropy));
             } else {
