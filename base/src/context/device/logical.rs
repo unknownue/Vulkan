@@ -85,7 +85,7 @@ impl VkLogicalDevice {
             pp_enabled_layer_names     : enable_layer_names.as_ptr(),
             enabled_extension_count    : enable_extension_names.len() as _,
             pp_enabled_extension_names : enable_extension_names.as_ptr(),
-            p_enabled_features         : phy.enable_features(),
+            p_enabled_features         : phy.features_enabled(),
         };
 
         let handle = unsafe {

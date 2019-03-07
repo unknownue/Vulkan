@@ -87,7 +87,7 @@ fn setup_descriptor(device: &VkDevice, glyphs: &GlyphImages) -> VkResult<(vk::De
         .build(device)?;
     let descriptor_set = descriptor_sets.remove(0);
 
-    // update descriptors.
+    // update descriptorsets.
     let sampled_image_write_info = DescriptorImageSetWI::new(descriptor_set, 0, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
         .add_image(vk::DescriptorImageInfo {
             sampler: glyphs.text_sampler,

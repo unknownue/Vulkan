@@ -129,7 +129,7 @@ impl VkPhysicalDevice {
     }
 
     #[inline]
-    pub fn enable_features(&self) -> &vk::PhysicalDeviceFeatures {
+    pub fn features_enabled(&self) -> &vk::PhysicalDeviceFeatures {
         &self.features_enable
     }
 

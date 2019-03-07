@@ -12,6 +12,7 @@ pub mod utils;
 pub mod command;
 pub mod platforms;
 pub mod gltf;
+pub mod texture;
 pub mod ui;
 
 mod error;
