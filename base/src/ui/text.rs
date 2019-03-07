@@ -32,7 +32,7 @@ const VERTEX_PER_CHARACTER: usize = 6;
 /// the maximum sentence count that the buffer can contain.
 const MAXIMUM_SENTENCE_COUNT: usize = 10;
 /// the maximum character count that a sentence may contain.
-const MAXIMUM_SENTENCE_TEXT_COUNT: usize = 50;
+const MAXIMUM_SENTENCE_TEXT_COUNT: usize = 100;
 /// Control the font size of sampled glyph.
 const FONT_SCALE: f32 = 48.0;
 /// A magic number.

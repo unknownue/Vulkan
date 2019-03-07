@@ -7,6 +7,9 @@ type Point3F  = nalgebra::Point3<f32>;
 type Vector3F = nalgebra::Vector3<f32>;
 type Matrix4F = nalgebra::Matrix4<f32>;
 
+/// A simple flight through camera.
+///
+/// This camera is mainly modified from https://learnopengl.com.
 pub struct FlightCamera {
 
     /// Camera position.
@@ -55,11 +58,13 @@ impl FlightCamera {
         self.pos.clone()
     }
 
+    /// Generate a new view matrix based on camera status.
     pub fn view_matrix(&self) -> Matrix4F {
 
         Matrix4F::look_at_rh(&self.pos, &(self.pos + self.front), &self.up)
     }
 
+    /// Generate a new projection matrix based on camera status.
     pub fn proj_matrix(&self) -> Matrix4F {
 
         Matrix4F::new_perspective(self.screen_aspect, self.zoom, self.near, self.far)

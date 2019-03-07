@@ -118,8 +118,11 @@ pub enum VkErrorKind {
     #[fail(display = "Failed to interact with Window: {}.", description)]
     Window { description: String },
     /// An error occurred while using Vulkan Memory Allocator(VMA).
-    #[fail(display = "VMA Error: {}.", _0)]
+    #[fail(display = "VMA error: {}.", _0)]
     Vma(#[cause] vma::Error),
+    /// An error occurred while loading texture by gli crate.
+    #[fail(display = "gli error: {}.", _0)]
+    Gli(#[cause] gli::Error),
     /// An error that occurred while working with a file path.
     #[fail(display = "Failed to locate file at: {:?}", path)]
     Path { path: PathBuf },

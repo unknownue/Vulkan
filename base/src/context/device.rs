@@ -69,11 +69,11 @@ impl VkDevice {
     }
 
     #[inline]
-    pub fn copy_to_ptr<T>(&self, data_ptr: vkptr, data: &[T]) {
+    pub fn copy_to_ptr<T>(&self, dst_ptr: vkptr, data: &[T]) {
 
         // implementation 1.
         unsafe {
-            (data_ptr as vkptr<T>).copy_from(data.as_ptr(), data.len());
+            (dst_ptr as vkptr<T>).copy_from(data.as_ptr(), data.len());
         }
 
         // implementation 2.

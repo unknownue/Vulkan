@@ -20,7 +20,8 @@ lazy_static = "1.2.0"
 rand        = "0.6"
 
 vkbase = { package = "vulkan-base", path = "../base" }
-vma    = { package = "vk-mem", version = "0.1.3", path = "../../../Rust/vk-mem-rs" }
+vma = { package = "vk-mem", version = "0.1.4" }
+gli = { package = "gli-rs", path = "../../gli-rs" }
 
 [[bin]]
 name = "ash_test"
@@ -41,6 +42,10 @@ path = "src/pipelines/main.rs"
 [[bin]]
 name = "dynamicuniformbuffer"
 path = "src/dynamicuniformbuffer/main.rs"
+
+[[bin]]
+name = "texture"
+path = "src/texture/main.rs"
 
 [[bin]]
 name = "text-overlay"

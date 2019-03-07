@@ -7,6 +7,8 @@ use crate::{VkResult, VkErrorKind};
 use crate::{vkuint, vkptr};
 
 // ----------------------------------------------------------------------------------------------
+/// A type contains the buffer allocation result from `vma::Allocator`.
+#[derive(Debug, Clone)]
 pub struct VmaBuffer {
 
     /// the handle of vk::Buffer.
@@ -37,6 +39,8 @@ impl VmaResourceDiscardable for VmaBuffer {
     }
 }
 
+/// A type contains the image allocation result from `vma::Allocator`.
+#[derive(Debug, Clone)]
 pub struct VmaImage {
 
     /// the handle of vk::Image.
