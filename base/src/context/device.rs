@@ -69,21 +69,6 @@ impl VkDevice {
     }
 
     #[inline]
-    pub fn copy_to_ptr<T>(&self, dst_ptr: vkptr, data: &[T]) {
-
-        // implementation 1.
-        unsafe {
-            (dst_ptr as vkptr<T>).copy_from(data.as_ptr(), data.len());
-        }
-
-        // implementation 2.
-        // unsafe {
-        //     let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut T, data.len());
-        //     mapped_copy_target.copy_from_slice(data);
-        // }
-    }
-
-    #[inline]
     pub fn unmap_memory(&self, memory: vk::DeviceMemory) {
         unsafe {
             self.logic.handle.unmap_memory(memory);
@@ -102,12 +87,12 @@ impl VkDevice {
 
     #[inline]
     pub fn discard(&self, object: impl VkObjectDiscardable) {
-        object.discard(self);
+        object.discard_by(self);
     }
 
     #[inline]
-    pub fn vma_discard(&mut self, object: &impl VmaResourceDiscardable) -> VkResult<()> {
-        object.discard(&mut self.vma)
+    pub fn vma_discard(&mut self, object: impl VmaResourceDiscardable) -> VkResult<()> {
+        object.discard_by(&mut self.vma)
     }
 
     #[inline]
@@ -128,12 +113,12 @@ impl VkDevice {
 
 pub trait VkObjectDiscardable: Copy {
 
-    fn discard(self, device: &VkDevice);
+    fn discard_by(self, device: &VkDevice);
 }
 
 pub trait VmaResourceDiscardable {
 
-    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()>;
+    fn discard_by(self, vma: &mut vma::Allocator) -> VkResult<()>;
 }
 
 pub trait VkObjectAllocatable: Copy {

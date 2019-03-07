@@ -94,7 +94,7 @@ impl BufferCI {
 
 impl VkObjectDiscardable for vk::Buffer {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_buffer(self, None)
         }

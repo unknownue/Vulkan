@@ -138,7 +138,7 @@ impl CommandPoolCI {
 
 impl VkObjectDiscardable for vk::CommandPool {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_command_pool(self, None);
         }

@@ -5,6 +5,8 @@ use std::ptr;
 use std::mem;
 use std::path::Path;
 
+use arrayvec::ArrayVec;
+
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
@@ -38,7 +40,7 @@ pub struct VulkanExample {
 
     model: VkglTFModel,
 
-    cubes: Vec<Cube>,
+    cubes: ArrayVec<[Cube; 2]>,
 
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
@@ -62,7 +64,8 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.0, 0.0, 2.5))
+            .place_at(Point3F::new(0.0, 0.0, 5.0))
+            .view_distance(0.1, 512.0)
             .screen_aspect_ratio(dimension.width as f32 / dimension.height as f32)
             .build();
         camera.set_move_speed(5.0);
@@ -99,7 +102,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn render_frame(&mut self, device: &mut VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, delta_time: f32) -> VkResult<vk::Semaphore> {
 
-        self.update_uniforms(device, delta_time)?;
+        self.update_uniforms(delta_time)?;
 
         let submit_ci = vkbase::ci::device::SubmitCI::new()
             .add_wait(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, await_present)
@@ -143,7 +146,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device)
     }
@@ -192,7 +195,7 @@ impl VulkanExample {
                 let render_params = vkbase::gltf::ModelRenderParams {
                     descriptor_set : self.cubes[j].descriptor_set,
                     pipeline_layout: self.pipelines.layout,
-                    material_stage : vk::ShaderStageFlags::VERTEX,
+                    material_stage : None,
                 };
 
                 self.model.record_command(&recorder, &render_params);
@@ -208,9 +211,9 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn update_uniforms(&mut self, device: &VkDevice, delta_time: f32) -> VkResult<()> {
+    fn update_uniforms(&mut self, delta_time: f32) -> VkResult<()> {
 
-        if IS_ANIMATE {
+        if IS_ANIMATE || self.is_toggle_event {
 
             let model_translation: [Matrix4F; 2] = [
                 Matrix4F::new_translation(&Vector3F::new(-2.0, 0.0, 0.0)),
@@ -223,19 +226,18 @@ impl VulkanExample {
             self.cubes[1].rotation.y = (self.cubes[1].rotation.y + 2.0 * delta_time) % 360.0;
             self.cubes[1].matrices.model = model_translation[1] * Matrix4F::new_rotation(self.cubes[1].rotation);
 
-            if self.is_toggle_event {
-                self.cubes[0].matrices.view = self.camera.view_matrix();
-                self.cubes[1].matrices.view = self.camera.view_matrix();
-            }
+            self.cubes[0].matrices.view = self.camera.view_matrix();
+            self.cubes[1].matrices.view = self.camera.view_matrix();
 
-            device.copy_to_ptr(self.cubes[0].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[0].matrices]);
-            device.copy_to_ptr(self.cubes[1].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[1].matrices]);
+            use vkbase::utils::memory::copy_to_ptr;
+            copy_to_ptr(self.cubes[0].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[0].matrices]);
+            copy_to_ptr(self.cubes[1].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[1].matrices]);
         }
 
         Ok(())
     }
 
-    fn discard(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.layout);
         device.discard(self.descriptors.pool);
@@ -243,12 +245,12 @@ impl VulkanExample {
         device.discard(self.pipelines.pipeline);
         device.discard(self.pipelines.layout);
 
-        for i in 0..CUBE_COUNT {
-            device.vma_discard(&self.cubes[i].uniform_buffer)?;
-            self.cubes[i].texture.discard(device)?;
+        for cube in self.cubes.into_iter() {
+            device.vma_discard(cube.uniform_buffer)?;
+            cube.texture.discard_by(device)?;
         }
-        device.vma_discard(&self.model)?;
-        self.backend.discard(device)
+        device.vma_discard(self.model)?;
+        self.backend.discard_by(device)
     }
 }
 
@@ -263,9 +265,8 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
         // specify model's vertices layout.
         // in cube.vert.glsl:
         // layout (location = 0) in vec3 inPos;
-        // layout (location = 1) in vec3 inNormal;
-        // layout (location = 2) in vec2 inUV;
-        attribute: AttributeFlags::POSITION | AttributeFlags::NORMAL | AttributeFlags::TEXCOORD_0,
+        // layout (location = 1) in vec2 inUV;
+        attribute: AttributeFlags::POSITION | AttributeFlags::TEXCOORD_0,
         // specify model's node attachment layout.
         // in cube.vert.glsl
         // layout (set = 0, binding = 1) uniform DynNode {
@@ -302,9 +303,9 @@ struct Cube {
 }
 
 
-fn prepare_uniform(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<Vec<Cube>> {
+fn prepare_uniform(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<ArrayVec<[Cube; 2]>> {
 
-    let mut cubes = Vec::with_capacity(CUBE_COUNT);
+    let mut cubes = ArrayVec::new();
 
     for i in 0..CUBE_COUNT {
 
@@ -315,17 +316,16 @@ fn prepare_uniform(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<Vec
                 .flags(vma::AllocationCreateFlags::MAPPED);
             let uniform_allocation = device.vma.create_buffer(&uniform_ci.value(), allocation_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
+
             VmaBuffer::from(uniform_allocation)
         };
 
-        let ubo_data = UBOMatrices {
-            projection: camera.proj_matrix(),
-            model     : Matrix4F::identity(),
-            view      : camera.view_matrix(),
-        };
-
         let cube = Cube {
-            matrices: ubo_data,
+            matrices: UBOMatrices {
+                projection: camera.proj_matrix(),
+                model     : Matrix4F::identity(),
+                view      : camera.view_matrix(),
+            },
             // the descriptor_set member will be set in setup_descriptor() method.
             descriptor_set: vk::DescriptorSet::null(),
             uniform_buffer: ubo_buffer,
@@ -361,7 +361,7 @@ struct DescriptorStaff {
         layout (set = 0, binding = 2) uniform sampler2D ...;
 
 */
-fn setup_descriptor(device: &VkDevice, cube: &mut Vec<Cube>, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
+fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
     use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorImageSetWI, DescriptorSetsUpdateCI};
@@ -465,23 +465,23 @@ fn setup_descriptor(device: &VkDevice, cube: &mut Vec<Cube>, model: &VkglTFModel
         let mut descriptor_sets = DescriptorSetAI::new(descriptor_pool)
             .add_set_layout(set_layout)
             .build(device)?;
-        cube[i].descriptor_set = descriptor_sets.remove(0);
+        cubes[i].descriptor_set = descriptor_sets.remove(0);
 
         // Update the descriptor set with the actual descriptors matching shader bindings set in the layout.
 
         // Binding 0: Object matrices Uniform buffer.
-        let ubo_write_info = DescriptorBufferSetWI::new(cube[i].descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
+        let ubo_write_info = DescriptorBufferSetWI::new(cubes[i].descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
             .add_buffer(vk::DescriptorBufferInfo {
-                buffer: cube[i].uniform_buffer.handle,
+                buffer: cubes[i].uniform_buffer.handle,
                 offset: 0,
                 range : mem::size_of::<UBOMatrices>() as vkbytes,
             });
         // Binding 1: Node hierarchy transform matrix in glTF.
-        let node_write_info = DescriptorBufferSetWI::new(cube[i].descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
+        let node_write_info = DescriptorBufferSetWI::new(cubes[i].descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
             .add_buffer(model.nodes.node_descriptor());
         // Binding 2: Object texture.
-        let sampler_write_info = DescriptorImageSetWI::new(cube[i].descriptor_set, 2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .add_image(cube[i].texture.descriptor);
+        let sampler_write_info = DescriptorImageSetWI::new(cubes[i].descriptor_set, 2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .add_image(cubes[i].texture.descriptor);
 
         /*
             SaschaWillems's comment:
@@ -524,8 +524,8 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
         .layout(vk::ImageLayout::UNDEFINED, vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
     let subpass_description = SubpassDescCI::new(vk::PipelineBindPoint::GRAPHICS)
-        .add_color_attachment(0, vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL) // Attachment 0 is color.
-        .set_depth_stencil_attachment(1, vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL); // Attachment 1 is depth-stencil.
+        .add_color_attachment(0, vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+        .set_depth_stencil_attachment(1, vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
     let dependency0 = SubpassDependencyCI::new(vk::SUBPASS_EXTERNAL, 0)
         .stage_mask(vk::PipelineStageFlags::BOTTOM_OF_PIPE, vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
@@ -567,33 +567,14 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
     let depth_stencil_state = DepthStencilSCI::new()
         .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);
 
-    let mut dynamic_state = DynamicSCI::new()
+    let dynamic_state = DynamicSCI::new()
         .add_dynamic(vk::DynamicState::VIEWPORT)
         .add_dynamic(vk::DynamicState::SCISSOR);
-
-    if device.phy.features_enabled().wide_lines == vk::TRUE {
-        dynamic_state = dynamic_state.add_dynamic(vk::DynamicState::LINE_WIDTH)
-    };
-
-    // Configure push constant for pipeline(used to upload color data from glTF).
-    // in cube.vert.glsl:
-    //
-    // layout (push_constant) uniform Material {
-    //     vec4 base_color_factor;
-    // 	   vec3 emissive_factor;
-    // 	   float metallic_factor;
-    // } material;
-    let material_range = vk::PushConstantRange {
-        stage_flags: vk::ShaderStageFlags::VERTEX,
-        offset: 0,
-        size: model.materials.material_size(),
-    };
 
     // Pipeline Layout.
     // The pipeline layout is based on the descriptor set layout we created above.
     let layout = PipelineLayoutCI::new()
         .add_set_layout(set_layout)
-        .add_push_constants(material_range)
         .build(device)?;
 
     // shaders
@@ -615,6 +596,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
         ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
     ]);
+
     pipeline_ci.set_vertex_input(model.meshes.vertex_input.clone());
     pipeline_ci.set_viewport(viewport_state);
     pipeline_ci.set_depth_stencil(depth_stencil_state);

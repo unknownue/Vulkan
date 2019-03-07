@@ -150,7 +150,7 @@ impl TextPool {
         }
     }
 
-    pub fn update_texts(&self, device: &VkDevice, glyphs: &GlyphImages) -> VkResult<()> {
+    pub fn update_texts(&self, glyphs: &GlyphImages) -> VkResult<()> {
 
         // calculate vertices attributes of rendering texts.
         let mut char_vertices = Vec::with_capacity(self.texts_length * VERTEX_PER_CHARACTER);
@@ -217,7 +217,7 @@ impl TextPool {
         }
 
         // upload vertices attributes to memory.
-        device.copy_to_ptr(self.data_ptr, &char_vertices);
+        vkbase::utils::memory::copy_to_ptr(self.data_ptr, &char_vertices);
 
         Ok(())
     }
@@ -369,7 +369,7 @@ fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::
     device.bind_memory(staging_buffer, staging_memory, 0)?;
 
     let data_ptr = device.map_memory(staging_memory, 0, vk::WHOLE_SIZE)?;
-    device.copy_to_ptr(data_ptr, &image_bytes);
+    vkbase::utils::memory::copy_to_ptr(data_ptr, &image_bytes);
     device.unmap_memory(staging_memory);
 
     // transfer image data from staging buffer to destination image.

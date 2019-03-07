@@ -100,8 +100,10 @@ impl VkExampleBackendRes {
         self.ui_renderer.swapchain_reload(device, new_chain, render_pass)?;
 
         device.discard(self.depth_image.view);
-        device.vma_discard(&self.depth_image.image)?;
-        self.depth_image = setup_depth_image(device, self.dimension)?;
+
+        let mut new_depth_image = setup_depth_image(device, self.dimension)?;
+        std::mem::swap(&mut new_depth_image, &mut self.depth_image);
+        device.vma_discard(new_depth_image.image)?;
 
         device.discard(&self.framebuffers);
         device.discard(self.render_pass);
@@ -163,9 +165,9 @@ impl VkExampleBackendRes {
         }
     }
 
-    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    pub fn discard_by(self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.ui_renderer.discard(device)?;
+        self.ui_renderer.discard_by(device)?;
 
         device.discard(self.render_pass);
         device.discard(&self.framebuffers);
@@ -173,7 +175,7 @@ impl VkExampleBackendRes {
         device.discard(self.command_pool);
 
         device.discard(self.depth_image.view);
-        device.vma_discard(&self.depth_image.image)?;
+        device.vma_discard(self.depth_image.image)?;
 
         device.discard(self.await_rendering);
 

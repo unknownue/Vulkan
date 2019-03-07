@@ -32,7 +32,7 @@ impl From<(vk::Buffer, vma::Allocation, vma::AllocationInfo)> for VmaBuffer {
 
 impl VmaResourceDiscardable for VmaBuffer {
 
-    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
+    fn discard_by(self, vma: &mut vma::Allocator) -> VkResult<()> {
         vma.destroy_buffer(self.handle, &self.allocation)
             .map_err(VkErrorKind::Vma)?;
         Ok(())
@@ -65,7 +65,7 @@ impl From<(vk::Image, vma::Allocation, vma::AllocationInfo)> for VmaImage {
 
 impl VmaResourceDiscardable for VmaImage {
 
-    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
+    fn discard_by(self, vma: &mut vma::Allocator) -> VkResult<()> {
         vma.destroy_image(self.handle, &self.allocation)
             .map_err(VkErrorKind::Vma)?;
         Ok(())

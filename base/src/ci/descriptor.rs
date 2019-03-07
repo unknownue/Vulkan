@@ -83,7 +83,7 @@ impl DescriptorPoolCI {
 
 impl VkObjectDiscardable for vk::DescriptorPool {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_descriptor_pool(self, None);
         }
@@ -157,7 +157,7 @@ impl DescriptorSetLayoutCI {
 
 impl VkObjectDiscardable for vk::DescriptorSetLayout {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_descriptor_set_layout(self, None);
         }

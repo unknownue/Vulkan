@@ -71,7 +71,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             location: vk::Offset2D { x: 0, y: 0 },
         };
         self.text_pool.add_text(text)?;
-        self.text_pool.update_texts(device, &self.text_glyphs)?;
+        self.text_pool.update_texts(&self.text_glyphs)?;
 
         self.record_commands(device, self.backend_res.dimension)?;
         Ok(())
@@ -95,7 +95,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         // recreate the resources.
         device.discard(self.pipelines.pipeline);
 
-        self.text_pool.update_texts(device, &self.text_glyphs)?;
+        self.text_pool.update_texts(&self.text_glyphs)?;
 
         let render_pass = setup_renderpass(device, new_chain)?;
         self.backend_res.swapchain_reload(device, new_chain, render_pass)?;
@@ -118,7 +118,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device)
     }
@@ -156,7 +156,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.layout);
         device.discard(self.descriptors.pool);
@@ -166,7 +166,7 @@ impl VulkanExample {
 
         self.text_pool.discard(device);
         self.text_glyphs.discard(device);
-        self.backend_res.discard(device)
+        self.backend_res.discard_by(device)
     }
 }
 

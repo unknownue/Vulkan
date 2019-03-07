@@ -76,6 +76,8 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
     // setup vertices for a single uv-mapped quad made from two triangles.
     // for the sake of simplicity, we won't stage the vertex data to the gpu memory.
 
+    use vkbase::utils::memory::copy_to_ptr;
+
     let vertex_buffer = {
 
         let vertices_ci = BufferCI::new((mem::size_of::<Vertex>() * VERTEX_DATA.len()) as vkbytes)
@@ -88,7 +90,7 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 
         let data_ptr = vertices_allocation.2.get_mapped_data() as vkptr;
         debug_assert_ne!(data_ptr, ptr::null_mut());
-        device.copy_to_ptr(data_ptr, VERTEX_DATA.as_ref());
+        copy_to_ptr(data_ptr, VERTEX_DATA.as_ref());
 
         VmaBuffer::from(vertices_allocation)
     };
@@ -105,7 +107,7 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 
         let data_ptr = indices_allocation.2.get_mapped_data() as vkptr;
         debug_assert_ne!(data_ptr, ptr::null_mut());
-        device.copy_to_ptr(data_ptr, INDEX_DATA.as_ref());
+        copy_to_ptr(data_ptr, INDEX_DATA.as_ref());
 
         VmaBuffer::from(indices_allocation)
     };
@@ -153,7 +155,7 @@ impl UboVSData {
 
         let data_ptr = buffer_allocation.2.get_mapped_data() as vkptr;
         debug_assert_ne!(data_ptr, ptr::null_mut());
-        device.copy_to_ptr(data_ptr, &ubo_data.content);
+        vkbase::utils::memory::copy_to_ptr(data_ptr, &ubo_data.content);
 
         Ok((VmaBuffer::from(buffer_allocation), ubo_data))
     }
@@ -356,7 +358,7 @@ impl Texture {
 
 
         { // clean up staging resources.
-            device.vma_discard(&staging_buffer)?;
+            device.vma_discard(staging_buffer)?;
         }
 
         let dst_sampler = {
@@ -420,10 +422,10 @@ impl Texture {
         Ok(result)
     }
 
-    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    pub fn discard_by(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.sampler);
         device.discard(self.view);
-        device.vma_discard(&self.image)
+        device.vma_discard(self.image)
     }
 }

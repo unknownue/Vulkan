@@ -140,7 +140,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
     fn render_frame(&mut self, device: &mut VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
 
         if self.is_toggle_event {
-            self.update_uniforms(device)?;
+            self.update_uniforms()?;
         }
 
         let submit_ci = vkbase::ci::device::SubmitCI::new()
@@ -189,7 +189,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device)
     }
@@ -217,7 +217,7 @@ impl VulkanExample {
             let render_params = vkbase::gltf::ModelRenderParams {
                 descriptor_set : self.descriptors.set,
                 pipeline_layout: self.pipelines.layout,
-                material_stage : vk::ShaderStageFlags::VERTEX,
+                material_stage : Some(vk::ShaderStageFlags::VERTEX),
             };
 
             let mut viewport = vk::Viewport {
@@ -277,17 +277,18 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn update_uniforms(&mut self, device: &VkDevice) -> VkResult<()> {
+    fn update_uniforms(&mut self) -> VkResult<()> {
 
         self.ubo_data[0].view = self.camera.view_matrix();
 
         // dbg!(self.ubo_data[0].view);
-        device.copy_to_ptr(self.uniform_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
+        use vkbase::utils::memory::copy_to_ptr;
+        copy_to_ptr(self.uniform_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
 
         Ok(())
     }
 
-    fn discard(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.layout);
         device.discard(self.descriptors.pool);
@@ -297,9 +298,9 @@ impl VulkanExample {
         device.discard(self.pipelines.wireframe);
         device.discard(self.pipelines.layout);
 
-        device.vma_discard(&self.uniform_buffer)?;
-        device.vma_discard(&self.model)?;
-        self.backend.discard(device)
+        device.vma_discard(self.uniform_buffer)?;
+        device.vma_discard(self.model)?;
+        self.backend.discard_by(device)
     }
 }
 
@@ -351,7 +352,7 @@ fn prepare_uniform(device: &mut VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<Vma
     // keep the uniform memory map during the program running.
     let data_ptr = uniform_buffer.info.get_mapped_data() as vkptr;
     debug_assert_ne!(data_ptr, ptr::null_mut());
-    device.copy_to_ptr(data_ptr, ubo_data);
+    vkbase::utils::memory::copy_to_ptr(data_ptr, ubo_data);
 
     Ok(uniform_buffer)
 }

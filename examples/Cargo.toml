@@ -18,6 +18,7 @@ memoffset   = "0.2"
 rusttype    = "0.7.5"
 lazy_static = "1.2.0"
 rand        = "0.6"
+arrayvec    = "0.4.10"
 
 vkbase = { package = "vulkan-base", path = "../base" }
 vma = { package = "vk-mem", version = "0.1.4" }

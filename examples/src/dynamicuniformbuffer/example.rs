@@ -135,7 +135,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device)
     }
@@ -211,7 +211,7 @@ impl VulkanExample {
             { // update camera.
                 self.ubo_view_data.content[0].view = self.camera.view_matrix();
                 let data_ptr = self.ubo_view.info.get_mapped_data() as vkptr;
-                device.copy_to_ptr(data_ptr, &self.ubo_view_data.content);
+                vkbase::utils::memory::copy_to_ptr(data_ptr, &self.ubo_view_data.content);
             }
 
             { // update models.
@@ -231,7 +231,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.layout);
         device.discard(self.descriptors.pool);
@@ -239,12 +239,12 @@ impl VulkanExample {
         device.discard(self.pipelines.pipeline);
         device.discard(self.pipelines.layout);
 
-        device.vma_discard(&self.vertices)?;
-        device.vma_discard(&self.indices)?;
-        device.vma_discard(&self.ubo_view)?;
-        device.vma_discard(&self.ubo_dynamics)?;
+        device.vma_discard(self.vertices)?;
+        device.vma_discard(self.indices)?;
+        device.vma_discard(self.ubo_view)?;
+        device.vma_discard(self.ubo_dynamics)?;
 
-        self.backend.discard(device)
+        self.backend.discard_by(device)
     }
 }
 

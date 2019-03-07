@@ -152,7 +152,7 @@ impl NodeResource {
 
 impl VmaResourceDiscardable for NodeResource {
 
-    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
+    fn discard_by(self, vma: &mut vma::Allocator) -> VkResult<()> {
         vma.destroy_buffer(self.buffer.handle, &self.buffer.allocation)
             .map_err(VkErrorKind::Vma)?;
         Ok(())

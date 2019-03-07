@@ -39,8 +39,8 @@ impl Default for WindowConfig {
             always_on_top: false,
             is_resizable: true,
 
-            is_cursor_grap: true,
-            is_cursor_hide: true,
+            is_cursor_grap: false,
+            is_cursor_hide: false,
         }
     }
 }

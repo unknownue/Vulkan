@@ -58,7 +58,7 @@ impl MemoryAI {
 
 impl crate::context::VkObjectDiscardable for vk::DeviceMemory {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.free_memory(self, None);
         }

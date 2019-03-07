@@ -61,7 +61,7 @@ impl SemaphoreCI {
 
 impl VkObjectDiscardable for vk::Semaphore {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_semaphore(self, None);
         }
@@ -118,7 +118,7 @@ impl FenceCI {
 
 impl VkObjectDiscardable for vk::Fence {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_fence(self, None);
         }
@@ -127,7 +127,7 @@ impl VkObjectDiscardable for vk::Fence {
 
 impl VkObjectDiscardable for &Vec<vk::Fence> {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
 
         for fence in self {
             device.discard(*fence);

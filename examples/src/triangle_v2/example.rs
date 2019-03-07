@@ -98,7 +98,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device)
     }
@@ -151,7 +151,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.set_layout);
         device.discard(self.descriptors.descriptor_pool);
@@ -168,7 +168,7 @@ impl VulkanExample {
         device.discard(self.uniform_buffer.buffer);
         device.discard(self.uniform_buffer.memory);
 
-        self.backend.discard(device)
+        self.backend.discard_by(device)
     }
 }
 

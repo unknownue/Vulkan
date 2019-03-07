@@ -140,7 +140,7 @@ impl ImageCI {
 
 impl VkObjectDiscardable for vk::Image {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_image(self, None);
         }
@@ -250,7 +250,7 @@ impl ImageViewCI {
 
 impl VkObjectDiscardable for vk::ImageView {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_image_view(self, None)
         }
@@ -478,7 +478,7 @@ impl From<SamplerCI> for vk::SamplerCreateInfo {
 
 impl VkObjectDiscardable for vk::Sampler {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_sampler(self, None);
         }

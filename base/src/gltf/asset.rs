@@ -133,7 +133,7 @@ pub struct ModelRenderParams {
 
     pub descriptor_set : vk::DescriptorSet,
     pub pipeline_layout: vk::PipelineLayout,
-    pub material_stage : vk::ShaderStageFlags,
+    pub material_stage : Option<vk::ShaderStageFlags>,
 }
 
 impl VkglTFModel {
@@ -147,10 +147,10 @@ impl VkglTFModel {
 
 impl VmaResourceDiscardable for VkglTFModel {
 
-    fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
+    fn discard_by(self, vma: &mut vma::Allocator) -> VkResult<()> {
 
         self.meshes.discard(vma)?;
-        self.nodes.discard(vma)
+        self.nodes.discard_by(vma)
     }
 }
 // --------------------------------------------------------------------------------------

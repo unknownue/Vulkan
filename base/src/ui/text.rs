@@ -91,11 +91,11 @@ impl GlyphImages {
         Ok(result)
     }
 
-    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    pub fn discard(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.text_sampler);
         device.discard(self.glyph_view);
-        device.vma_discard(&self.glyph_image)
+        device.vma_discard(self.glyph_image)
     }
 }
 
@@ -127,7 +127,7 @@ impl TextAttrStorage {
         Ok(result)
     }
 
-    fn discard(&self, device: &VkDevice) {
+    fn discard(self, device: &VkDevice) {
 
         device.unmap_memory(self.memory);
         device.discard(self.buffer);
@@ -402,7 +402,7 @@ impl TextPool {
         &self.glyphs
     }
 
-    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    pub fn discard_by(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.attributes.discard(device);
         self.glyphs.discard(device)
@@ -520,7 +520,7 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
 
         let data_ptr = device.vma.map_memory(&staging_allocation.1)
             .map_err(VkErrorKind::Vma)? as vkptr;
-        device.copy_to_ptr(data_ptr, &image_bytes);
+        crate::utils::memory::copy_to_ptr(data_ptr, &image_bytes);
         device.vma.unmap_memory(&staging_allocation.1)
             .map_err(VkErrorKind::Vma)?;
 
@@ -571,7 +571,7 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
 
     // clean useless resources.
     device.discard(command_pool);
-    device.vma_discard(&staging_buffer)?;
+    device.vma_discard(staging_buffer)?;
 
     Ok(glyphs_image)
 }

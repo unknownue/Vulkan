@@ -69,6 +69,8 @@ impl Vertex {
 
 pub fn generate_cube(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> {
 
+    use vkbase::utils::memory::copy_to_ptr;
+
     // For the sake of simplicity we won't stage the vertex data to the gpu memory.
     let vertex_buffer = {
 
@@ -82,7 +84,7 @@ pub fn generate_cube(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 
         let data_ptr = vertices_allocation.2.get_mapped_data() as vkptr;
         debug_assert_ne!(data_ptr, ptr::null_mut());
-        device.copy_to_ptr(data_ptr, VERTEX_DATA.as_ref());
+        copy_to_ptr(data_ptr, VERTEX_DATA.as_ref());
 
         VmaBuffer::from(vertices_allocation)
     };
@@ -99,7 +101,7 @@ pub fn generate_cube(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 
         let data_ptr = indices_allocation.2.get_mapped_data() as vkptr;
         debug_assert_ne!(data_ptr, ptr::null_mut());
-        device.copy_to_ptr(data_ptr, INDEX_DATA.as_ref());
+        copy_to_ptr(data_ptr, INDEX_DATA.as_ref());
 
         VmaBuffer::from(indices_allocation)
     };
@@ -141,7 +143,7 @@ impl UboViewData {
 
         let data_ptr = buffer_allocation.2.get_mapped_data() as vkptr;
         debug_assert_ne!(data_ptr, ptr::null_mut());
-        device.copy_to_ptr(data_ptr, &ubo_view_data.content);
+        vkbase::utils::memory::copy_to_ptr(data_ptr, &ubo_view_data.content);
 
         Ok((VmaBuffer::from(buffer_allocation), ubo_view_data))
     }

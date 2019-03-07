@@ -106,7 +106,7 @@ impl PipelineLayoutCI {
 
 impl VkObjectDiscardable for vk::PipelineLayout {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_pipeline_layout(self, None);
         }
@@ -200,7 +200,7 @@ impl FramebufferCI {
 
 impl VkObjectDiscardable for vk::Framebuffer {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_framebuffer(self, None);
         }
@@ -209,7 +209,7 @@ impl VkObjectDiscardable for vk::Framebuffer {
 
 impl VkObjectDiscardable for &Vec<vk::Framebuffer> {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
 
         for framebuffer in self {
             device.discard(*framebuffer);
@@ -398,7 +398,7 @@ impl GraphicsPipelineCI {
 
 impl VkObjectDiscardable for vk::Pipeline {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_pipeline(self, None);
         }
@@ -452,7 +452,7 @@ impl PipelineCacheCI {
 
 impl VkObjectDiscardable for vk::PipelineCache {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_pipeline_cache(self, None);
         }

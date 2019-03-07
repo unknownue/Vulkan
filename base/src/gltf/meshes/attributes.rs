@@ -77,18 +77,21 @@ impl AttributeFlags {
     pub const ATTR_P: AttributeFlags = AttributeFlags(0b1);
     // POSITION, NORMAL.
     pub const ATTR_PN: AttributeFlags = AttributeFlags(0b11);
+    // POSITION, TEXCOORD_0.
+    pub const ATTR_PTE0: AttributeFlags = AttributeFlags(0b1001);
     // POSITION, NORMAL, TEXCOORD_0.
-    pub const ATTR_NTE0: AttributeFlags = AttributeFlags(0b1011);
+    pub const ATTR_PNTE0: AttributeFlags = AttributeFlags(0b1011);
     // POSITION, NORMAL, TANGENT, TEXCOORD_0, TEXCOORD_1, COLOR_0, JOINTS_0, WEIGHTS_0.
     pub const ATTR_ALL: AttributeFlags = AttributeFlags(0b11111111);
 
     fn vertex_size(&self) -> Option<vkbytes> {
         use std::mem::size_of;
         match *self {
-            | AttributeFlags::ATTR_P    => Some(size_of::<Attr_P>() as _),
-            | AttributeFlags::ATTR_PN   => Some(size_of::<Attr_PN>() as _),
-            | AttributeFlags::ATTR_NTE0 => Some(size_of::<Attr_PNTe0>() as _),
-            | AttributeFlags::ATTR_ALL  => Some(size_of::<Attr_All>() as _),
+            | AttributeFlags::ATTR_P     => Some(size_of::<Attr_P>()     as _),
+            | AttributeFlags::ATTR_PN    => Some(size_of::<Attr_PN>()    as _),
+            | AttributeFlags::ATTR_PTE0  => Some(size_of::<Attr_PTe0>()  as _),
+            | AttributeFlags::ATTR_PNTE0 => Some(size_of::<Attr_PNTe0>() as _),
+            | AttributeFlags::ATTR_ALL   => Some(size_of::<Attr_All>()   as _),
             | _ => None,
         }
     }
@@ -103,7 +106,11 @@ impl AttributeFlags {
                 let attributes = Box::new(Attr_PN::default());
                 Some(attributes as Box<dyn VertexAttributes>)
             },
-            | AttributeFlags::ATTR_NTE0 => {
+            | AttributeFlags::ATTR_PTE0 => {
+                let attributes = Box::new(Attr_PTe0::default());
+                Some(attributes as Box<dyn VertexAttributes>)
+            },
+            | AttributeFlags::ATTR_PNTE0 => {
                 let attributes = Box::new(Attr_PNTe0::default());
                 Some(attributes as Box<dyn VertexAttributes>)
             },
@@ -429,6 +436,9 @@ define_attributes!(Attr_P, AttrVertex_P, { position, });
 
 /// glTF Primitive with position and normal attributes.
 define_attributes!(Attr_PN, AttrVertexPN, { position, normal, });
+
+/// glTF Primitive with position and normal attributes.
+define_attributes!(Attr_PTe0, AttrVertexPTe0, { position, texcoord_0, });
 
 /// glTF Primitive with position, normal and texcoord_0 attributes.
 define_attributes!(Attr_PNTe0, AttrVertex_PNTe0, { position, normal, texcoord_0, });

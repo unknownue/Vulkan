@@ -188,7 +188,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device);
         Ok(())
@@ -284,7 +284,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn discard(&self, device: &mut VkDevice) {
+    fn discard(self, device: &mut VkDevice) {
 
         let destructor = &device.logic.handle;
         // clean up used Vulkan resources.

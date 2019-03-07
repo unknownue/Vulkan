@@ -170,7 +170,7 @@ impl RenderPassCI {
 
 impl VkObjectDiscardable for vk::RenderPass {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_render_pass(self, None);
         }

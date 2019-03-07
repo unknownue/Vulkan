@@ -117,7 +117,7 @@ impl ShaderModuleCI {
 
 impl crate::context::VkObjectDiscardable for vk::ShaderModule {
 
-    fn discard(self, device: &VkDevice) {
+    fn discard_by(self, device: &VkDevice) {
         unsafe {
             device.logic.handle.destroy_shader_module(self, None);
         }

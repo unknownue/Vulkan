@@ -96,9 +96,9 @@ impl vkbase::RenderWorkflow for VulkanExample {
         Ok(())
     }
 
-    fn render_frame(&mut self, device: &mut VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, delta_time: f32) -> VkResult<vk::Semaphore> {
+    fn render_frame(&mut self, device: &mut VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
 
-        self.update_uniforms(device, delta_time)?;
+        self.update_uniforms()?;
 
         let submit_ci = vkbase::ci::device::SubmitCI::new()
             .add_wait(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, await_present)
@@ -157,7 +157,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         FrameAction::Rendering
     }
 
-    fn deinit(&mut self, device: &mut VkDevice) -> VkResult<()> {
+    fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.discard(device)
     }
@@ -213,7 +213,7 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn update_uniforms(&mut self, device: &mut VkDevice, _delta_time: f32) -> VkResult<()> {
+    fn update_uniforms(&mut self) -> VkResult<()> {
 
         if self.is_toggle_event {
 
@@ -221,13 +221,13 @@ impl VulkanExample {
             self.ubo_data.content[0].view_pos = Point4F::new(camera_pos.x, camera_pos.y, camera_pos.z, 0.0);
             self.ubo_data.content[0].view = self.camera.view_matrix();
 
-            device.copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.content);
+            vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.content);
         }
 
         Ok(())
     }
 
-    fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.descriptors.layout);
         device.discard(self.descriptors.pool);
@@ -235,12 +235,12 @@ impl VulkanExample {
         device.discard(self.pipelines.pipeline);
         device.discard(self.pipelines.layout);
 
-        device.vma_discard(&self.ubo_buffer)?;
-        device.vma_discard(&self.vertices)?;
-        device.vma_discard(&self.indices)?;
+        device.vma_discard(self.ubo_buffer)?;
+        device.vma_discard(self.vertices)?;
+        device.vma_discard(self.indices)?;
 
-        self.texture.discard(device)?;
-        self.backend.discard(device)
+        self.texture.discard_by(device)?;
+        self.backend.discard_by(device)
     }
 }
 

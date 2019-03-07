@@ -61,8 +61,11 @@ impl Primitive {
 
     pub fn record_command(&self, recorder: &VkCmdRecorder<IGraphics>, model: &VkglTFModel, params: &ModelRenderParams) {
 
-        let material_data = model.materials.get_material_serialized(&self.material);
-        recorder.push_constants(params.pipeline_layout, params.material_stage, 0, material_data);
+        if let Some(material_stage) = params.material_stage {
+
+            let material_data = model.materials.get_material_serialized(&self.material);
+            recorder.push_constants(params.pipeline_layout, material_stage, 0, material_data);
+        }
 
         match self.params {
             | RenderParams::DrawArray { vertex_count, first_vertex } => {

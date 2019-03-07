@@ -58,9 +58,9 @@ impl UIRenderer {
         self.text_pool.change_text(content, update_text);
     }
 
-    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    pub fn discard_by(self, device: &mut VkDevice) -> VkResult<()> {
 
         self.pipeline_asset.discard(device);
-        self.text_pool.discard(device)
+        self.text_pool.discard_by(device)
     }
 }

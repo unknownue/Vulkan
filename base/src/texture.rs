@@ -174,7 +174,7 @@ impl Texture2D {
 
 
         { // clean up staging resources.
-            device.vma_discard(&staging_buffer)?;
+            device.vma_discard(staging_buffer)?;
         }
 
         let dst_sampler = {
@@ -226,10 +226,10 @@ impl Texture2D {
         Ok(result)
     }
 
-    pub fn discard(&self, device: &mut VkDevice) -> VkResult<()> {
+    pub fn discard_by(self, device: &mut VkDevice) -> VkResult<()> {
 
         device.discard(self.sampler);
         device.discard(self.view);
-        device.vma_discard(&self.image)
+        device.vma_discard(self.image)
     }
 }
