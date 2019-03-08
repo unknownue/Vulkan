@@ -100,7 +100,22 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.discard(device)
+        device.discard(self.descriptors.set_layout);
+        device.discard(self.descriptors.descriptor_pool);
+
+        device.discard(self.pipeline);
+        device.discard(self.descriptors.pipeline_layout);
+
+        device.discard(self.vertex_buffer.buffer);
+        device.discard(self.vertex_buffer.memory);
+
+        device.discard(self.index_buffer.buffer);
+        device.discard(self.index_buffer.memory);
+
+        device.discard(self.uniform_buffer.buffer);
+        device.discard(self.uniform_buffer.memory);
+
+        self.backend.discard_by(device)
     }
 }
 
@@ -149,26 +164,6 @@ impl VulkanExample {
         }
 
         Ok(())
-    }
-
-    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
-
-        device.discard(self.descriptors.set_layout);
-        device.discard(self.descriptors.descriptor_pool);
-
-        device.discard(self.pipeline);
-        device.discard(self.descriptors.pipeline_layout);
-
-        device.discard(self.vertex_buffer.buffer);
-        device.discard(self.vertex_buffer.memory);
-
-        device.discard(self.index_buffer.buffer);
-        device.discard(self.index_buffer.memory);
-
-        device.discard(self.uniform_buffer.buffer);
-        device.discard(self.uniform_buffer.memory);
-
-        self.backend.discard_by(device)
     }
 }
 

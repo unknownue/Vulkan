@@ -27,8 +27,6 @@ void main()  {
 	outUV = inUV;
 	outLodBias = ubo.lodBias;
 
-	vec3 worldPos = vec3(ubo.model * vec4(inPos, 1.0));
-
 	gl_Position = ubo.projection * ubo.model * vec4(inPos.xyz, 1.0);
 
     vec4 pos = ubo.model * vec4(inPos, 1.0);

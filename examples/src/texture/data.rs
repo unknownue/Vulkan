@@ -121,7 +121,6 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 #[repr(C)]
 pub struct UboVS {
     pub projection: Matrix4F,
-    pub view      : Matrix4F,
     pub model     : Matrix4F,
     pub view_pos  : Point4F,
     pub lod_bias  : f32,
@@ -147,7 +146,6 @@ impl UboVSData {
             content: [
                 UboVS {
                     projection: camera.proj_matrix(),
-                    view      : camera.view_matrix(),
                     model     : Matrix4F::identity(),
                     view_pos  : Point4F::new(0.0, 0.0, -2.5, 0.0),
                     lod_bias  : 0.0,

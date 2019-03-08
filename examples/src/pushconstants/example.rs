@@ -1,5 +1,6 @@
 
 use ash::vk;
+use ash::version::DeviceV1_0;
 
 use std::ptr;
 use std::mem;
@@ -13,14 +14,14 @@ use vkbase::gltf::VkglTFModel;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
 use vkbase::{vkbytes, vkuint, vkptr, Point3F, Matrix4F};
-use vkbase::{VkResult, VkErrorKind};
+use vkbase::{VkResult, VkError, VkErrorKind};
 
 use vkexamples::VkExampleBackendRes;
 
 const VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/pushconstants/lights.vert.glsl";
 const FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/pushconstants/lights.frag.glsl";
 const MODEL_PATH: &'static str = "assets/models/samplescene.gltf";
-const TIMER: f32 = 0.10;
+
 
 pub struct VulkanExample {
 
@@ -36,6 +37,7 @@ pub struct VulkanExample {
 
     camera: FlightCamera,
 
+    timer: f32,
     is_toggle_event: bool,
 }
 
@@ -88,7 +90,8 @@ impl VulkanExample {
 
         let target = VulkanExample {
             backend, model, ubo_buffer, ubo_data, descriptors, pipelines, camera,
-            is_toggle_event: false,
+            timer: 0.1,
+            is_toggle_event: true,
         };
         Ok(target)
     }
@@ -100,14 +103,21 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         self.backend.set_basic_ui(device, super::WINDOW_TITLE)?;
 
-        self.record_commands(device, self.backend.dimension)?;
+        self.update(0.0);
+
+        for command_index in 0..self.backend.commands.len() {
+            self.record_command(device, command_index, self.backend.dimension)?;
+        }
 
         Ok(())
     }
 
     fn render_frame(&mut self, device: &mut VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, delta_time: f32) -> VkResult<vk::Semaphore> {
 
-        self.update_uniforms(delta_time)?;
+        self.update(delta_time);
+
+        // Refresh the push constant data for current command buffer.
+        self.rebuild_command(device, image_index)?;
 
         let submit_ci = vkbase::ci::device::SubmitCI::new()
             .add_wait(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, await_present)
@@ -127,7 +137,9 @@ impl vkbase::RenderWorkflow for VulkanExample {
         self.backend.swapchain_reload(device, new_chain, render_pass)?;
         self.pipelines = prepare_pipelines(device, &self.model, self.backend.render_pass, self.descriptors.layout)?;
 
-        self.record_commands(device, self.backend.dimension)?;
+        for command_index in 0..self.backend.commands.len() {
+            self.record_command(device, command_index, self.backend.dimension)?;
+        }
 
         Ok(())
     }
@@ -167,14 +179,14 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
 impl VulkanExample {
 
-    fn pubconstant_data() -> PushConstants {
+    fn generate_push_data(&self) -> PushConstants {
 
         const R : f32 = 10.5;
         const Y1: f32 = -2.0;
         const Y2: f32 = 15.0;
 
-        let sin_t = (TIMER * 360.0).to_radians().sin();
-        let cos_t = (TIMER * 360.0).to_radians().cos();
+        let sin_t = (self.timer * 360.0).to_radians().sin();
+        let cos_t = (self.timer * 360.0).to_radians().cos();
 
         PushConstants {
             // w component = light radius scale.
@@ -187,9 +199,23 @@ impl VulkanExample {
                 [R * 2.5 * cos_t, Y2, R * 2.5 * sin_t, 2.5],
             ],
         }
+
     }
 
-    fn record_commands(&self, device: &VkDevice, dimension: vk::Extent2D) -> VkResult<()> {
+    fn rebuild_command(&self, device: &VkDevice, command_index: usize) -> VkResult<()> {
+
+        unsafe {
+            let command = self.backend.commands[command_index];
+            device.logic.handle.reset_command_buffer(command, vk::CommandBufferResetFlags::empty())
+                .map_err(|_| VkError::device("Reset Command Buffer"))?;
+        }
+
+        self.record_command(device, command_index, self.backend.dimension)
+    }
+
+    fn record_command(&self, device: &VkDevice, command_index: usize, dimension: vk::Extent2D) -> VkResult<()> {
+
+        let command = self.backend.commands[command_index];
 
         let clear_values = [
             vkexamples::DEFAULT_CLEAR_COLOR.clone(),
@@ -201,64 +227,63 @@ impl VulkanExample {
             offset: vk::Offset2D { x: 0, y: 0 },
         };
 
-        for (i, &command) in self.backend.commands.iter().enumerate() {
+        use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
+        use vkbase::ci::pipeline::RenderPassBI;
 
-            use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
-            use vkbase::ci::pipeline::RenderPassBI;
+        let viewport = vk::Viewport {
+            x: 0.0, y: 0.0,
+            width: dimension.width as f32, height: dimension.height as f32,
+            min_depth: 0.0, max_depth: 1.0,
+        };
 
-            let viewport = vk::Viewport {
-                x: 0.0, y: 0.0,
-                width: dimension.width as f32, height: dimension.height as f32,
-                min_depth: 0.0, max_depth: 1.0,
-            };
+        let push_data = self.generate_push_data();
+        let push_data_ptr = unsafe {
+            vkbase::utils::memory::any_as_u8_slice(&push_data)
+        };
 
-            let push_data = VulkanExample::pubconstant_data();
-            let push_data_ptr = unsafe {
-                vkbase::utils::memory::any_as_u8_slice(&push_data)
-            };
+        let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
 
-            let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
+        let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[command_index])
+            .render_extent(dimension)
+            .clear_values(&clear_values);
 
-            let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[i])
-                .render_extent(dimension)
-                .clear_values(&clear_values);
+        recorder.begin_record()?
+            .begin_render_pass(render_pass_bi)
+            .set_viewport(0, &[viewport])
+            .set_scissor(0, &[scissor])
+            .bind_pipeline(self.pipelines.pipeline)
+            // Update light positions.
+            .push_constants(self.pipelines.layout, vk::ShaderStageFlags::VERTEX, 0, push_data_ptr);
 
-            recorder.begin_record()?
-                .begin_render_pass(render_pass_bi)
-                .set_viewport(0, &[viewport])
-                .set_scissor(0, &[scissor])
-                .bind_pipeline(self.pipelines.pipeline)
-                .push_constants(self.pipelines.layout, vk::ShaderStageFlags::VERTEX, 0, push_data_ptr);
+        let render_params = vkbase::gltf::ModelRenderParams {
+            descriptor_set : self.descriptors.set,
+            pipeline_layout: self.pipelines.layout,
+            material_stage : None,
+        };
 
-            let render_params = vkbase::gltf::ModelRenderParams {
-                descriptor_set : self.descriptors.set,
-                pipeline_layout: self.pipelines.layout,
-                material_stage : None,
-            };
+        self.model.record_command(&recorder, &render_params);
 
-            self.model.record_command(&recorder, &render_params);
+        self.backend.ui_renderer.record_command(&recorder);
 
-            self.backend.ui_renderer.record_command(&recorder);
-
-            recorder
-                .end_render_pass()
-                .end_record()?;
-        }
+        recorder
+            .end_render_pass()
+            .end_record()?;
 
         Ok(())
     }
 
-    fn update_uniforms(&mut self, _delta_time: f32) -> VkResult<()> {
+    fn update(&mut self, delta_time: f32) {
+
+        self.timer = (self.timer + delta_time * 0.2) % 1.0;
         
+        // update camera.
         if self.is_toggle_event {
-            
+
             self.ubo_data[0].view = self.camera.view_matrix();
 
             use vkbase::utils::memory::copy_to_ptr;
             copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
         }
-
-        Ok(())
     }
 }
 

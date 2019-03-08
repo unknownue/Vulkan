@@ -70,7 +70,7 @@ impl VulkanExample {
             vertices, indices, texture,
             ubo_buffer, ubo_data,
             lod_text_id: 0,
-            is_toggle_event: false,
+            is_toggle_event: true,
         };
         Ok(target)
     }
@@ -92,6 +92,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         };
         self.lod_text_id = self.backend.ui_renderer.add_text(lod_text)?;
 
+        self.update_uniforms()?;
         self.record_commands(device, self.backend.dimension)?;
         Ok(())
     }
@@ -159,7 +160,18 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.discard(device)
+        device.discard(self.descriptors.layout);
+        device.discard(self.descriptors.pool);
+
+        device.discard(self.pipelines.pipeline);
+        device.discard(self.pipelines.layout);
+
+        device.vma_discard(self.ubo_buffer)?;
+        device.vma_discard(self.vertices)?;
+        device.vma_discard(self.indices)?;
+
+        self.texture.discard_by(device)?;
+        self.backend.discard_by(device)
     }
 }
 
@@ -219,28 +231,12 @@ impl VulkanExample {
 
             let camera_pos = self.camera.current_position();
             self.ubo_data.content[0].view_pos = Point4F::new(camera_pos.x, camera_pos.y, camera_pos.z, 0.0);
-            self.ubo_data.content[0].view = self.camera.view_matrix();
-
-            vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.content);
+            self.ubo_data.content[0].model = self.camera.view_matrix();
         }
 
+        vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.content);
+
         Ok(())
-    }
-
-    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
-
-        device.discard(self.descriptors.layout);
-        device.discard(self.descriptors.pool);
-
-        device.discard(self.pipelines.pipeline);
-        device.discard(self.pipelines.layout);
-
-        device.vma_discard(self.ubo_buffer)?;
-        device.vma_discard(self.vertices)?;
-        device.vma_discard(self.indices)?;
-
-        self.texture.discard_by(device)?;
-        self.backend.discard_by(device)
     }
 }
 

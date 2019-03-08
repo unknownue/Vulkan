@@ -148,7 +148,18 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.discard(device)
+        device.discard(self.descriptors.layout);
+        device.discard(self.descriptors.pool);
+
+        device.discard(self.pipelines.pipeline);
+        device.discard(self.pipelines.layout);
+
+        for cube in self.cubes.into_iter() {
+            device.vma_discard(cube.uniform_buffer)?;
+            cube.texture.discard_by(device)?;
+        }
+        device.vma_discard(self.model)?;
+        self.backend.discard_by(device)
     }
 }
 
@@ -235,22 +246,6 @@ impl VulkanExample {
         }
 
         Ok(())
-    }
-
-    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
-
-        device.discard(self.descriptors.layout);
-        device.discard(self.descriptors.pool);
-
-        device.discard(self.pipelines.pipeline);
-        device.discard(self.pipelines.layout);
-
-        for cube in self.cubes.into_iter() {
-            device.vma_discard(cube.uniform_buffer)?;
-            cube.texture.discard_by(device)?;
-        }
-        device.vma_discard(self.model)?;
-        self.backend.discard_by(device)
     }
 }
 

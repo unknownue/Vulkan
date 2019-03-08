@@ -190,7 +190,36 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.discard(device);
+        let destructor = &device.logic.handle;
+        // clean up used Vulkan resources.
+        unsafe {
+            destructor.destroy_pipeline(self.pipeline, None);
+            destructor.destroy_pipeline_layout(self.pipeline_layout, None);
+            destructor.destroy_descriptor_set_layout(self.descriptor_set_layout, None);
+            destructor.destroy_descriptor_pool(self.descriptor_pool, None);
+            destructor.destroy_render_pass(self.render_pass, None);
+
+            destructor.destroy_command_pool(self.command_pool, None);
+            for &frame in self.framebuffers.iter() {
+                destructor.destroy_framebuffer(frame, None);
+            }
+
+            destructor.destroy_image_view(self.depth_image.view, None);
+            destructor.destroy_image(self.depth_image.image, None);
+            destructor.free_memory(self.depth_image.memory, None);
+
+            destructor.destroy_buffer(self.vertex_buffer.buffer, None);
+            destructor.free_memory(self.vertex_buffer.memory, None);
+
+            destructor.destroy_buffer(self.index_buffer.buffer, None);
+            destructor.free_memory(self.index_buffer.memory, None);
+
+            destructor.destroy_buffer(self.uniform_buffer.buffer, None);
+            destructor.free_memory(self.uniform_buffer.memory, None);
+
+            destructor.destroy_semaphore(self.await_rendering, None);
+        }
+
         Ok(())
     }
 }
@@ -282,39 +311,6 @@ impl VulkanExample {
         }
 
         Ok(())
-    }
-
-    fn discard(self, device: &mut VkDevice) {
-
-        let destructor = &device.logic.handle;
-        // clean up used Vulkan resources.
-        unsafe {
-            destructor.destroy_pipeline(self.pipeline, None);
-            destructor.destroy_pipeline_layout(self.pipeline_layout, None);
-            destructor.destroy_descriptor_set_layout(self.descriptor_set_layout, None);
-            destructor.destroy_descriptor_pool(self.descriptor_pool, None);
-            destructor.destroy_render_pass(self.render_pass, None);
-
-            destructor.destroy_command_pool(self.command_pool, None);
-            for &frame in self.framebuffers.iter() {
-                destructor.destroy_framebuffer(frame, None);
-            }
-
-            destructor.destroy_image_view(self.depth_image.view, None);
-            destructor.destroy_image(self.depth_image.image, None);
-            destructor.free_memory(self.depth_image.memory, None);
-
-            destructor.destroy_buffer(self.vertex_buffer.buffer, None);
-            destructor.free_memory(self.vertex_buffer.memory, None);
-
-            destructor.destroy_buffer(self.index_buffer.buffer, None);
-            destructor.free_memory(self.index_buffer.memory, None);
-
-            destructor.destroy_buffer(self.uniform_buffer.buffer, None);
-            destructor.free_memory(self.uniform_buffer.memory, None);
-
-            destructor.destroy_semaphore(self.await_rendering, None);
-        }
     }
 }
 
