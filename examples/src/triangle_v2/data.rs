@@ -11,8 +11,8 @@ use vkbase::{vkuint, vkbytes, Matrix4F};
 use std::mem;
 
 /// Vertex layout used in this example.
-#[repr(C)]
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct Vertex {
     position: [f32; 3],
     color   : [f32; 3],
@@ -90,8 +90,8 @@ pub struct DescriptorStaff {
 //		mat4 viewMatrix;
 //		mat4 modelMatrix;
 //	} ubo;
-#[repr(C)]
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct UboVS {
     pub projection: Matrix4F,
     pub view: Matrix4F,

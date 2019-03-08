@@ -24,7 +24,7 @@ num            = "0.2"
 rusttype       = "0.7.5"
 
 vma = { package = "vk-mem", version = "0.1.4" }
-gli = { package = "gli-rs", path = "../../gli-rs" }
+gli = { package = "gli-rs", version = "0.2.0" }
 
 # vulkan platform dependencies on macOS.
 [target.'cfg(target_os = "macos")'.dependencies]

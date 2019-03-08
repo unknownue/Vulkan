@@ -330,6 +330,7 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 //     vec4 lightPos;
 // } ubo;
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 struct UboVS {
     projection   : Matrix4F,
     view         : Matrix4F,

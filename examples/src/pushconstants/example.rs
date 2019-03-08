@@ -5,34 +5,22 @@ use std::ptr;
 use std::mem;
 use std::path::Path;
 
-use arrayvec::ArrayVec;
-
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::vma::{VmaBuffer, VmaAllocationCI};
 use vkbase::gltf::VkglTFModel;
-use vkbase::texture::Texture2D;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkbytes, vkptr, Point3F, Matrix4F, Vector3F};
+use vkbase::{vkbytes, vkuint, vkptr, Point3F, Matrix4F};
 use vkbase::{VkResult, VkErrorKind};
 
 use vkexamples::VkExampleBackendRes;
 
-const VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/descriptorsets/cube.vert.glsl";
-const FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/descriptorsets/cube.frag.glsl";
-
-const CUBE_MODEL_PATH: &'static str = "assets/models/cube.gltf";
-const CUBE_COUNT: usize = 2;
-const CUBE_TEXTURE_PATHS: [&'static str; CUBE_COUNT] = [
-    "assets/textures/crate01_color_height_rgba.ktx",
-    "assets/textures/crate02_color_height_rgba.ktx",
-];
-
-// TODO: Check box to toggle animation is not yet implemented.
-const IS_ANIMATE: bool = true;
-
+const VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/pushconstants/lights.vert.glsl";
+const FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/pushconstants/lights.frag.glsl";
+const MODEL_PATH: &'static str = "assets/models/samplescene.gltf";
+const TIMER: f32 = 0.10;
 
 pub struct VulkanExample {
 
@@ -40,7 +28,8 @@ pub struct VulkanExample {
 
     model: VkglTFModel,
 
-    cubes: ArrayVec<[Cube; 2]>,
+    ubo_buffer: VmaBuffer,
+    ubo_data: [UBOVS; 1],
 
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
@@ -50,9 +39,16 @@ pub struct VulkanExample {
     is_toggle_event: bool,
 }
 
-struct PipelineStaff {
-    pipeline: vk::Pipeline,
-    layout: vk::PipelineLayout,
+/// The data structure of push constant block.
+/// in lights.vert.glsl:
+///
+/// layout(push_constant) uniform PushConsts {
+///	    vec4 lightPos[lightCount];
+/// } pushConsts;
+#[derive(Debug, Clone)]
+#[repr(C)]
+struct PushConstants {
+    lights: [[f32; 4]; 6],
 }
 
 impl VulkanExample {
@@ -64,11 +60,20 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.0, 0.0, 5.0))
-            .view_distance(0.1, 512.0)
+            .place_at(Point3F::new(-11.0, 45.0, 26.0))
             .screen_aspect_ratio(dimension.width as f32 / dimension.height as f32)
+            .pitch(-45.0)
+            .yaw(-45.0)
             .build();
-        camera.set_move_speed(5.0);
+        camera.set_move_speed(50.0);
+
+        let ubo_data = [
+            UBOVS {
+                projection: camera.proj_matrix(),
+                view      : camera.view_matrix(),
+                model     : Matrix4F::identity(),
+            },
+        ];
 
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
@@ -76,13 +81,13 @@ impl VulkanExample {
 
         let model = prepare_model(device)?;
 
-        let mut cubes = prepare_uniform(device, &camera)?;
-        let descriptors = setup_descriptor(device, &mut cubes, &model)?;
+        let ubo_buffer = prepare_uniform(device)?;
+        let descriptors = setup_descriptor(device, &ubo_buffer, &model)?;
 
         let pipelines = prepare_pipelines(device, &model, backend.render_pass, descriptors.layout)?;
 
         let target = VulkanExample {
-            backend, model, cubes, descriptors, pipelines, camera,
+            backend, model, ubo_buffer, ubo_data, descriptors, pipelines, camera,
             is_toggle_event: false,
         };
         Ok(target)
@@ -148,11 +153,41 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn deinit(self, device: &mut VkDevice) -> VkResult<()> {
 
-        self.discard(device)
+        device.discard(self.descriptors.layout);
+        device.discard(self.descriptors.pool);
+
+        device.discard(self.pipelines.pipeline);
+        device.discard(self.pipelines.layout);
+
+        device.vma_discard(self.ubo_buffer)?;
+        device.vma_discard(self.model)?;
+        self.backend.discard_by(device)
     }
 }
 
 impl VulkanExample {
+
+    fn pubconstant_data() -> PushConstants {
+
+        const R : f32 = 10.5;
+        const Y1: f32 = -2.0;
+        const Y2: f32 = 15.0;
+
+        let sin_t = (TIMER * 360.0).to_radians().sin();
+        let cos_t = (TIMER * 360.0).to_radians().cos();
+
+        PushConstants {
+            // w component = light radius scale.
+            lights: [
+                [R * 1.1 * sin_t, Y1, R * 1.1 * cos_t, 2.0],
+                [-R * sin_t, Y1, -R * cos_t, 2.0],
+                [R * 0.85 * sin_t, Y1, -sin_t * 2.5, 3.0],
+                [0.0, Y2, R * 1.25 * cos_t, 3.0],
+                [R * 2.25 * cos_t, Y2, 0.0, 2.5],
+                [R * 2.5 * cos_t, Y2, R * 2.5 * sin_t, 2.5],
+            ],
+        }
+    }
 
     fn record_commands(&self, device: &VkDevice, dimension: vk::Extent2D) -> VkResult<()> {
 
@@ -177,6 +212,11 @@ impl VulkanExample {
                 min_depth: 0.0, max_depth: 1.0,
             };
 
+            let push_data = VulkanExample::pubconstant_data();
+            let push_data_ptr = unsafe {
+                vkbase::utils::memory::any_as_u8_slice(&push_data)
+            };
+
             let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
 
             let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[i])
@@ -187,19 +227,16 @@ impl VulkanExample {
                 .begin_render_pass(render_pass_bi)
                 .set_viewport(0, &[viewport])
                 .set_scissor(0, &[scissor])
-                .bind_pipeline(self.pipelines.pipeline);
+                .bind_pipeline(self.pipelines.pipeline)
+                .push_constants(self.pipelines.layout, vk::ShaderStageFlags::VERTEX, 0, push_data_ptr);
 
-            // Render cubes with separate descriptor sets.
-            for j in 0..CUBE_COUNT {
+            let render_params = vkbase::gltf::ModelRenderParams {
+                descriptor_set : self.descriptors.set,
+                pipeline_layout: self.pipelines.layout,
+                material_stage : None,
+            };
 
-                let render_params = vkbase::gltf::ModelRenderParams {
-                    descriptor_set : self.cubes[j].descriptor_set,
-                    pipeline_layout: self.pipelines.layout,
-                    material_stage : None,
-                };
-
-                self.model.record_command(&recorder, &render_params);
-            }
+            self.model.record_command(&recorder, &render_params);
 
             self.backend.ui_renderer.record_command(&recorder);
 
@@ -211,46 +248,17 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn update_uniforms(&mut self, delta_time: f32) -> VkResult<()> {
-
-        if IS_ANIMATE || self.is_toggle_event {
-
-            let model_translation: [Matrix4F; 2] = [
-                Matrix4F::new_translation(&Vector3F::new(-2.0, 0.0, 0.0)),
-                Matrix4F::new_translation(&Vector3F::new(1.5, 0.5, 0.0)),
-            ];
-
-            self.cubes[0].rotation.x = (self.cubes[0].rotation.x + 2.5 * delta_time) % 360.0;
-            self.cubes[0].matrices.model = model_translation[0] * Matrix4F::new_rotation(self.cubes[0].rotation);
-
-            self.cubes[1].rotation.y = (self.cubes[1].rotation.y + 2.0 * delta_time) % 360.0;
-            self.cubes[1].matrices.model = model_translation[1] * Matrix4F::new_rotation(self.cubes[1].rotation);
-
-            self.cubes[0].matrices.view = self.camera.view_matrix();
-            self.cubes[1].matrices.view = self.camera.view_matrix();
+    fn update_uniforms(&mut self, _delta_time: f32) -> VkResult<()> {
+        
+        if self.is_toggle_event {
+            
+            self.ubo_data[0].view = self.camera.view_matrix();
 
             use vkbase::utils::memory::copy_to_ptr;
-            copy_to_ptr(self.cubes[0].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[0].matrices]);
-            copy_to_ptr(self.cubes[1].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[1].matrices]);
+            copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
         }
 
         Ok(())
-    }
-
-    fn discard(self, device: &mut VkDevice) -> VkResult<()> {
-
-        device.discard(self.descriptors.layout);
-        device.discard(self.descriptors.pool);
-
-        device.discard(self.pipelines.pipeline);
-        device.discard(self.pipelines.layout);
-
-        for cube in self.cubes.into_iter() {
-            device.vma_discard(cube.uniform_buffer)?;
-            cube.texture.discard_by(device)?;
-        }
-        device.vma_discard(self.model)?;
-        self.backend.discard_by(device)
     }
 }
 
@@ -261,14 +269,14 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
     use vkbase::gltf::{AttributeFlags, NodeAttachmentFlags};
 
     let model_info = GltfModelInfo {
-        path: Path::new(CUBE_MODEL_PATH),
+        path: Path::new(MODEL_PATH),
         // specify model's vertices layout.
-        // in cube.vert.glsl:
+        // in light.vert.glsl:
         // layout (location = 0) in vec3 inPos;
-        // layout (location = 1) in vec2 inUV;
-        attribute: AttributeFlags::POSITION | AttributeFlags::TEXCOORD_0,
+        // layout (location = 1) in vec3 inNormal;
+        attribute: AttributeFlags::POSITION | AttributeFlags::NORMAL,
         // specify model's node attachment layout.
-        // in cube.vert.glsl
+        // in light.vert.glsl
         // layout (set = 0, binding = 1) uniform DynNode {
         //     mat4 transform;
         // } dyn_node;
@@ -280,148 +288,75 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 }
 
 
-/// The uniform structure for each descriptor set.
+/// The uniform structure used in shader.
 ///
-/// layout (set = 0, binding = 0) uniform UBOMatrices {
+/// layout (set = 0, binding = 0) uniform UBO {
 ///     mat4 projection;
 ///     mat4 view;
 ///     mat4 model;
 /// } ubo;
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 #[repr(C)]
-struct UBOMatrices {
+struct UBOVS {
     projection: Matrix4F,
     view      : Matrix4F,
     model     : Matrix4F,
 }
 
-struct Cube {
-    matrices: UBOMatrices,
-    descriptor_set: vk::DescriptorSet,
-    uniform_buffer: VmaBuffer,
-    texture : Texture2D,
-    rotation: Vector3F,
-}
+fn prepare_uniform(device: &mut VkDevice) -> VkResult<VmaBuffer> {
 
+    let uniform_buffer = {
 
-fn prepare_uniform(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<ArrayVec<[Cube; 2]>> {
+        let uniform_ci = BufferCI::new(mem::size_of::<UBOVS>() as vkbytes)
+            .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
+        let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
+            .flags(vma::AllocationCreateFlags::MAPPED);
+        let uniform_allocation = device.vma.create_buffer(&uniform_ci.value(), allocation_ci.as_ref())
+            .map_err(VkErrorKind::Vma)?;
 
-    let mut cubes = ArrayVec::new();
+        VmaBuffer::from(uniform_allocation)
+    };
 
-    for i in 0..CUBE_COUNT {
-
-        let ubo_buffer = {
-            let uniform_ci = BufferCI::new(mem::size_of::<UBOMatrices>() as vkbytes)
-                .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
-            let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
-                .flags(vma::AllocationCreateFlags::MAPPED);
-            let uniform_allocation = device.vma.create_buffer(&uniform_ci.value(), allocation_ci.as_ref())
-                .map_err(VkErrorKind::Vma)?;
-
-            VmaBuffer::from(uniform_allocation)
-        };
-
-        let cube = Cube {
-            matrices: UBOMatrices {
-                projection: camera.proj_matrix(),
-                model     : Matrix4F::identity(),
-                view      : camera.view_matrix(),
-            },
-            // the descriptor_set member will be set in setup_descriptor() method.
-            descriptor_set: vk::DescriptorSet::null(),
-            uniform_buffer: ubo_buffer,
-            texture : Texture2D::load(device, Path::new(CUBE_TEXTURE_PATHS[i]), vk::Format::R8G8B8A8_UNORM)?,
-            rotation: Vector3F::new(0.0, 0.0, 0.0),
-        };
-        cubes.push(cube);
-    }
-
-    Ok(cubes)
+    Ok(uniform_buffer)
 }
 
 struct DescriptorStaff {
     pool   : vk::DescriptorPool,
+    set    : vk::DescriptorSet,
     layout : vk::DescriptorSetLayout,
 }
 
-
-/*
-    SaschaWillems's comment:
-
-    Descriptor set layout
-
-    The layout describes the shader bindings and types used for a certain descriptor layout and as such must match the shader bindings
-
-    Shader bindings used in this example:
-
-    VS:
-        layout (set = 0, binding = 0) uniform UBOMatrices ...
-        layout (set = 0, binding = 1) uniform DynNode ...
-
-    FS :
-        layout (set = 0, binding = 2) uniform sampler2D ...;
-
-*/
-fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
+fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
-    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorImageSetWI, DescriptorSetsUpdateCI};
+    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorSetsUpdateCI};
 
-    /*
-        SaschaWillems's comment:
-
-        Descriptor pool
-
-        Actual descriptors are allocated from a descriptor pool telling the driver what types and how many
-        descriptors this application will use.
-
-        An application can have multiple pools (e.g. for multiple threads) with any number of descriptor types
-        as long as device limits are not surpassed.
-
-        It's good practice to allocate pools with actually required descriptor types and counts.
-
-    */
     // Descriptor Pool.
-    // Max. number of descriptor sets that can be allocated from this pool (one per object).
-    let descriptor_pool = DescriptorPoolCI::new(CUBE_COUNT as _)
-        // Uniform buffers: 1 per object.
-        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER, CUBE_COUNT as _)
-        // Dynamic uniform buffers: 1 per object.
-        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC, CUBE_COUNT as _)
-        // Combined image samples : 1 per mesh texture(in the example, 1 mesh per object).
-        .add_descriptor(vk::DescriptorType::COMBINED_IMAGE_SAMPLER, CUBE_COUNT as _)
+    let descriptor_pool = DescriptorPoolCI::new(1)
+        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER, 1)
+        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC, 1)
         .build(device)?;
 
-    /*
-        Binding 0: Uniform buffer (used to pass matrices matrices).
-        in cube.vert.glsl:
-
-        layout (set = 0, binding = 0) uniform UBOMatrices {
-           mat4 projection;
-           mat4 view;
-           mat4 model;
-        } ubo;
-    */
+    // in light.vert.glsl:
+    //
+    // layout (set = 0, binding = 0) uniform UBO {
+    //     mat4 projection;
+    //     mat4 view;
+    //     mat4 model;
+    // } ubo;
     let ubo_descriptor = vk::DescriptorSetLayoutBinding {
-        // Shader binding point.
         binding: 0,
-        // The type of descriptor to bind.
         descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
-        // Binding contains one element (can be used for array bindings).
         descriptor_count: 1,
-        // Accessible from the vertex shader only (flags can be combined to make it accessible to multiple shader stages).
         stage_flags: vk::ShaderStageFlags::VERTEX,
         p_immutable_samplers: ptr::null(),
     };
 
-    /*
-        Binding 1: Dynamic uniform buffer(used for matrix properties in glTF Node hierarchy).
-        in cube.vert.glsl:
-
-        layout (set = 0, binding = 1) uniform DynNode {
-            mat4 transform;
-        } dyn_node;
-    */
+    // in light.vert.glsl:
+    //
+    // layout (set = 0, binding = 1) uniform DynNode {
+    //     mat4 transform;
+    // } dyn_node;
     let node_descriptor = vk::DescriptorSetLayoutBinding {
         binding: 1,
         descriptor_type: vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC,
@@ -430,86 +365,39 @@ fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &
         p_immutable_samplers: ptr::null(),
     };
 
-    /*
-        Binding 2: Combined Image sampler (used to pass per object texture information).
-        in cube.frag.glsl:
-
-        layout (set = 0, binding = 2) uniform sampler2D samplerColorMap;
-    */
-    let sampler_descriptor = vk::DescriptorSetLayoutBinding {
-        binding: 2,
-        descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-        descriptor_count: 1,
-        stage_flags: vk::ShaderStageFlags::FRAGMENT,
-        p_immutable_samplers: ptr::null(),
-    };
-
     let set_layout = DescriptorSetLayoutCI::new()
         .add_binding(ubo_descriptor)
         .add_binding(node_descriptor)
-        .add_binding(sampler_descriptor)
         .build(device)?;
 
-    /*
-        SaschaWillems's comment:
+    // Descriptor set.
+    let mut descriptor_sets = DescriptorSetAI::new(descriptor_pool)
+        .add_set_layout(set_layout)
+        .build(device)?;
+    let descriptor_set = descriptor_sets.remove(0);
 
-        Descriptor sets
+    let ubo_write_info = DescriptorBufferSetWI::new(descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
+        .add_buffer(vk::DescriptorBufferInfo {
+            buffer: uniform_buffer.handle,
+            offset: 0,
+            range : mem::size_of::<UBOVS>() as vkbytes,
+        });
+    let node_write_info = DescriptorBufferSetWI::new(descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
+        .add_buffer(model.nodes.node_descriptor());
 
-        Using the shared descriptor set layout and the descriptor pool we will now allocate the descriptor sets.
-
-        Descriptor sets contain the actual descriptor fo the objects (buffers, images) used at render time.
-
-    */
-
-    for i in 0..CUBE_COUNT {
-
-        let mut descriptor_sets = DescriptorSetAI::new(descriptor_pool)
-            .add_set_layout(set_layout)
-            .build(device)?;
-        cubes[i].descriptor_set = descriptor_sets.remove(0);
-
-        // Update the descriptor set with the actual descriptors matching shader bindings set in the layout.
-
-        // Binding 0: Object matrices Uniform buffer.
-        let ubo_write_info = DescriptorBufferSetWI::new(cubes[i].descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
-            .add_buffer(vk::DescriptorBufferInfo {
-                buffer: cubes[i].uniform_buffer.handle,
-                offset: 0,
-                range : mem::size_of::<UBOMatrices>() as vkbytes,
-            });
-        // Binding 1: Node hierarchy transform matrix in glTF.
-        let node_write_info = DescriptorBufferSetWI::new(cubes[i].descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
-            .add_buffer(model.nodes.node_descriptor());
-        // Binding 2: Object texture.
-        let sampler_write_info = DescriptorImageSetWI::new(cubes[i].descriptor_set, 2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .add_image(cubes[i].texture.descriptor);
-
-        /*
-            SaschaWillems's comment:
-
-            Execute the writes to update descriptors for this set.
-
-            Note that it's also possible to gather all writes and only run updates once, even for multiple sets.
-
-            This is possible because each VkWriteDescriptorSet also contains the destination set to be updated.
-
-            For simplicity we will update once per set instead.
-        */
-
-        DescriptorSetsUpdateCI::new()
-            .add_write(ubo_write_info.value())
-            .add_write(node_write_info.value())
-            .add_write(sampler_write_info.value())
-            .update(device);
-    }
-
+    DescriptorSetsUpdateCI::new()
+        .add_write(ubo_write_info.value())
+        .add_write(node_write_info.value())
+        .update(device);
 
     let descriptors = DescriptorStaff {
         pool   : descriptor_pool,
+        set    : descriptor_set,
         layout : set_layout,
     };
     Ok(descriptors)
 }
+
 
 fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::RenderPass> {
 
@@ -549,6 +437,12 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
     Ok(render_pass)
 }
 
+
+struct PipelineStaff {
+    pipeline: vk::Pipeline,
+    layout: vk::PipelineLayout,
+}
+
 fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::RenderPass, set_layout: vk::DescriptorSetLayout) -> VkResult<PipelineStaff> {
 
     use vkbase::ci::pipeline::*;
@@ -572,11 +466,30 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         .add_dynamic(vk::DynamicState::VIEWPORT)
         .add_dynamic(vk::DynamicState::SCISSOR);
 
+    // --------------------------------------------------------------------------------------
+    // Sascha Willems's comment:
+    //
+    // Define push constant
+    //
+    // Example uses six light positions as push constants
+    // 6 * 4 * 4 = 96 bytes
+    // Spec requires a minimum of 128 bytes, bigger values need to be checked against maxPushConstantsSize.
+    // But even at only 128 bytes, lots of stuff can fit inside push constants.
+    //
+
+    let push_constant_range = vk::PushConstantRange {
+        stage_flags: vk::ShaderStageFlags::VERTEX,
+        offset: 0,
+        size: ::std::mem::size_of::<PushConstants>() as vkuint,
+    };
+
     // Pipeline Layout.
-    // The pipeline layout is based on the descriptor set layout we created above.
     let layout = PipelineLayoutCI::new()
         .add_set_layout(set_layout)
+        // Push constant ranges are part of the pipeline layout.
+        .add_push_constants(push_constant_range)
         .build(device)?;
+    // ---------------------------------------------------------------------------------------
 
     // shaders
     use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};

@@ -35,6 +35,7 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct Vertex {
     pos: Point3F,
     uv : Point2F,
@@ -117,6 +118,7 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 
 
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct UboVS {
     pub projection: Matrix4F,
     pub view      : Matrix4F,

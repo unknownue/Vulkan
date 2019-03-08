@@ -36,8 +36,8 @@ type CharacterID = char;
 type GlyphLayouts = HashMap<CharacterID, GlyphLayout>;
 
 /// The vertices attributes for each character.
-#[repr(C)]
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 struct CharacterVertex {
     pos   : [f32; 2],
     uv    : [f32; 2],

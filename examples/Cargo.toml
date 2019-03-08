@@ -22,7 +22,7 @@ arrayvec    = "0.4.10"
 
 vkbase = { package = "vulkan-base", path = "../base" }
 vma = { package = "vk-mem", version = "0.1.4" }
-gli = { package = "gli-rs", path = "../../gli-rs" }
+gli = { package = "gli-rs", version = "0.2.0" }
 
 # Basics ----------------------------------------------
 
@@ -55,6 +55,11 @@ path = "src/descriptorsets/main.rs"
 [[bin]]
 name = "dynamicuniformbuffer"
 path = "src/dynamicuniformbuffer/main.rs"
+
+# 06 - Push constants
+[[bin]]
+name = "pushconstants"
+path = "src/pushconstants/main.rs"
 
 # 08 - Texture mapping
 [[bin]]

@@ -37,6 +37,7 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct Vertex {
     position: Point3F,
     color   : Vector3F,
@@ -111,6 +112,7 @@ pub fn generate_cube(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 
 
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct UboView {
     pub projection: Matrix4F,
     pub view      : Matrix4F,
