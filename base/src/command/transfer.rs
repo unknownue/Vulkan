@@ -37,11 +37,6 @@ impl<'a> VkCmdRecorder<'a, ITransfer> {
 
         Ok(())
     }
-
-    #[doc(hidden)]
-    pub(crate) fn flush_copy_command_by_transfer_queue(&self) -> VkResult<()> {
-        self.flush_copy_command(self.device.queues.transfer.handle)
-    }
 }
 
 impl<'a> CmdTransferApi for VkCmdRecorder<'a, ITransfer> {

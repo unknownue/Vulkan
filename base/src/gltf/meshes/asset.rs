@@ -11,9 +11,8 @@ use crate::ci::buffer::BufferCI;
 use crate::ci::vma::{VmaAllocationCI, VmaBuffer};
 use crate::ci::pipeline::VertexInputSCI;
 
-use crate::command::VkCmdRecorder;
-use crate::command::{IGraphics, CmdGraphicsApi};
-use crate::command::{ITransfer, CmdTransferApi};
+use crate::context::VkDevice;
+use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi, CmdTransferApi};
 
 use crate::error::{VkResult, VkTryFrom, VkErrorKind};
 use crate::vkptr;
@@ -75,18 +74,18 @@ impl AssetAbstract for MeshAsset {
 
 impl MeshAsset {
 
-    pub fn allocate(self, vma: &mut vma::Allocator, cmd_recorder: &VkCmdRecorder<ITransfer>) -> VkResult<MeshResource> {
+    pub fn allocate(self, device: &mut VkDevice) -> VkResult<MeshResource> {
 
         // allocate staging buffer.
-        let staging_block = self.allocate_staging(vma)?;
+        let staging_block = self.allocate_staging(&mut device.vma)?;
         // allocate mesh buffer.
-        let mesh_block = self.allocate_mesh(vma)?;
+        let mesh_block = self.allocate_mesh(&mut device.vma)?;
 
         // copy data from staging buffer to mesh buffer.
-        MeshAsset::copy_staging2mesh(cmd_recorder, &staging_block, &mesh_block)?;
+        MeshAsset::copy_staging2mesh(device, &staging_block, &mesh_block)?;
 
         // discard staging resource.
-        staging_block.discard(vma)?;
+        staging_block.discard(&mut device.vma)?;
 
         let result = MeshResource {
             vertices: mesh_block.vertices,
@@ -186,9 +185,10 @@ impl MeshAsset {
         Ok(staging_meshes)
     }
 
-    fn copy_staging2mesh(cmd_recorder: &VkCmdRecorder<ITransfer>, staging: &MeshAssetBlock, meshes: &MeshAssetBlock) -> VkResult<()> {
+    fn copy_staging2mesh(device: &VkDevice, staging: &MeshAssetBlock, meshes: &MeshAssetBlock) -> VkResult<()> {
 
-        cmd_recorder.reset_command(vk::CommandBufferResetFlags::empty())?;
+        let cmd_recorder = device.get_transfer_recorder();
+
         cmd_recorder.begin_record()?;
 
         let vertex_copy_region = vk::BufferCopy {
@@ -213,7 +213,7 @@ impl MeshAsset {
 
         cmd_recorder.end_record()?;
         // execute and wait the copy operation.
-        cmd_recorder.flush_copy_command_by_transfer_queue()?;
+        device.flush_transfer(cmd_recorder)?;
 
         Ok(())
     }

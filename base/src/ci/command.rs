@@ -99,7 +99,7 @@ impl VulkanCI for CommandPoolCI {
         vk::CommandPoolCreateInfo {
             s_type: vk::StructureType::COMMAND_POOL_CREATE_INFO,
             p_next: ptr::null(),
-            flags : vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
+            flags : vk::CommandPoolCreateFlags::empty(),
             queue_family_index: 0,
         }
     }

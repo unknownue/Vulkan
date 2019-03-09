@@ -8,8 +8,8 @@ use crate::gltf::nodes::node::Node;
 use crate::gltf::nodes::attachment::{NodeAttachments, NodeAttachmentFlags};
 
 use crate::ci::vma::VmaBuffer;
-use crate::context::VmaResourceDiscardable;
-use crate::command::{VkCmdRecorder, ITransfer, CmdTransferApi};
+use crate::context::{VkDevice, VmaResourceDiscardable};
+use crate::command::CmdTransferApi;
 use crate::error::{VkResult, VkErrorKind, VkTryFrom};
 use crate::{vkbytes, vkptr};
 
@@ -65,7 +65,7 @@ impl AssetAbstract for NodeAsset {
 
 impl NodeAsset {
 
-    pub fn allocate(self, vma: &mut vma::Allocator, cmd_recorder: &VkCmdRecorder<ITransfer>, min_alignment: vkbytes) -> VkResult<NodeResource> {
+    pub fn allocate(self, device: &mut VkDevice, min_alignment: vkbytes) -> VkResult<NodeResource> {
 
         use crate::ci::buffer::BufferCI;
         use crate::ci::vma::VmaAllocationCI;
@@ -80,7 +80,7 @@ impl NodeAsset {
             let attachments_ci = BufferCI::new(request_attachments_size)
                 .usage(vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-            let attachments_allocation = vma.create_buffer(
+            let attachments_allocation = device.vma.create_buffer(
                 &attachments_ci.value(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
@@ -93,39 +93,40 @@ impl NodeAsset {
             let staging_ci = BufferCI::new(request_attachments_size)
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-            let (staging_buffer, allocation, info) = vma.create_buffer(
+            let (staging_buffer, allocation, info) = device.vma.create_buffer(
                 &staging_ci.value(), &allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
-            let data_ptr = vma.map_memory(&allocation)
+            let data_ptr = device.vma.map_memory(&allocation)
                 .map_err(VkErrorKind::Vma)? as vkptr;
 
             self.attachments.data_content.map_data(data_ptr, info.get_size() as _, min_alignment);
 
-            vma.unmap_memory(&allocation)
+            device.vma.unmap_memory(&allocation)
                 .map_err(VkErrorKind::Vma)?;
 
             VmaBuffer { handle: staging_buffer, allocation, info }
         };
 
-        // copy staging data to target memory.
-        cmd_recorder.reset_command(vk::CommandBufferResetFlags::empty())?;
+        { // copy staging data to target memory.
+            let cmd_recorder = device.get_transfer_recorder();
 
-        let copy_region = vk::BufferCopy {
-            src_offset: 0,
-            dst_offset: 0,
-            size: staging_buffer.info.get_size() as _,
-        };
+            let copy_region = vk::BufferCopy {
+                src_offset: 0,
+                dst_offset: 0,
+                size: staging_buffer.info.get_size() as _,
+            };
 
-        cmd_recorder.begin_record()?
-            .copy_buf2buf(staging_buffer.handle, attachments_buffer.handle, &[copy_region])
-            .end_record()?;
+            cmd_recorder.begin_record()?
+                .copy_buf2buf(staging_buffer.handle, attachments_buffer.handle, &[copy_region])
+                .end_record()?;
 
-        cmd_recorder.flush_copy_command_by_transfer_queue()?;
+            device.flush_transfer(cmd_recorder)?;
+        }
 
-        // destroy staging buffer.
-        vma.destroy_buffer(staging_buffer.handle, &staging_buffer.allocation)
-            .map_err(VkErrorKind::Vma)?;
+        { // destroy staging buffer.
+            device.vma_discard(staging_buffer)?;
+        }
 
         // done.
         let result = NodeResource {

@@ -9,9 +9,12 @@ pub use self::physical::{VkPhysicalDevice, PhysicalDevConfig};
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use crate::utils::time::VkTimeDuration;
-use crate::ci::VulkanCI;
+use crate::ci::command::{CommandPoolCI, CommandBufferAI};
 use crate::ci::pipeline::PipelineCacheCI;
+use crate::ci::VkObjectBuildableCI;
+
+use crate::utils::time::VkTimeDuration;
+use crate::command::{VkCmdRecorder, ITransfer};
 use crate::{VkResult, VkError};
 use crate::{vkbytes, vkuint, vkptr};
 
@@ -22,23 +25,59 @@ pub struct VkDevice {
     pub vma   : vma::Allocator,
 
     pub pipeline_cache: vk::PipelineCache,
+
+    /// An internal command pool that used to allocate command buffers for data transfer operations.
+    transfer_cmd_pool: vk::CommandPool,
+    transfer_command : vk::CommandBuffer,
 }
 
 impl VkDevice {
 
     pub(super) fn new(logic: VkLogicalDevice, phy: VkPhysicalDevice, vma: vma::Allocator) -> VkResult<VkDevice> {
 
-        // Create an empty pipeline cache.
-        let pipeline_cache = unsafe {
-            logic.handle.create_pipeline_cache(&PipelineCacheCI::default_ci(), None)
-                .map_err(|_| VkError::create("Graphics Cache"))?
+        let mut device = VkDevice {
+            logic, phy, vma,
+            pipeline_cache   : vk::PipelineCache::null(),
+            transfer_cmd_pool: vk::CommandPool::null(),
+            transfer_command : vk::CommandBuffer::null(),
         };
-        let device = VkDevice { logic, phy, vma, pipeline_cache };
+
+        // Create an empty pipeline cache.
+        device.pipeline_cache = PipelineCacheCI::new().build(&device)?;
+        // Create command pool for data data.
+        device.transfer_cmd_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
+            // the command buffer allocated from this pool should short-lived and can be reset.
+            .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER | vk::CommandPoolCreateFlags::TRANSIENT)
+            .build(&device)?;
+        // Create one command buffer.
+        device.transfer_command = CommandBufferAI::new(device.transfer_cmd_pool, 1)
+            .build(&device)?.remove(0);
+
         Ok(device)
+    }
+
+    pub fn get_transfer_recorder(&self) -> VkCmdRecorder<ITransfer> {
+
+        let mut recorder = VkCmdRecorder::new(&self.logic, self.transfer_command);
+        recorder.set_usage(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        recorder
+    }
+
+    pub fn flush_transfer(&self, recorder: VkCmdRecorder<ITransfer>) -> VkResult<()> {
+
+        recorder.flush_copy_command(self.logic.queues.transfer.handle)?;
+
+        // reset the command buffer after transfer operation has been done.
+        unsafe {
+            self.logic.handle.reset_command_buffer(self.transfer_command, vk::CommandBufferResetFlags::RELEASE_RESOURCES)
+                .map_err(|_| VkError::device("Reset Command Buffer"))
+        }
     }
 
     pub(super) fn drop_self(self) {
 
+        self.discard(self.transfer_cmd_pool);
         self.discard(self.pipeline_cache);
         // destroy vma manually, so that vma will be destroyed before logic device.
         drop(self.vma);

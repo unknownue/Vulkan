@@ -11,11 +11,10 @@ use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::image::{ImageCI, ImageViewCI, ImageBarrierCI, SamplerCI};
 use vkbase::ci::pipeline::VertexInputSCI;
 use vkbase::ci::vma::{VmaBuffer, VmaImage, VmaAllocationCI};
-use vkbase::ci::command::{CommandPoolCI, CommandBufferAI};
 use vkbase::ci::VkObjectBuildableCI;
 
 use vkbase::context::VkDevice;
-use vkbase::command::{VkCmdRecorder, ITransfer, CmdTransferApi};
+use vkbase::command::CmdTransferApi;
 use vkbase::FlightCamera;
 
 use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Point4F, Point3F, Point2F, Vector3F, Matrix4F};
@@ -302,7 +301,6 @@ impl Texture {
 
 
         {
-
             // The sub resource range describes the regions of the image that will be transitioned using the memory barriers below.
             let sub_range = vk::ImageSubresourceRange {
                 // Image only contains color data.
@@ -329,15 +327,10 @@ impl Texture {
                 .layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
             // ----------------------------------------------------------
 
-            // prepare vulkan object to transfer data.
-            let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
-                .build(device)?;
-            let copy_command = CommandBufferAI::new(command_pool, 1)
-                .build(device)?
-                .remove(0);
-            let cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
+            // transfer data from staging buffer to dst image.
+            let copy_recorder = device.get_transfer_recorder();
 
-            cmd_recorder.begin_record()?
+            copy_recorder.begin_record()?
                 // Insert a memory dependency at the proper pipeline stages that will execute the image layout transition.
                 // Source pipeline stage is host write/read execution (vk::PipelineStageFlags::HOST)
                 // Destination pipeline stage is copy command execution (vk::PipelineStageFlags::TRANSFER)
@@ -350,10 +343,7 @@ impl Texture {
                 .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::FRAGMENT_SHADER, vk::DependencyFlags::empty(), &[barrier2.value()])
                 .end_record()?;
 
-            cmd_recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
-
-            // free the command poll will automatically destroy all command buffers created by this pool.
-            device.discard(command_pool);
+            device.flush_transfer(copy_recorder)?;
         }
 
 

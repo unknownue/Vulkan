@@ -6,10 +6,9 @@ use gli::GliTexture;
 use crate::ci::vma::{VmaImage, VmaBuffer, VmaAllocationCI};
 use crate::ci::image::{ImageCI, ImageViewCI, ImageBarrierCI, SamplerCI};
 use crate::ci::buffer::BufferCI;
-use crate::ci::command::{CommandPoolCI, CommandBufferAI};
 use crate::ci::VkObjectBuildableCI;
 
-use crate::command::{VkCmdRecorder, ITransfer, CmdTransferApi};
+use crate::command::CmdTransferApi;
 use crate::context::VkDevice;
 
 use crate::{VkResult, VkErrorKind};
@@ -131,7 +130,8 @@ impl Texture2D {
         };
 
 
-        {
+        { // transfer image data from staging buffer to dst image.
+
             let sub_range = vk::ImageSubresourceRange {
                 aspect_mask: vk::ImageAspectFlags::COLOR,
                 base_mip_level: 0,
@@ -151,13 +151,8 @@ impl Texture2D {
                 .access_mask(vk::AccessFlags::TRANSFER_WRITE, vk::AccessFlags::SHADER_READ)
                 .layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
 
-            // prepare vulkan object to transfer data.
-            let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
-                .build(device)?;
-            let copy_command = CommandBufferAI::new(command_pool, 1)
-                .build(device)?
-                .remove(0);
-            let cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
+
+            let cmd_recorder = device.get_transfer_recorder();
 
             cmd_recorder.begin_record()?
                 .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.value()])
@@ -166,10 +161,7 @@ impl Texture2D {
                 .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::FRAGMENT_SHADER, vk::DependencyFlags::empty(), &[barrier2.value()])
                 .end_record()?;
 
-            cmd_recorder.flush_copy_command(device.logic.queues.transfer.handle)?;
-
-            // free the command poll will automatically destroy all command buffers created by this pool.
-            device.discard(command_pool);
+            device.flush_transfer(cmd_recorder)?;
         }
 
 

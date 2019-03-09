@@ -8,7 +8,6 @@ use crate::gltf::scene::Scene;
 
 use crate::command::{VkCmdRecorder, IGraphics};
 use crate::context::{VkDevice, VmaResourceDiscardable};
-use crate::ci::VkObjectBuildableCI;
 use crate::error::{VkResult, VkTryFrom};
 
 use std::collections::HashMap;
@@ -88,21 +87,8 @@ impl AssetRepository {
 
     pub fn allocate(self, device: &mut VkDevice, scene: Scene) -> VkResult<VkglTFModel> {
 
-        use crate::ci::command::{CommandBufferAI, CommandPoolCI};
-        use crate::command::{VkCmdRecorder, ITransfer};
-
-        let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
-            .build(device)?;
-
-        let copy_command = CommandBufferAI::new(command_pool, 1)
-            .build(device)?
-            .remove(0);
-
-        let mut cmd_recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
-        cmd_recorder.set_usage(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-
-        let nodes_allocated  = self.nodes.allocate(&mut device.vma, &cmd_recorder, device.phy.limits.min_uniform_buffer_offset_alignment)?;
-        let meshes_allocated = self.meshes.allocate(&mut device.vma, &cmd_recorder)?;
+        let nodes_allocated  = self.nodes.allocate(device, device.phy.limits.min_uniform_buffer_offset_alignment)?;
+        let meshes_allocated = self.meshes.allocate(device)?;
 
         let result = VkglTFModel {
             scene,
@@ -110,8 +96,6 @@ impl AssetRepository {
             nodes : nodes_allocated,
             materials: self.materials,
         };
-
-        device.discard(command_pool);
 
         Ok(result)
     }

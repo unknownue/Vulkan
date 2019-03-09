@@ -13,16 +13,12 @@ use crate::ci::memory::MemoryAI;
 use crate::ci::image::{ImageCI, ImageViewCI, SamplerCI, ImageBarrierCI};
 use crate::ci::vma::{VmaBuffer, VmaImage, VmaAllocationCI};
 use crate::ci::pipeline::VertexInputSCI;
-use crate::ci::command::{CommandPoolCI, CommandBufferAI};
 use crate::ci::VkObjectBuildableCI;
 
-use crate::command::VkCmdRecorder;
-use crate::command::{IGraphics, CmdGraphicsApi};
-use crate::command::{ITransfer, CmdTransferApi};
-
 use crate::context::VkDevice;
-use crate::utils::color::VkColor;
+use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi, CmdTransferApi};
 
+use crate::utils::color::VkColor;
 use crate::{vkuint, vkbytes, vkptr};
 use crate::{VkResult, VkError, VkErrorKind};
 
@@ -528,13 +524,7 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
     };
 
     // transfer image data from staging buffer to destination image.
-    let command_pool = CommandPoolCI::new(device.logic.queues.transfer.family_index)
-        .build(device)?;
-    let copy_command = CommandBufferAI::new(command_pool, 1)
-        .build(device)?
-        .remove(0);
-
-    let recorder: VkCmdRecorder<ITransfer> = VkCmdRecorder::new(&device.logic, copy_command);
+    let recorder = device.get_transfer_recorder();
 
     let copy_region = vk::BufferImageCopy {
         buffer_offset: 0,
@@ -567,10 +557,9 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
         .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[shader_read_barrier.value()])
         .end_record()?;
 
-    recorder.flush_copy_command_by_transfer_queue()?;
+    device.flush_transfer(recorder)?;
 
     // clean useless resources.
-    device.discard(command_pool);
     device.vma_discard(staging_buffer)?;
 
     Ok(glyphs_image)

@@ -105,10 +105,6 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         self.update(0.0);
 
-        for command_index in 0..self.backend.commands.len() {
-            self.record_command(device, command_index, self.backend.dimension)?;
-        }
-
         Ok(())
     }
 
@@ -241,7 +237,8 @@ impl VulkanExample {
             vkbase::utils::memory::any_as_u8_slice(&push_data)
         };
 
-        let recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
+        let mut recorder: VkCmdRecorder<IGraphics> = VkCmdRecorder::new(&device.logic, command);
+        recorder.set_usage(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[command_index])
             .render_extent(dimension)
