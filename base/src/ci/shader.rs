@@ -185,8 +185,8 @@ impl ShaderStageCI {
 
     pub fn value(&self) -> vk::PipelineShaderStageCreateInfo {
 
-        let specialization = self.specialization
-            .and_then(|s| Some(&s as *const vk::SpecializationInfo))
+        let specialization = self.specialization.as_ref()
+            .and_then(|s| Some(s as *const vk::SpecializationInfo))
             .unwrap_or(ptr::null());
 
         vk::PipelineShaderStageCreateInfo {

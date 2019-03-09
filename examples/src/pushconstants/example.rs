@@ -16,7 +16,7 @@ use vkbase::{FlightCamera, FrameAction};
 use vkbase::{vkbytes, vkuint, vkptr, Point3F, Matrix4F};
 use vkbase::{VkResult, VkError, VkErrorKind};
 
-use vkexamples::VkExampleBackendRes;
+use vkexamples::VkExampleBackend;
 
 const VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/pushconstants/lights.vert.glsl";
 const FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/pushconstants/lights.frag.glsl";
@@ -25,7 +25,7 @@ const MODEL_PATH: &'static str = "assets/models/samplescene.gltf";
 
 pub struct VulkanExample {
 
-    backend: VkExampleBackendRes,
+    backend: VkExampleBackend,
 
     model: VkglTFModel,
 
@@ -79,7 +79,7 @@ impl VulkanExample {
 
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
-        let backend = VkExampleBackendRes::new(device, swapchain, render_pass)?;
+        let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let model = prepare_model(device)?;
 

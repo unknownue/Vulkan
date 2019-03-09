@@ -14,12 +14,12 @@ use vkbase::{VkResult, VkError, VkErrorKind};
 
 pub const DEFAULT_CLEAR_COLOR: vk::ClearValue = vk::ClearValue {
     color: vk::ClearColorValue {
-        float32: [0.025, 0.025, 0.025, 1.0]
+        float32: [0.025, 0.025, 0.025, 1.0],
     }
 };
 
 
-pub struct VkExampleBackendRes {
+pub struct VkExampleBackend {
 
     pub dimension: vk::Extent2D,
     pub render_pass: vk::RenderPass,
@@ -43,9 +43,9 @@ struct DepthImage {
     view : vk::ImageView,
 }
 
-impl VkExampleBackendRes {
+impl VkExampleBackend {
 
-    pub fn new(device: &mut VkDevice, swapchain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<VkExampleBackendRes> {
+    pub fn new(device: &mut VkDevice, swapchain: &VkSwapchain, renderpass: vk::RenderPass) -> VkResult<VkExampleBackend> {
 
         let dimension = swapchain.dimension;
         let (command_pool, commands) = setup_commands(device, swapchain.frame_in_flight as _)?;
@@ -54,7 +54,7 @@ impl VkExampleBackendRes {
 
         let ui_renderer = UIRenderer::new(device, swapchain, renderpass)?;
 
-        let mut target = VkExampleBackendRes {
+        let mut target = VkExampleBackend {
             depth_image, await_rendering, ui_renderer,
             commands, command_pool, dimension,
             fps_text_id: None,
@@ -99,14 +99,15 @@ impl VkExampleBackendRes {
         self.dimension = new_chain.dimension;
         self.ui_renderer.swapchain_reload(device, new_chain, render_pass)?;
 
-        device.discard(self.depth_image.view);
-
         let mut new_depth_image = setup_depth_image(device, self.dimension)?;
         std::mem::swap(&mut new_depth_image, &mut self.depth_image);
+
+        device.discard(new_depth_image.view);
         device.vma_discard(new_depth_image.image)?;
 
         device.discard(&self.framebuffers);
         device.discard(self.render_pass);
+
         self.render_pass = render_pass;
         self.setup_framebuffers(device, new_chain)?;
 

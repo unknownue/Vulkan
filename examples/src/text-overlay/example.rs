@@ -11,7 +11,7 @@ use vkbase::utils::color::VkColor;
 use vkbase::FrameAction;
 use vkbase::VkResult;
 
-use vkexamples::VkExampleBackendRes;
+use vkexamples::VkExampleBackend;
 use crate::text::{TextPool, TextInfo, GlyphImages};
 
 const TEXT_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/text-overlay/text.vert.glsl";
@@ -20,7 +20,7 @@ const RENDERING_TEXT: &'static str = "Sample Text";
 
 pub struct VulkanExample {
 
-    backend_res: VkExampleBackendRes,
+    backend_res: VkExampleBackend,
 
     text_glyphs: GlyphImages,
     text_pool: TextPool,
@@ -43,7 +43,7 @@ impl VulkanExample {
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
 
-        let mut backend_res = VkExampleBackendRes::new(device, swapchain, render_pass)?;
+        let mut backend_res = VkExampleBackend::new(device, swapchain, render_pass)?;
         backend_res.enable_depth_attachment(false);
 
         let text_glyphs = GlyphImages::from_font(device, include_bytes!("../../../assets/fonts/Roboto-Regular.ttf"))?;

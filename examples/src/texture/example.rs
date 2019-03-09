@@ -13,7 +13,7 @@ use vkbase::{FlightCamera, FrameAction};
 use vkbase::{vkuint, vkptr, Point3F, Point4F};
 use vkbase::VkResult;
 
-use vkexamples::VkExampleBackendRes;
+use vkexamples::VkExampleBackend;
 use crate::data::{INDEX_DATA, Vertex, UboVSData, Texture};
 
 const SHADER_VERTEX_PATH  : &'static str = "examples/src/texture/texture.vert.glsl";
@@ -22,7 +22,7 @@ const TEXTURE_PATH: &'static str = "assets/textures/metalplate01_rgba.ktx";
 
 pub struct VulkanExample {
 
-    backend: VkExampleBackendRes,
+    backend: VkExampleBackend,
     camera: FlightCamera,
 
     vertices: VmaBuffer,
@@ -55,7 +55,7 @@ impl VulkanExample {
         camera.set_move_speed(5.0);
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
-        let backend = VkExampleBackendRes::new(device, swapchain, render_pass)?;
+        let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let (vertices, indices) = super::data::generate_quad(device)?;
         let (ubo_buffer, ubo_data) = UboVSData::prepare_buffer(device, &camera)?;
@@ -232,9 +232,9 @@ impl VulkanExample {
             let camera_pos = self.camera.current_position();
             self.ubo_data.content[0].view_pos = Point4F::new(camera_pos.x, camera_pos.y, camera_pos.z, 0.0);
             self.ubo_data.content[0].model = self.camera.view_matrix();
-        }
 
-        vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.content);
+            vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.content);
+        }
 
         Ok(())
     }

@@ -11,22 +11,18 @@ use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::vma::{VmaBuffer, VmaAllocationCI};
 use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 use vkbase::gltf::VkglTFModel;
-use vkbase::ui::{TextInfo, TextType, TextHAlign};
+use vkbase::texture::Texture2D;
 use vkbase::context::VulkanContext;
-use vkbase::utils::color::VkColor;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkbytes, vkptr, Point3F, Matrix4F, Vector4F};
+use vkbase::{vkbytes, vkuint, vkfloat, vkptr, Point3F, Matrix4F, Vector4F};
 use vkbase::{VkResult, VkErrorKind};
 
 use vkexamples::VkExampleBackend;
 
-const PHONG_VERTEX_SHADER_SOURCE_PATH      : &'static str = "examples/src/pipelines/phong.vert.glsl";
-const PHONG_FRAGMENT_SHADER_SOURCE_PATH    : &'static str = "examples/src/pipelines/phong.frag.glsl";
-const TOON_VERTEX_SHADER_SOURCE_PATH       : &'static str = "examples/src/pipelines/toon.vert.glsl";
-const TOON_FRAGMENT_SHADER_SOURCE_PATH     : &'static str = "examples/src/pipelines/toon.frag.glsl";
-const WIREFRAME_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/pipelines/wireframe.vert.glsl";
-const WIREFRAME_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/pipelines/wireframe.frag.glsl";
-const MODEL_PATH: &'static str = "assets/models/treasure_smooth.gltf";
+const VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/specializationconstants/uber.vert.glsl";
+const FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/specializationconstants/uber.frag.glsl";
+const MODEL_PATH  : &'static str = "assets/models/color_teapot_spheres.gltf";
+const TEXTURE_PATH: &'static str = "assets/textures/metalplate_nomips_rgba.ktx";
 
 
 pub struct VulkanExample {
@@ -34,7 +30,8 @@ pub struct VulkanExample {
     backend: VkExampleBackend,
 
     model: VkglTFModel,
-    uniform_buffer: VmaBuffer,
+    color_map: Texture2D,
+    ubo_buffer: VmaBuffer,
 
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
@@ -47,8 +44,8 @@ pub struct VulkanExample {
 
 struct PipelineStaff {
     phong     : vk::Pipeline,
-    wireframe : vk::Pipeline,
     toon      : vk::Pipeline,
+    textured  : vk::Pipeline,
     layout: vk::PipelineLayout,
 }
 
@@ -61,18 +58,18 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.25, 6.25, 8.75))
+            .place_at(Point3F::new(12.0, 16.0, 0.2))
             .screen_aspect_ratio((dimension.width as f32 / 3.0) / dimension.height as f32)
-            .pitch(-45.0)
+            .pitch(-50.0)
+            .yaw(0.0)
             .build();
-        camera.set_move_speed(50.0);
+        camera.set_move_speed(25.0);
 
         let ubo_data = [
             UboVS {
                 projection : camera.proj_matrix(),
-                view       : camera.view_matrix(),
-                model      : Matrix4F::identity(),
-                light_pos  : Vector4F::new(0.0, 2.0, 1.0, 0.0),
+                model      : camera.view_matrix(),
+                light_pos  : Vector4F::new(-3.0, -12.0, 30.0, 0.0),
             },
         ];
 
@@ -80,14 +77,15 @@ impl VulkanExample {
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let model = prepare_model(device)?;
-        let uniform_buffer = prepare_uniform(device, &ubo_data)?;
-        let descriptors = setup_descriptor(device, &uniform_buffer, &model)?;
+        let color_map = Texture2D::load(device, Path::new(TEXTURE_PATH), vk::Format::R8G8B8A8_UNORM)?;
+        let ubo_buffer = prepare_uniform(device)?;
+        let descriptors = setup_descriptor(device, &ubo_buffer, &model, &color_map)?;
 
         let pipelines = prepare_pipelines(device, &model, backend.render_pass, descriptors.layout)?;
 
         let target = VulkanExample {
-            backend, model, uniform_buffer, descriptors, pipelines, camera, ubo_data,
-            is_toggle_event: false,
+            backend, model, color_map, ubo_buffer, descriptors, pipelines, camera, ubo_data,
+            is_toggle_event: true,
         };
         Ok(target)
     }
@@ -99,39 +97,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         self.backend.set_basic_ui(device, super::WINDOW_TITLE)?;
 
-        let screen_width  = self.backend.dimension.width  as i32;
-        let screen_height = self.backend.dimension.height as i32;
-
-        let phong_text = TextInfo {
-            content: String::from("Phong Shading Pipeline"),
-            scale: 16.0,
-            align: TextHAlign::Center,
-            color: VkColor::WHITE,
-            location: vk::Offset2D { x: screen_width / 6, y: screen_height / 8 * 7 },
-            r#type: TextType::Static,
-        };
-        self.backend.ui_renderer.add_text(phong_text)?;
-
-        let toon_text = TextInfo {
-            content: String::from("Toon Shading Pipeline"),
-            scale: 16.0,
-            align: TextHAlign::Center,
-            color: VkColor::WHITE,
-            location: vk::Offset2D { x: screen_width / 6 * 3, y: screen_height / 8 * 7 },
-            r#type: TextType::Static,
-        };
-        self.backend.ui_renderer.add_text(toon_text)?;
-
-        let wireframe_text = TextInfo {
-            content: String::from("Wireframe Pipeline"),
-            scale: 16.0,
-            align: TextHAlign::Center,
-            color: VkColor::WHITE,
-            location: vk::Offset2D { x: screen_width / 6 * 5 , y: screen_height / 8 * 7 },
-            r#type: TextType::Static,
-        };
-        self.backend.ui_renderer.add_text(wireframe_text)?;
-
+        self.update_uniforms()?;
         self.record_commands(device, self.backend.dimension)?;
 
         Ok(())
@@ -139,9 +105,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn render_frame(&mut self, device: &mut VkDevice, device_available: vk::Fence, await_present: vk::Semaphore, image_index: usize, _delta_time: f32) -> VkResult<vk::Semaphore> {
 
-        if self.is_toggle_event {
-            self.update_uniforms()?;
-        }
+        self.update_uniforms()?;
 
         let submit_ci = vkbase::ci::device::SubmitCI::new()
             .add_wait(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT, await_present)
@@ -159,7 +123,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         // recreate the resources.
         device.discard(self.pipelines.phong);
         device.discard(self.pipelines.toon);
-        device.discard(self.pipelines.wireframe);
+        device.discard(self.pipelines.textured);
 
         let render_pass = setup_renderpass(device, new_chain)?;
         self.backend.swapchain_reload(device, new_chain, render_pass)?;
@@ -196,11 +160,13 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         device.discard(self.pipelines.phong);
         device.discard(self.pipelines.toon);
-        device.discard(self.pipelines.wireframe);
+        device.discard(self.pipelines.textured);
         device.discard(self.pipelines.layout);
 
-        device.vma_discard(self.uniform_buffer)?;
+        device.vma_discard(self.ubo_buffer)?;
         device.vma_discard(self.model)?;
+
+        self.color_map.discard_by(device)?;
         self.backend.discard_by(device)
     }
 }
@@ -246,7 +212,7 @@ impl VulkanExample {
                 .begin_render_pass(render_pass_bi)
                 .set_scissor(0, &[scissor]);
 
-            { // Left: Solid colored
+            { // Left
                 viewport.width = dimension.width as f32 / 3.0;
                 recorder
                     .set_viewport(0, &[viewport])
@@ -254,27 +220,21 @@ impl VulkanExample {
                 self.model.record_command(&recorder, &render_params);
             }
 
-            { // Center: Toon
+            { // Center
                 viewport.x = dimension.width as f32 / 3.0;
                 recorder
                     .set_viewport(0, &[viewport])
                     .bind_pipeline(self.pipelines.toon);
 
-                // Line width > 1.0f only if wide lines feature is supported.
-                if device.phy.features_enabled().wide_lines == vk::TRUE {
-                    recorder.set_line_width(2.0);
-                }
                 self.model.record_command(&recorder, &render_params);
             }
 
-            { // Right: Wireframe
-                if device.phy.features_enabled().fill_mode_non_solid == vk::TRUE {
-                    viewport.x = dimension.width as f32 / 3.0 * 2.0;
-                    recorder
-                        .set_viewport(0, &[viewport])
-                        .bind_pipeline(self.pipelines.wireframe);
-                    self.model.record_command(&recorder, &render_params);
-                }
+            { // Right
+                viewport.x = dimension.width as f32 / 3.0 * 2.0;
+                recorder
+                    .set_viewport(0, &[viewport])
+                    .bind_pipeline(self.pipelines.textured);
+                self.model.record_command(&recorder, &render_params);
             }
 
             self.backend.ui_renderer.record_command(&recorder);
@@ -289,11 +249,13 @@ impl VulkanExample {
 
     fn update_uniforms(&mut self) -> VkResult<()> {
 
-        self.ubo_data[0].view = self.camera.view_matrix();
+        if self.is_toggle_event {
 
-        // dbg!(self.ubo_data[0].view);
-        use vkbase::utils::memory::copy_to_ptr;
-        copy_to_ptr(self.uniform_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
+            self.ubo_data[0].model = self.camera.view_matrix();
+
+            use vkbase::utils::memory::copy_to_ptr;
+            copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
+        }
 
         Ok(())
     }
@@ -307,8 +269,10 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 
     let model_info = GltfModelInfo {
         path: Path::new(MODEL_PATH),
-        attribute: AttributeFlags::POSITION | AttributeFlags::NORMAL, // specify model's vertices layout.
-        node: NodeAttachmentFlags::TRANSFORM_MATRIX, // specify model's node attachment layout.
+        // specify model's vertices layout.
+        attribute: AttributeFlags::POSITION | AttributeFlags::NORMAL | AttributeFlags::TEXCOORD_0,
+        // specify model's node attachment layout.
+        node: NodeAttachmentFlags::TRANSFORM_MATRIX,
     };
 
     let model = load_gltf(device, model_info)?;
@@ -320,20 +284,18 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 //
 // layout (set = 0, binding = 0) uniform UBO {
 //     mat4 projection;
-//     mat4 view;
 //     mat4 model;
 //     vec4 lightPos;
 // } ubo;
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 struct UboVS {
-    projection   : Matrix4F,
-    view         : Matrix4F,
-    model        : Matrix4F,
-    light_pos    : Vector4F,
+    projection: Matrix4F,
+    model     : Matrix4F,
+    light_pos : Vector4F,
 }
 
-fn prepare_uniform(device: &mut VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<VmaBuffer> {
+fn prepare_uniform(device: &mut VkDevice) -> VkResult<VmaBuffer> {
 
     let uniform_buffer = {
         let uniform_ci = BufferCI::new(mem::size_of::<[UboVS; 1]>() as vkbytes)
@@ -345,11 +307,6 @@ fn prepare_uniform(device: &mut VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<Vma
         VmaBuffer::from(uniform_allocation)
     };
 
-    // keep the uniform memory map during the program running.
-    let data_ptr = uniform_buffer.info.get_mapped_data() as vkptr;
-    debug_assert_ne!(data_ptr, ptr::null_mut());
-    vkbase::utils::memory::copy_to_ptr(data_ptr, ubo_data);
-
     Ok(uniform_buffer)
 }
 
@@ -359,23 +316,23 @@ struct DescriptorStaff {
     layout : vk::DescriptorSetLayout,
 }
 
-fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
+fn setup_descriptor(device: &VkDevice, ubo_buffer: &VmaBuffer, model: &VkglTFModel, color_map: &Texture2D) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
-    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorSetsUpdateCI};
+    use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorImageSetWI, DescriptorSetsUpdateCI};
 
     // Descriptor Pool.
     let descriptor_pool = DescriptorPoolCI::new(1)
         .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER, 1)
         .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC, 1)
+        .add_descriptor(vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1)
         .build(device)?;
 
-    // in phone.vert.glsl:
+    // in uber.vert.glsl:
+    //
     // layout (set = 0, binding = 0) uniform UBO {
     //     mat4 projection;
     //     mat4 view;
-    //     mat4 model;
-    //     mat4 y_correction;
     //     vec4 lightPos;
     // } ubo;
     let ubo_descriptor = vk::DescriptorSetLayoutBinding {
@@ -386,10 +343,11 @@ fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglT
         p_immutable_samplers: ptr::null(),
     };
 
-    // in phone.vert.glsl:
-    // layout (set = 0, binding = 1) uniform NodeAttachments {
+    // in uber.vert.glsl
+    //
+    // layout (set = 0, binding = 1) uniform DynNode {
     //     mat4 transform;
-    // } node_attachments;
+    // } dyn_node;
     let node_descriptor = vk::DescriptorSetLayoutBinding {
         binding: 1,
         descriptor_type: vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC,
@@ -398,9 +356,22 @@ fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglT
         p_immutable_samplers: ptr::null(),
     };
 
+    // in uber.frag.glsl
+    //
+    // layout (binding = 2) uniform sampler2D samplerColormap;
+    let sampler_handles = [color_map.sampler];
+    let sampler_descriptor = vk::DescriptorSetLayoutBinding {
+        binding: 2,
+        descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::FRAGMENT,
+        p_immutable_samplers: sampler_handles.as_ptr(),
+    };
+
     let set_layout = DescriptorSetLayoutCI::new()
         .add_binding(ubo_descriptor)
         .add_binding(node_descriptor)
+        .add_binding(sampler_descriptor)
         .build(device)?;
 
     // Descriptor set.
@@ -411,16 +382,19 @@ fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglT
 
     let ubo_write_info = DescriptorBufferSetWI::new(descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
         .add_buffer(vk::DescriptorBufferInfo {
-            buffer: uniform_buffer.handle,
+            buffer: ubo_buffer.handle,
             offset: 0,
-            range : mem::size_of::<[UboVS; 1]>() as vkbytes,
+            range : mem::size_of::<UboVS>() as vkbytes,
         });
     let node_write_info = DescriptorBufferSetWI::new(descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
         .add_buffer(model.nodes.node_descriptor());
+    let sampler_write_info = DescriptorImageSetWI::new(descriptor_set, 2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+        .add_image(color_map.descriptor);
 
     DescriptorSetsUpdateCI::new()
         .add_write(ubo_write_info.value())
         .add_write(node_write_info.value())
+        .add_write(sampler_write_info.value())
         .update(device);
 
     let descriptors = DescriptorStaff {
@@ -477,7 +451,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         .add_viewport(vk::Viewport::default())
         .add_scissor(vk::Rect2D::default());
 
-    let mut rasterization_state = RasterizationSCI::new()
+    let rasterization_state = RasterizationSCI::new()
         .polygon(vk::PolygonMode::FILL)
         .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::CLOCKWISE);
 
@@ -488,13 +462,10 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
     let depth_stencil_state = DepthStencilSCI::new()
         .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);
 
-    let mut dynamic_state = DynamicSCI::new()
+    let dynamic_state = DynamicSCI::new()
         .add_dynamic(vk::DynamicState::VIEWPORT)
         .add_dynamic(vk::DynamicState::SCISSOR);
 
-    if device.phy.features_enabled().wide_lines == vk::TRUE {
-        dynamic_state = dynamic_state.add_dynamic(vk::DynamicState::LINE_WIDTH)
-    };
 
     let material_range = vk::PushConstantRange {
         stage_flags: vk::ShaderStageFlags::VERTEX,
@@ -519,97 +490,119 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
     pipeline_ci.set_dynamic(dynamic_state);
 
 
+    // Prepare specialization data. -------------------------------------------------
+    /// Host data to take specialization constants from.
+    #[repr(C)]
+    struct SpecializationData {
+        /// Sets the lighting model used in the fragment "uber" shader.
+        light_model: vkuint,
+        /// Parameter for the toon shading part of the fragment shader.
+        toon_desaturation_factor: vkfloat,
+    }
+
+    // Each shader constant of a shader stage corresponds to one map entry.
+
+    // Shader bindings based on specialization constants are marked by the new "constant_id" layout qualifier:
+    //     layout (constant_id = 0) const int LIGHTING_MODEL = 0;
+    //	   layout (constant_id = 1) const float PARAM_TOON_DESATURATION = 0.0f;
+    let map_entries = [
+        // Map entry for the lighting model to be used by the fragment shader.
+        vk::SpecializationMapEntry {
+            constant_id: 0,
+            offset: memoffset::offset_of!(SpecializationData, light_model) as vkuint,
+            size: ::std::mem::size_of::<vkuint>(),
+        },
+        // Map entry for the toon shader parameter.
+        vk::SpecializationMapEntry {
+            constant_id: 1,
+            offset: memoffset::offset_of!(SpecializationData, toon_desaturation_factor) as vkuint,
+            size: ::std::mem::size_of::<vkfloat>(),
+        },
+    ];
+
+    // Prepare specialization info block for the shader stage.
+    let mut specialization_info = vk::SpecializationInfo {
+        map_entry_count: map_entries.len() as _,
+        p_map_entries  : map_entries.as_ptr(),
+        data_size: ::std::mem::size_of::<SpecializationData>(),
+        p_data: ptr::null(), // p_data will be set latter.
+    };
+    // ------------------------------------------------------------------------------
+
+
+    // All pipelines will use the same "uber" shader and specialization constants to change branching and parameters of that shader
     let mut shader_compiler = vkbase::utils::shaderc::VkShaderCompiler::new()?;
 
+    let vert_codes = shader_compiler.compile_from_path(Path::new(VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
+    let frag_codes = shader_compiler.compile_from_path(Path::new(FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
+
+    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+        .build(device)?;
+    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
+        .build(device)?;
+
+    // Create pipelines
     let phong_pipeline = {
 
-        let vert_codes = shader_compiler.compile_from_path(Path::new(PHONG_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
-        let frag_codes = shader_compiler.compile_from_path(Path::new(PHONG_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
+        let specialization_data = SpecializationData {
+            light_model: 0,
+            toon_desaturation_factor: 0.5,
+        };
+        specialization_info.p_data = &specialization_data as *const SpecializationData as _;
 
-        let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
-            .build(device)?;
-        let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-            .build(device)?;
-
+        // Specialization info is assigned is part of the shader stage (module)
+        // and must be set after creating the module and before creating the pipeline.
         pipeline_ci.set_shaders(vec![
-            ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
-            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
+            ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module.clone()),
+            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module.clone())
+                .specialization(specialization_info.clone()),
         ]);
 
-        // Using this pipeline as the base for the other pipelines (derivatives).
-        // Pipeline derivatives can be used for pipelines that share most of their state
-        // depending on the implementation this may result in better performance for pipeline switching and faster creation time.
-        pipeline_ci.set_flags(vk::PipelineCreateFlags::ALLOW_DERIVATIVES);
-
-        let pipeline = device.build(&pipeline_ci)?;
-
-        device.discard(vert_module);
-        device.discard(frag_module);
-
-        pipeline
+        device.build(&pipeline_ci)?
     };
 
     let toon_pipeline = {
 
-        let vert_codes = shader_compiler.compile_from_path(Path::new(TOON_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
-        let frag_codes = shader_compiler.compile_from_path(Path::new(TOON_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
-
-        let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
-            .build(device)?;
-        let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-            .build(device)?;
+        let specialization_data = SpecializationData {
+            light_model: 1,
+            toon_desaturation_factor: 0.5,
+        };
+        specialization_info.p_data = &specialization_data as *const SpecializationData as _;
 
         pipeline_ci.set_shaders(vec![
             ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
-            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
+            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module)
+                .specialization(specialization_info.clone()),
         ]);
-        // Base pipeline will be our first created pipeline.
-        pipeline_ci.set_base_pipeline(phong_pipeline);
-        // All pipelines created after the base pipeline will be derivatives.
-        pipeline_ci.set_flags(vk::PipelineCreateFlags::DERIVATIVE);
 
-        let pipeline = device.build(&pipeline_ci)?;
-
-        device.discard(vert_module);
-        device.discard(frag_module);
-
-        pipeline
+        device.build(&pipeline_ci)?
     };
 
-    let wireframe_pipeline = {
+    let textured_pipeline = {
 
-        let vert_codes = shader_compiler.compile_from_path(Path::new(WIREFRAME_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
-        let frag_codes = shader_compiler.compile_from_path(Path::new(WIREFRAME_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
-
-        let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
-            .build(device)?;
-        let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-            .build(device)?;
+        let specialization_data = SpecializationData {
+            light_model: 2,
+            toon_desaturation_factor: 0.5,
+        };
+        specialization_info.p_data = &specialization_data as *const SpecializationData as _;
 
         pipeline_ci.set_shaders(vec![
             ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
-            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
+            ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module)
+                .specialization(specialization_info),
         ]);
 
-        // Non solid rendering is not a mandatory Vulkan feature.
-        if device.phy.features_enabled().fill_mode_non_solid == vk::TRUE {
-            rasterization_state = rasterization_state.polygon(vk::PolygonMode::LINE);
-            pipeline_ci.set_rasterization(rasterization_state);
-        }
-
-        let pipeline = device.build(&pipeline_ci)?;
-
-        device.discard(vert_module);
-        device.discard(frag_module);
-
-        pipeline
+        device.build(&pipeline_ci)?
     };
 
+
+    device.discard(vert_module);
+    device.discard(frag_module);
 
     let result = PipelineStaff {
         phong: phong_pipeline,
         toon : toon_pipeline,
-        wireframe: wireframe_pipeline,
+        textured: textured_pipeline,
 
         layout: pipeline_layout,
     };

@@ -247,7 +247,7 @@ impl MeshResource {
         }
     }
 
-    pub fn discard(&self, vma: &mut vma::Allocator) -> VkResult<()> {
+    pub fn discard_by(&self, vma: &mut vma::Allocator) -> VkResult<()> {
 
         vma.destroy_buffer(self.vertices.handle, &self.vertices.allocation)
             .map_err(VkErrorKind::Vma)?;

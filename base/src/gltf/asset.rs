@@ -149,7 +149,7 @@ impl VmaResourceDiscardable for VkglTFModel {
 
     fn discard_by(self, vma: &mut vma::Allocator) -> VkResult<()> {
 
-        self.meshes.discard(vma)?;
+        self.meshes.discard_by(vma)?;
         self.nodes.discard_by(vma)
     }
 }

@@ -61,6 +61,11 @@ path = "src/dynamicuniformbuffer/main.rs"
 name = "pushconstants"
 path = "src/pushconstants/main.rs"
 
+# 07 - Specialization constants
+[[bin]]
+name = "specializationconstants"
+path = "src/specializationconstants/main.rs"
+
 # 08 - Texture mapping
 [[bin]]
 name = "texture"

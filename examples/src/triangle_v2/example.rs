@@ -9,7 +9,7 @@ use vkbase::ci::VkObjectBuildableCI;
 use vkbase::VkResult;
 use vkbase::FrameAction;
 
-use vkexamples::VkExampleBackendRes;
+use vkexamples::VkExampleBackend;
 use crate::data::{Vertex, VertexBuffer, IndexBuffer, UniformBuffer, DescriptorStaff};
 
 const SHADER_VERTEX_PATH  : &'static str = "examples/src/triangle_v1/triangle.vert.glsl";
@@ -17,7 +17,7 @@ const SHADER_FRAGMENT_PATH: &'static str = "examples/src/triangle_v1/triangle.fr
 
 pub struct VulkanExample {
 
-    backend: VkExampleBackendRes,
+    backend: VkExampleBackend,
 
     vertex_buffer: VertexBuffer,
     index_buffer: IndexBuffer,
@@ -37,7 +37,7 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
-        let backend_res = VkExampleBackendRes::new(device, swapchain, render_pass)?;
+        let backend_res = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let (vertex_buffer, index_buffer) = super::data::prepare_vertices(device)?;
         let uniform_buffer = super::data::prepare_uniform(device, dimension)?;

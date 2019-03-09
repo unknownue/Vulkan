@@ -11,7 +11,7 @@ use vkbase::{FlightCamera, FrameAction};
 use vkbase::{vkbytes, vkuint, vkptr, Point3F};
 use vkbase::{VkResult, VkErrorKind};
 
-use vkexamples::VkExampleBackendRes;
+use vkexamples::VkExampleBackend;
 use crate::data::{OBJECT_INSTANCES, INDEX_DATA, Vertex, RotationData, UboViewData, UboDynamicData};
 
 const SHADER_VERTEX_PATH  : &'static str = "examples/src/dynamicuniformbuffer/base.vert.glsl";
@@ -19,7 +19,7 @@ const SHADER_FRAGMENT_PATH: &'static str = "examples/src/dynamicuniformbuffer/ba
 
 pub struct VulkanExample {
 
-    backend: VkExampleBackendRes,
+    backend: VkExampleBackend,
     camera: FlightCamera,
     time_counter: f32,
 
@@ -55,7 +55,7 @@ impl VulkanExample {
         camera.set_move_speed(50.0);
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
-        let backend = VkExampleBackendRes::new(device, swapchain, render_pass)?;
+        let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let (vertices, indices) = super::data::generate_cube(device)?;
         let (ubo_view, ubo_view_data) = UboViewData::prepare_buffer(device, &camera)?;
