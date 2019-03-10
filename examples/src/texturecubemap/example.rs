@@ -205,7 +205,10 @@ impl VulkanExample {
             let camera_pos = self.camera.current_position();
             let skybox_translation = Vector3F::new(camera_pos.x, camera_pos.y, camera_pos.z);
 
-            self.skybox.ubo_data[0].model = self.camera.view_matrix() * Matrix4F::new_translation(&skybox_translation);
+            // Magic number to adjust rotation.
+            let camera_rotation = Matrix4F::new_rotation(Vector3F::new(-1.41, -0.8, -0.82));
+
+            self.skybox.ubo_data[0].model = self.camera.view_matrix() * Matrix4F::new_translation(&skybox_translation) * camera_rotation;
             //self.skybox.ubo_data[0].model = self.camera.view_matrix();
 
             use vkbase::utils::memory::copy_to_ptr;

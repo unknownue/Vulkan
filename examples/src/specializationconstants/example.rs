@@ -273,6 +273,7 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
         attribute: AttributeFlags::POSITION | AttributeFlags::NORMAL | AttributeFlags::TEXCOORD_0,
         // specify model's node attachment layout.
         node: NodeAttachmentFlags::TRANSFORM_MATRIX,
+        transform: None,
     };
 
     let model = load_gltf(device, model_info)?;

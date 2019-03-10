@@ -8,6 +8,7 @@ use crate::gltf::scene::Scene;
 
 use crate::command::{VkCmdRecorder, IGraphics};
 use crate::context::{VkDevice, VmaResourceDiscardable};
+use crate::Matrix4F;
 use crate::error::{VkResult, VkTryFrom};
 
 use std::collections::HashMap;
@@ -20,6 +21,8 @@ pub struct GltfDocument {
     pub doc: gltf::Document,
     pub buffers: Vec<gltf::buffer::Data>,
     pub images : Vec<gltf::image::Data>,
+
+    pub transform: Option<Matrix4F>,
 }
 // --------------------------------------------------------------------------------------
 

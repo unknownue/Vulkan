@@ -58,6 +58,7 @@ impl Skybox {
             //     mat4 transform;
             // } dyn_node;
             node: NodeAttachmentFlags::TRANSFORM_MATRIX,
+            transform: None,
         };
 
         let (ubo_buffer, ubo_data) = UBOVS::prepare_buffer(device, camera)?;

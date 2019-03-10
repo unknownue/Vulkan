@@ -309,6 +309,7 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
         path: Path::new(MODEL_PATH),
         attribute: AttributeFlags::POSITION | AttributeFlags::NORMAL, // specify model's vertices layout.
         node: NodeAttachmentFlags::TRANSFORM_MATRIX, // specify model's node attachment layout.
+        transform: None,
     };
 
     let model = load_gltf(device, model_info)?;

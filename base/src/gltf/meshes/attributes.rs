@@ -202,13 +202,16 @@ macro_rules! attribute_format {
 }
 
 macro_rules! read_attribute {
-    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, position) => {
+    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, $source:ident, position) => {
 
         if let Some(pos_iter) = $reader.read_positions() {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = pos_iter.map(|pos| {
-                    let position = Point3F::from(pos);
+                    let mut position = Point3F::from(pos);
+                    if let Some(ref transform) = $source.transform {
+                        position = transform.transform_point(&position);
+                    }
                     $VertexType { position, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
@@ -220,7 +223,7 @@ macro_rules! read_attribute {
         }
 
     };
-    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, normal) => {
+    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, $source:ident, normal) => {
 
         if let Some(normal_iter) = $reader.read_normals() {
 
@@ -238,7 +241,7 @@ macro_rules! read_attribute {
         }
 
     };
-    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, tangents) => {
+    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, $source:ident, tangents) => {
 
         if let Some(tangents_iter) = $reader.read_tangents() {
 
@@ -255,7 +258,7 @@ macro_rules! read_attribute {
             }
         }
     };
-    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, texcoord_0) => {
+    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, $source:ident, texcoord_0) => {
 
         if let Some(texcoord_0_iter) = $reader.read_tex_coords(0) {
 
@@ -272,7 +275,7 @@ macro_rules! read_attribute {
             }
         }
     };
-    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, texcoord_1) => {
+    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, $source:ident, texcoord_1) => {
 
         if let Some(texcoord_1_iter) = $reader.read_tex_coords(1) {
 
@@ -289,7 +292,7 @@ macro_rules! read_attribute {
             }
         }
     };
-    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, color_0) => {
+    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, $source:ident, color_0) => {
 
         if let Some(color_0_iter) = $reader.read_colors(0) {
 
@@ -306,7 +309,7 @@ macro_rules! read_attribute {
             }
         }
     };
-    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, joints_0) => {
+    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, $source:ident, joints_0) => {
 
         if let Some(joints_0_iter) = $reader.read_joints(0) {
 
@@ -323,7 +326,7 @@ macro_rules! read_attribute {
             }
         }
     };
-    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, weights_0) => {
+    ($target:ident, $reader:ident, $origin_length:ident, $VertexType:ident, $source:ident, weights_0) => {
 
         if let Some(weights_0_iter) = $reader.read_weights(0) {
 
@@ -383,7 +386,7 @@ macro_rules! define_attributes {
                 let start_vertex_index = self.data.len();
 
                 $(
-                    read_attribute!(self, reader, start_vertex_index, $name_vertex, $attribute);
+                    read_attribute!(self, reader, start_vertex_index, $name_vertex, source, $attribute);
                 )*
 
                 AttributeExtendInfo {

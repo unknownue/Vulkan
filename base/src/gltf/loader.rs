@@ -6,21 +6,30 @@ use crate::gltf::nodes::NodeAttachmentFlags;
 use crate::gltf::meshes::AttributeFlags;
 use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetRepository};
 use crate::gltf::asset::VkglTFModel;
-use crate::error::{VkResult, VkError, VkErrorKind};
-use crate::context::VkDevice;
 
+use crate::context::VkDevice;
+use crate::Matrix4F;
+use crate::error::{VkResult, VkError, VkErrorKind};
 
 pub struct GltfModelInfo<'a> {
+    /// The path of model file.
     pub path: &'a Path,
+    /// Indicate what attributes will be read from this model file.
     pub attribute: AttributeFlags,
+    /// Indicate what properties will be read for Node hierarchy(etc. transform matrix).
     pub node: NodeAttachmentFlags,
+    /// A matrix that will apply to position attribute of the model.
+    pub transform: Option<Matrix4F>,
 }
 
 pub fn load_gltf(device: &mut VkDevice, info: GltfModelInfo) -> VkResult<VkglTFModel> {
 
     let (doc, buffers, images) = gltf::import(info.path)
         .map_err(VkErrorKind::ParseGltf)?;
-    let document = GltfDocument { doc, buffers, images };
+    let document = GltfDocument {
+        doc, buffers, images,
+        transform: info.transform,
+    };
 
     // Only support loading the default scene or first scene in glTF file.
     let dst_scene = document.doc.default_scene()

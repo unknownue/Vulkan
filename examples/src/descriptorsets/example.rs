@@ -268,6 +268,7 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
         //     mat4 transform;
         // } dyn_node;
         node: NodeAttachmentFlags::TRANSFORM_MATRIX,
+        transform: None,
     };
 
     let model = load_gltf(device, model_info)?;
