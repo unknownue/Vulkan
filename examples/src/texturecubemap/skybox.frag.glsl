@@ -1,12 +1,12 @@
 #version 450
 
-layout (binding = 1) uniform samplerCube samplerCubeMap;
+layout (set = 0, binding = 2) uniform samplerCube samplerCubeMap;
 
 layout (location = 0) in vec3 inUVW;
 
 layout (location = 0) out vec4 outFragColor;
 
-void main() 
-{
+void main() {
+
 	outFragColor = texture(samplerCubeMap, inUVW);
 }

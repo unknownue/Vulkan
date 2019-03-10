@@ -7,36 +7,26 @@ use std::path::Path;
 
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
-use vkbase::ci::buffer::BufferCI;
-use vkbase::ci::vma::{VmaBuffer, VmaAllocationCI};
-use vkbase::gltf::VkglTFModel;
-use vkbase::texture::Texture2D;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkbytes, vkfloat, vkptr, Point3F, Matrix4F, Vector3F};
-use vkbase::{VkResult, VkErrorKind};
+use vkbase::{vkbytes, vkptr, Point3F, Vector3F, Matrix4F};
+use vkbase::VkResult;
 
 use vkexamples::VkExampleBackend;
+use super::data::{Skybox, UBOVS};
 
-const SKY_BOX_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/descriptorsets/skybox.vert.glsl";
-const SKY_BOX_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/descriptorsets/skybox.frag.glsl";
+const SKY_BOX_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/texturecubemap/skybox.vert.glsl";
+const SKY_BOX_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/texturecubemap/skybox.frag.glsl";
 
-const CUBE_MODEL_PATH: &'static str = "assets/models/cube.gltf";
-
-const CUBE_COUNT: usize = 2;
-const CUBE_TEXTURE_PATHS: [&'static str; CUBE_COUNT] = [
-    "assets/textures/crate01_color_height_rgba.ktx",
-    "assets/textures/crate02_color_height_rgba.ktx",
-];
+/// Check box to toggle skybox display is not implement yet.
+const DISPLAY_SKYBOX: bool = true;
 
 
 pub struct VulkanExample {
 
     backend: VkExampleBackend,
 
-    skybox: VkglTFModel,
-
-    cubes: ArrayVec<[Cube; 2]>,
+    skybox: Skybox,
 
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
@@ -55,26 +45,24 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.0, 0.0, 5.0))
-            .view_distance(0.1, 512.0)
+            .place_at(Point3F::new(0.0, 0.0, 0.0))
             .screen_aspect_ratio(dimension.width as f32 / dimension.height as f32)
             .build();
-        camera.set_move_speed(5.0);
+        camera.set_move_speed(10.0);
 
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
-        let model = prepare_model(device)?;
+        let mut skybox = Skybox::load_meshes(device, &camera)?;
 
-        let mut cubes = prepare_uniform(device, &camera)?;
-        let descriptors = setup_descriptor(device, &mut cubes, &model)?;
+        let descriptors = setup_descriptor(device, &mut skybox)?;
 
-        let pipelines = prepare_pipelines(device, &model, backend.render_pass, descriptors.layout)?;
+        let pipelines = prepare_pipelines(device, &skybox, backend.render_pass, descriptors.layout)?;
 
         let target = VulkanExample {
-            backend, model, cubes, descriptors, pipelines, camera,
-            is_toggle_event: false,
+            backend, skybox, descriptors, pipelines, camera,
+            is_toggle_event: true,
         };
         Ok(target)
     }
@@ -86,6 +74,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         self.backend.set_basic_ui(device, super::WINDOW_TITLE)?;
 
+        self.update_uniforms(0.0)?;
         self.record_commands(device, self.backend.dimension)?;
 
         Ok(())
@@ -107,11 +96,11 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
     fn swapchain_reload(&mut self, device: &mut VkDevice, new_chain: &VkSwapchain) -> VkResult<()> {
 
-        device.discard(self.pipelines.pipeline);
+        device.discard(self.pipelines.skybox);
 
         let render_pass = setup_renderpass(device, new_chain)?;
         self.backend.swapchain_reload(device, new_chain, render_pass)?;
-        self.pipelines = prepare_pipelines(device, &self.model, self.backend.render_pass, self.descriptors.layout)?;
+        self.pipelines = prepare_pipelines(device, &self.skybox, self.backend.render_pass, self.descriptors.layout)?;
 
         self.record_commands(device, self.backend.dimension)?;
 
@@ -142,14 +131,10 @@ impl vkbase::RenderWorkflow for VulkanExample {
         device.discard(self.descriptors.layout);
         device.discard(self.descriptors.pool);
 
-        device.discard(self.pipelines.pipeline);
+        device.discard(self.pipelines.skybox);
         device.discard(self.pipelines.layout);
 
-        for cube in self.cubes.into_iter() {
-            device.vma_discard(cube.uniform_buffer)?;
-            cube.texture.discard_by(device)?;
-        }
-        device.vma_discard(self.model)?;
+        self.skybox.discard_by(device)?;
         self.backend.discard_by(device)
     }
 }
@@ -188,19 +173,19 @@ impl VulkanExample {
             recorder.begin_record()?
                 .begin_render_pass(render_pass_bi)
                 .set_viewport(0, &[viewport])
-                .set_scissor(0, &[scissor])
-                .bind_pipeline(self.pipelines.pipeline);
+                .set_scissor(0, &[scissor]);
 
-            // Render cubes with separate descriptor sets.
-            for j in 0..CUBE_COUNT {
+            if DISPLAY_SKYBOX { // render skybox
+
+                recorder.bind_pipeline(self.pipelines.skybox);
 
                 let render_params = vkbase::gltf::ModelRenderParams {
-                    descriptor_set : self.cubes[j].descriptor_set,
+                    descriptor_set : self.skybox.descriptor_set,
                     pipeline_layout: self.pipelines.layout,
                     material_stage : None,
                 };
 
-                self.model.record_command(&recorder, &render_params);
+                self.skybox.model.record_command(&recorder, &render_params);
             }
 
             self.backend.ui_renderer.record_command(&recorder);
@@ -213,56 +198,22 @@ impl VulkanExample {
         Ok(())
     }
 
-    fn update_uniforms(&mut self, delta_time: f32) -> VkResult<()> {
+    fn update_uniforms(&mut self, _delta_time: f32) -> VkResult<()> {
 
-        if IS_ANIMATE || self.is_toggle_event {
+        if self.is_toggle_event {
 
-            let model_translation: [Matrix4F; 2] = [
-                Matrix4F::new_translation(&Vector3F::new(-2.0, 0.0, 0.0)),
-                Matrix4F::new_translation(&Vector3F::new(1.5, 0.5, 0.0)),
-            ];
+            let camera_pos = self.camera.current_position();
+            let skybox_translation = Vector3F::new(camera_pos.x, camera_pos.y, camera_pos.z);
 
-            self.cubes[0].rotation.x = (self.cubes[0].rotation.x + 2.5 * delta_time) % 360.0;
-            self.cubes[0].matrices.model = model_translation[0] * Matrix4F::new_rotation(self.cubes[0].rotation);
-
-            self.cubes[1].rotation.y = (self.cubes[1].rotation.y + 2.0 * delta_time) % 360.0;
-            self.cubes[1].matrices.model = model_translation[1] * Matrix4F::new_rotation(self.cubes[1].rotation);
-
-            self.cubes[0].matrices.view = self.camera.view_matrix();
-            self.cubes[1].matrices.view = self.camera.view_matrix();
+            self.skybox.ubo_data[0].model = self.camera.view_matrix() * Matrix4F::new_translation(&skybox_translation);
+            //self.skybox.ubo_data[0].model = self.camera.view_matrix();
 
             use vkbase::utils::memory::copy_to_ptr;
-            copy_to_ptr(self.cubes[0].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[0].matrices]);
-            copy_to_ptr(self.cubes[1].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[1].matrices]);
+            copy_to_ptr(self.skybox.ubo_buffer.info.get_mapped_data() as vkptr, &self.skybox.ubo_data);
         }
 
         Ok(())
     }
-}
-
-// Prepare model from glTF file.
-pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
-
-    use vkbase::gltf::{GltfModelInfo, load_gltf};
-    use vkbase::gltf::{AttributeFlags, NodeAttachmentFlags};
-
-    let model_info = GltfModelInfo {
-        path: Path::new(CUBE_MODEL_PATH),
-        // specify model's vertices layout.
-        // in cube.vert.glsl:
-        // layout (location = 0) in vec3 inPos;
-        // layout (location = 1) in vec2 inUV;
-        attribute: AttributeFlags::POSITION | AttributeFlags::TEXCOORD_0,
-        // specify model's node attachment layout.
-        // in cube.vert.glsl
-        // layout (set = 0, binding = 1) uniform DynNode {
-        //     mat4 transform;
-        // } dyn_node;
-        node: NodeAttachmentFlags::TRANSFORM_MATRIX,
-    };
-
-    let model = load_gltf(device, model_info)?;
-    Ok(model)
 }
 
 
@@ -271,25 +222,25 @@ struct DescriptorStaff {
     layout : vk::DescriptorSetLayout,
 }
 
-fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
+fn setup_descriptor(device: &VkDevice, skybox: &mut Skybox) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
     use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorImageSetWI, DescriptorSetsUpdateCI};
 
-    let descriptor_pool = DescriptorPoolCI::new(CUBE_COUNT as _)
-        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER, CUBE_COUNT as _)
-        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC, CUBE_COUNT as _)
-        .add_descriptor(vk::DescriptorType::COMBINED_IMAGE_SAMPLER, CUBE_COUNT as _)
+    let descriptor_pool = DescriptorPoolCI::new(2)
+        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER, 2)
+        .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC, 2)
+        .add_descriptor(vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 2)
         .build(device)?;
 
     /*
-        Binding 0: Uniform buffer (used to pass matrices matrices).
-        in cube.vert.glsl:
+        Binding 0: Uniform buffer(share the same uniform buffer between skybox.vert.glsl and reflect.vert.glsl).
+        in reflect.vert.glsl:
 
-        layout (set = 0, binding = 0) uniform UBOMatrices {
+        layout (set = 0, binding = 0) uniform UBO {
            mat4 projection;
-           mat4 view;
            mat4 model;
+           float lodBias;
         } ubo;
     */
     let ubo_descriptor = vk::DescriptorSetLayoutBinding {
@@ -302,7 +253,7 @@ fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &
 
     /*
         Binding 1: Dynamic uniform buffer(used for matrix properties in glTF Node hierarchy).
-        in cube.vert.glsl:
+        in skybox.vert.glsl:
 
         layout (set = 0, binding = 1) uniform DynNode {
             mat4 transform;
@@ -317,10 +268,10 @@ fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &
     };
 
     /*
-        Binding 2: Combined Image sampler (used to pass per object texture information).
-        in cube.frag.glsl:
+        Binding 2: Combined Image sampler.
+        in skybox.frag.glsl or reflect.frag.glsl:
 
-        layout (set = 0, binding = 2) uniform sampler2D samplerColorMap;
+        layout (set = 0, binding = 2) uniform samplerCube samplerCubeMap;
     */
     let sampler_descriptor = vk::DescriptorSetLayoutBinding {
         binding: 2,
@@ -336,36 +287,32 @@ fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &
         .add_binding(sampler_descriptor)
         .build(device)?;
 
-    for i in 0..CUBE_COUNT {
 
-        let mut descriptor_sets = DescriptorSetAI::new(descriptor_pool)
-            .add_set_layout(set_layout)
-            .build(device)?;
-        cubes[i].descriptor_set = descriptor_sets.remove(0);
+    let mut descriptor_sets = DescriptorSetAI::new(descriptor_pool)
+        .add_set_layout(set_layout)
+        .build(device)?;
+    skybox.descriptor_set = descriptor_sets.remove(0);
 
-        // Update the descriptor set with the actual descriptors matching shader bindings set in the layout.
 
-        // Binding 0: Object matrices Uniform buffer.
-        let ubo_write_info = DescriptorBufferSetWI::new(cubes[i].descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
-            .add_buffer(vk::DescriptorBufferInfo {
-                buffer: cubes[i].uniform_buffer.handle,
-                offset: 0,
-                range : mem::size_of::<UBOMatrices>() as vkbytes,
-            });
-        // Binding 1: Node hierarchy transform matrix in glTF.
-        let node_write_info = DescriptorBufferSetWI::new(cubes[i].descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
-            .add_buffer(model.nodes.node_descriptor());
-        // Binding 2: Object texture.
-        let sampler_write_info = DescriptorImageSetWI::new(cubes[i].descriptor_set, 2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .add_image(cubes[i].texture.descriptor);
+    // Binding 0: Object matrices Uniform buffer.
+    let ubo_write_info = DescriptorBufferSetWI::new(skybox.descriptor_set, 0, vk::DescriptorType::UNIFORM_BUFFER)
+        .add_buffer(vk::DescriptorBufferInfo {
+            buffer: skybox.ubo_buffer.handle,
+            offset: 0,
+            range : mem::size_of::<[UBOVS; 1]>() as vkbytes,
+        });
+    // Binding 1: Node hierarchy transform matrix in glTF.
+    let node_write_info = DescriptorBufferSetWI::new(skybox.descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
+        .add_buffer(skybox.model.nodes.node_descriptor());
+    // Binding 2: Object texture.
+    let sampler_write_info = DescriptorImageSetWI::new(skybox.descriptor_set, 2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+        .add_image(skybox.texture.descriptor());
 
-        DescriptorSetsUpdateCI::new()
-            .add_write(ubo_write_info.value())
-            .add_write(node_write_info.value())
-            .add_write(sampler_write_info.value())
-            .update(device);
-    }
-
+    DescriptorSetsUpdateCI::new()
+        .add_write(ubo_write_info.value())
+        .add_write(node_write_info.value())
+        .add_write(sampler_write_info.value())
+        .update(device);
 
     let descriptors = DescriptorStaff {
         pool   : descriptor_pool,
@@ -415,11 +362,11 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
 
 struct PipelineStaff {
     skybox : vk::Pipeline,
-    reflect: vk::Pipeline,
+    _reflect: vk::Pipeline,
     layout: vk::PipelineLayout,
 }
 
-fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::RenderPass, set_layout: vk::DescriptorSetLayout) -> VkResult<PipelineStaff> {
+fn prepare_pipelines(device: &VkDevice, skybox: &Skybox, render_pass: vk::RenderPass, set_layout: vk::DescriptorSetLayout) -> VkResult<PipelineStaff> {
 
     use vkbase::ci::pipeline::*;
 
@@ -429,22 +376,22 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
 
     let rasterization_state = RasterizationSCI::new()
         .polygon(vk::PolygonMode::FILL)
-        .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::CLOCKWISE);
+        .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::COUNTER_CLOCKWISE);
 
     let blend_attachment = BlendAttachmentSCI::new().value();
     let blend_state = ColorBlendSCI::new()
         .add_attachment(blend_attachment);
 
+    // disable depth test for Skybox pipeline.
     let depth_stencil_state = DepthStencilSCI::new()
-        .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);
+        .depth_test(false, false, vk::CompareOp::LESS_OR_EQUAL);
 
     let dynamic_state = DynamicSCI::new()
         .add_dynamic(vk::DynamicState::VIEWPORT)
         .add_dynamic(vk::DynamicState::SCISSOR);
 
     // Pipeline Layout.
-    // The pipeline layout is based on the descriptor set layout we created above.
-    let layout = PipelineLayoutCI::new()
+    let pipeline_layout = PipelineLayoutCI::new()
         .add_set_layout(set_layout)
         .build(device)?;
 
@@ -452,8 +399,8 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
     use vkbase::ci::shader::{ShaderModuleCI, ShaderStageCI};
 
     let mut shader_compiler = vkbase::utils::shaderc::VkShaderCompiler::new()?;
-    let vert_codes = shader_compiler.compile_from_path(Path::new(VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
-    let frag_codes = shader_compiler.compile_from_path(Path::new(FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
+    let vert_codes = shader_compiler.compile_from_path(Path::new(SKY_BOX_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
+    let frag_codes = shader_compiler.compile_from_path(Path::new(SKY_BOX_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
 
     let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
         .build(device)?;
@@ -461,26 +408,31 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         .build(device)?;
 
     // Pipeline.
-    let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, layout);
+    let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, pipeline_layout);
 
     pipeline_ci.set_shaders(vec![
         ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
         ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
     ]);
 
-    pipeline_ci.set_vertex_input(model.meshes.vertex_input.clone());
+    pipeline_ci.set_vertex_input(skybox.model.meshes.vertex_input.clone());
     pipeline_ci.set_viewport(viewport_state);
     pipeline_ci.set_depth_stencil(depth_stencil_state);
     pipeline_ci.set_rasterization(rasterization_state);
     pipeline_ci.set_color_blend(blend_state);
     pipeline_ci.set_dynamic(dynamic_state);
 
-    let pipeline = device.build(&pipeline_ci)?;
+    // skybox pipeline (background cube).
+    let skybox_pipeline = device.build(&pipeline_ci)?;
 
     // Destroy shader module.
     device.discard(vert_module);
     device.discard(frag_module);
 
-    let result = PipelineStaff { pipeline, layout };
+    let result = PipelineStaff {
+        skybox: skybox_pipeline,
+        _reflect: vk::Pipeline::null(),
+        layout: pipeline_layout,
+    };
     Ok(result)
 }

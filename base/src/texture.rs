@@ -172,7 +172,8 @@ impl Texture2D {
             // Create a default sampler.
             let mut sampler_ci = SamplerCI::new()
                 .filter(vk::Filter::LINEAR, vk::Filter::LINEAR)
-                .mipmap(vk::SamplerMipmapMode::LINEAR, vk::SamplerAddressMode::REPEAT, vk::SamplerAddressMode::REPEAT, vk::SamplerAddressMode::REPEAT)
+                .mipmap(vk::SamplerMipmapMode::LINEAR)
+                .address(vk::SamplerAddressMode::REPEAT, vk::SamplerAddressMode::REPEAT, vk::SamplerAddressMode::REPEAT)
                 // max level-of-detail should match mip level count.
                 .lod(0.0, 0.0, tex_2d.levels() as vkfloat)
                 .compare_op(Some(vk::CompareOp::NEVER))

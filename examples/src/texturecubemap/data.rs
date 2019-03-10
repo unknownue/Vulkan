@@ -1,74 +1,83 @@
 
-use lazy_static::lazy_static;
-
 use ash::vk;
 
 use std::mem;
 use std::ptr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::image::{ImageCI, ImageViewCI, ImageBarrierCI, SamplerCI};
-use vkbase::ci::pipeline::VertexInputSCI;
 use vkbase::ci::vma::{VmaBuffer, VmaImage, VmaAllocationCI};
 use vkbase::ci::VkObjectBuildableCI;
 
 use vkbase::context::VkDevice;
+use vkbase::gltf::VkglTFModel;
 use vkbase::command::CmdTransferApi;
 use vkbase::FlightCamera;
 
-use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Point4F, Point3F, Point2F, Vector3F, Matrix4F};
+use vkbase::{vkuint, vkbytes, vkfloat, Matrix4F};
 use vkbase::{VkResult, VkError, VkErrorKind};
 
 const CUBEMAP_TEXTURE_COMPRESSION_BC_PATH       : &'static str = "assets/textures/cubemap_yokohama_bc3_unorm.ktx";
-const CUBEMAP_TEXTURE_COMPRESSION_ASTC_LDR_PATH : &'static str = "assets/textures/cubemap_astc_8x8_unorm.ktx";
+const CUBEMAP_TEXTURE_COMPRESSION_ASTC_LDR_PATH : &'static str = "assets/textures/cubemap_yokohama_astc_8x8_unorm.ktx";
 const CUBEMAP_TEXTURE_COMPRESSION_ETC2_PATH     : &'static str = "assets/textures/cubemap_yokohama_etc2_unorm.ktx";
 /// There are 6 faces for each cube.
 const CUBE_FACES_COUNT: usize = 6;
+const CUBE_MODEL_PATH: &'static str = "assets/models/cube.gltf";
 
 
-pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> {
+pub struct Skybox {
 
-    // setup vertices for a single uv-mapped quad made from two triangles.
-    // for the sake of simplicity, we won't stage the vertex data to the gpu memory.
+    pub model: VkglTFModel,
+    pub texture: TextureCube,
 
-    use vkbase::utils::memory::copy_to_ptr;
+    pub ubo_buffer: VmaBuffer,
+    pub ubo_data: [UBOVS; 1],
 
-    let vertex_buffer = {
+    pub descriptor_set: vk::DescriptorSet,
+}
 
-        let vertices_ci = BufferCI::new((mem::size_of::<Vertex>() * VERTEX_DATA.len()) as vkbytes)
-            .usage(vk::BufferUsageFlags::VERTEX_BUFFER);
-        let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
-            .flags(vma::AllocationCreateFlags::MAPPED);
-        let vertices_allocation = device.vma.create_buffer(
-            &vertices_ci.value(), allocation_ci.as_ref())
-            .map_err(VkErrorKind::Vma)?;
+impl Skybox {
 
-        let data_ptr = vertices_allocation.2.get_mapped_data() as vkptr;
-        debug_assert_ne!(data_ptr, ptr::null_mut());
-        copy_to_ptr(data_ptr, VERTEX_DATA.as_ref());
+    pub fn load_meshes(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<Skybox> {
 
-        VmaBuffer::from(vertices_allocation)
-    };
+        use vkbase::gltf::{GltfModelInfo, load_gltf};
+        use vkbase::gltf::{AttributeFlags, NodeAttachmentFlags};
 
-    let index_buffer = {
+        let model_info = GltfModelInfo {
+            path: Path::new(CUBE_MODEL_PATH),
+            // specify model's vertices layout.
+            // in skybox.vert.glsl:
+            //
+            // layout (location = 0) in vec3 inPos;
+            attribute: AttributeFlags::POSITION,
+            // specify model's node attachment layout.
+            // in skybox.vert.glsl:
+            //
+            // layout (set = 0, binding = 1) uniform DynNode {
+            //     mat4 transform;
+            // } dyn_node;
+            node: NodeAttachmentFlags::TRANSFORM_MATRIX,
+        };
 
-        let indices_ci = BufferCI::new((mem::size_of::<vkuint>() * INDEX_DATA.len()) as vkbytes)
-            .usage(vk::BufferUsageFlags::INDEX_BUFFER);
-        let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
-            .flags(vma::AllocationCreateFlags::MAPPED);
-        let indices_allocation = device.vma.create_buffer(
-            &indices_ci.value(), allocation_ci.as_ref())
-            .map_err(VkErrorKind::Vma)?;
+        let (ubo_buffer, ubo_data) = UBOVS::prepare_buffer(device, camera)?;
 
-        let data_ptr = indices_allocation.2.get_mapped_data() as vkptr;
-        debug_assert_ne!(data_ptr, ptr::null_mut());
-        copy_to_ptr(data_ptr, INDEX_DATA.as_ref());
+        let skybox_meshes = Skybox {
+            model: load_gltf(device, model_info)?,
+            texture: load_skybox_textures(device)?,
+            descriptor_set: vk::DescriptorSet::null(),
+            ubo_buffer, ubo_data,
+        };
+        Ok(skybox_meshes)
+    }
 
-        VmaBuffer::from(indices_allocation)
-    };
+    pub fn discard_by(self, device: &mut VkDevice) -> VkResult<()> {
 
-    Ok((vertex_buffer, index_buffer))
+        device.vma_discard(self.ubo_buffer)?;
+
+        self.texture.discard_by(device)?;
+        device.vma_discard(self.model)
+    }
 }
 
 /*
@@ -80,17 +89,17 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 */
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct UboVS {
+pub struct UBOVS {
     pub projection: Matrix4F,
     pub model     : Matrix4F,
     pub lod_bias  : f32,
 }
 
-impl UboVSData {
+impl UBOVS {
 
-    pub fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, [UboVS; 1])> {
+    fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, [UBOVS; 1])> {
 
-        let buffer_ci = BufferCI::new(mem::size_of::<UboVSData>() as vkbytes)
+        let buffer_ci = BufferCI::new(mem::size_of::<[UBOVS; 1]>() as vkbytes)
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
@@ -98,26 +107,19 @@ impl UboVSData {
             &buffer_ci.value(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
-        let ubo_data = UboVSData {
-            content: [
-                UboVS {
-                    projection: camera.proj_matrix(),
-                    model     : Matrix4F::identity(),
-                    view_pos  : Point4F::new(0.0, 0.0, -2.5, 0.0),
-                    lod_bias  : 0.0,
-                },
-            ],
-        };
-
-        let data_ptr = buffer_allocation.2.get_mapped_data() as vkptr;
-        debug_assert_ne!(data_ptr, ptr::null_mut());
-        vkbase::utils::memory::copy_to_ptr(data_ptr, &ubo_data.content);
+        let ubo_data = [
+            UBOVS {
+                projection: camera.proj_matrix(),
+                model     : camera.view_matrix(),
+                lod_bias  : 0.0,
+            },
+        ];
 
         Ok((VmaBuffer::from(buffer_allocation), ubo_data))
     }
 }
 
-/// `Texture` contains all Vulkan objects that are required to store and use a texture.
+/// `TextureCube` contains all Vulkan objects that are required to store and use a texture cube.
 pub struct TextureCube {
     pub sampler: vk::Sampler,
     pub image  : VmaImage,
@@ -129,18 +131,18 @@ pub struct TextureCube {
     pub mip_levels: vkuint,
 }
 
-fn load_textures(device: &mut VkDevice) -> VkResult<TextureCube> {
+fn load_skybox_textures(device: &mut VkDevice) -> VkResult<TextureCube> {
 
     // Sascha Willems's comment:
     // Vulkan core supports three different compressed texture formats
     // As the support differs between implementations, we need to check device features and select a proper format and file.
 
     let (texture_path, texture_format) = if device.phy.features_enabled().texture_compression_bc == vk::TRUE {
-        (Path::new(CUBEMAP_TEXTURE_COMPRESSION_BC_PATH), vk::Format::BC2_UNORM_BLOCK)
+        (PathBuf::from(CUBEMAP_TEXTURE_COMPRESSION_BC_PATH), vk::Format::BC2_UNORM_BLOCK)
     } else if device.phy.features_enabled().texture_compression_astc_ldr == vk::TRUE {
-        (Path::new(CUBEMAP_TEXTURE_COMPRESSION_ASTC_LDR_PATH), vk::Format::ASTC_8X8_UNORM_BLOCK)
+        (PathBuf::from(CUBEMAP_TEXTURE_COMPRESSION_ASTC_LDR_PATH), vk::Format::ASTC_8X8_UNORM_BLOCK)
     } else if device.phy.features_enabled().texture_compression_etc2 == vk::TRUE {
-        (Path::new(CUBEMAP_TEXTURE_COMPRESSION_ETC2_PATH), vk::Format::ETC2_R8G8B8_UNORM_BLOCK)
+        (PathBuf::from(CUBEMAP_TEXTURE_COMPRESSION_ETC2_PATH), vk::Format::ETC2_R8G8B8_UNORM_BLOCK)
     } else {
         return Err(VkError::unsupported("Device does not support any compressed texture format!"))
     };
@@ -150,7 +152,7 @@ fn load_textures(device: &mut VkDevice) -> VkResult<TextureCube> {
 
 impl TextureCube {
 
-    pub fn load_ktx(device: &mut VkDevice, texture_path: &impl AsRef<Path>, format: vk::Format) -> VkResult<TextureCube> {
+    pub fn load_ktx(device: &mut VkDevice, texture_path: impl AsRef<Path>, format: vk::Format) -> VkResult<TextureCube> {
 
         use gli::GliTexture;
 
@@ -224,9 +226,9 @@ impl TextureCube {
 
             let cube_face = tex_cube.get_face(face);
 
-            for level in 0..tex_cube.levels() {
+            for i in 0..tex_cube.levels() {
 
-                let image_level_i = cube_face.get_level(level);
+                let face_level_i = cube_face.get_level(i);
 
                 let copy_region = vk::BufferImageCopy {
                     buffer_offset: staging_offset,
@@ -235,21 +237,21 @@ impl TextureCube {
                     buffer_image_height: 0,
                     image_subresource: vk::ImageSubresourceLayers {
                         aspect_mask: vk::ImageAspectFlags::COLOR,
-                        mip_level: level as vkuint,
+                        mip_level: i as vkuint,
                         base_array_layer: face as vkuint,
                         layer_count     : 1,
                     },
                     image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
                     image_extent: vk::Extent3D {
-                        width : image_level_i.extent()[0],
-                        height: image_level_i.extent()[1],
+                        width : face_level_i.extent()[0],
+                        height: face_level_i.extent()[1],
                         depth : 1,
                     },
                 };
 
                 buffer_copy_regions.push(copy_region);
                 // Increase offset into staging buffer for next level/face.
-                staging_offset += image_level_i.size() as vkbytes;
+                staging_offset += face_level_i.size() as vkbytes;
             }
         }
 
@@ -338,6 +340,14 @@ impl TextureCube {
             width, height, mip_levels,
         };
         Ok(result)
+    }
+
+    pub fn descriptor(&self) -> vk::DescriptorImageInfo {
+        vk::DescriptorImageInfo {
+            sampler      : self.sampler,
+            image_view   : self.view,
+            image_layout : self.layout,
+        }
     }
 
     pub fn discard_by(self, device: &mut VkDevice) -> VkResult<()> {
