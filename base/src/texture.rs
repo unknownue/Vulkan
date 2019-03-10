@@ -14,8 +14,6 @@ use crate::context::VkDevice;
 use crate::{VkResult, VkErrorKind};
 use crate::{vkuint, vkbytes, vkfloat};
 
-
-
 use std::path::Path;
 use std::ptr;
 
@@ -26,9 +24,9 @@ pub struct Texture2D {
     pub image: VmaImage,
     pub view : vk::ImageView,
 
-    pub width        : vkuint,
-    pub height       : vkuint,
-    pub mip_levels   : vkuint,
+    pub width      : vkuint,
+    pub height     : vkuint,
+    pub mip_levels : vkuint,
 
     pub sampler: vk::Sampler,
     pub descriptor: vk::DescriptorImageInfo,
@@ -36,7 +34,7 @@ pub struct Texture2D {
 
 impl Texture2D {
 
-    pub fn load(device: &mut VkDevice, path: impl AsRef<Path>, format: vk::Format) -> VkResult<Texture2D> {
+    pub fn load_ktx(device: &mut VkDevice, path: impl AsRef<Path>, format: vk::Format) -> VkResult<Texture2D> {
 
         let tex_2d: gli::Texture2D = gli::load_ktx(path)
             .map_err(VkErrorKind::Gli)?;

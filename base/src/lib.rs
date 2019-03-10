@@ -21,10 +21,10 @@ mod workflow;
 mod input;
 
 // type alias ------------------------------------
-/// unsigned integer type commonly used in vulkan(an alias type of uint32_t).
+/// unsigned integer type commonly used in vulkan(an alias type of uint32_t in C++).
 #[allow(non_camel_case_types)]
 pub type vkuint = u32;
-/// signed integer type used in vulkan(an alias type of int32_t).
+/// signed integer type used in vulkan(an alias type of int32_t in C++).
 #[allow(non_camel_case_types)]
 pub type vksint = i32;
 /// float type used in vulkan.
@@ -36,13 +36,13 @@ pub type vklint = u64;
 /// char type used in vulkan.
 #[allow(non_camel_case_types)]
 pub type vkchar = ::std::os::raw::c_char;
-/// boolean type used in vulkan(an alias type of VkBool32).
+/// boolean type used in vulkan(an alias type of VkBool32 in C++).
 #[allow(non_camel_case_types)]
 pub type vkbool = ash::vk::Bool32;
 #[allow(non_camel_case_types)]
-// raw pointer type used in vulkan.(the size of c_void is 1).
+// raw pointer type used in vulkan.(the size of c_void in bytes is 1).
 pub type vkptr<T=::std::os::raw::c_void> = *mut T;
-/// the number of bytes, used to measure the size of memory block(buffer, image...).
+/// the number of bytes(an alias type of VkDeviceSize in C++), used to measure the size of memory block(buffer, image...).
 #[allow(non_camel_case_types)]
 pub type vkbytes = ash::vk::DeviceSize;
 

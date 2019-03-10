@@ -18,58 +18,14 @@ use vkbase::command::CmdTransferApi;
 use vkbase::FlightCamera;
 
 use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Point4F, Point3F, Point2F, Vector3F, Matrix4F};
-use vkbase::{VkResult, VkErrorKind};
+use vkbase::{VkResult, VkError, VkErrorKind};
 
+const CUBEMAP_TEXTURE_COMPRESSION_BC_PATH       : &'static str = "assets/textures/cubemap_yokohama_bc3_unorm.ktx";
+const CUBEMAP_TEXTURE_COMPRESSION_ASTC_LDR_PATH : &'static str = "assets/textures/cubemap_astc_8x8_unorm.ktx";
+const CUBEMAP_TEXTURE_COMPRESSION_ETC2_PATH     : &'static str = "assets/textures/cubemap_yokohama_etc2_unorm.ktx";
+/// There are 6 faces for each cube.
+const CUBE_FACES_COUNT: usize = 6;
 
-lazy_static! {
-
-    pub static ref VERTEX_DATA: [Vertex; 4] = [
-        Vertex { pos: Point3F::new( 1.0,  1.0,  0.0), uv: Point2F::new(1.0, 1.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v0
-        Vertex { pos: Point3F::new(-1.0,  1.0,  0.0), uv: Point2F::new(0.0, 1.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v1
-        Vertex { pos: Point3F::new(-1.0, -1.0,  0.0), uv: Point2F::new(0.0, 0.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v2
-        Vertex { pos: Point3F::new( 1.0, -1.0,  0.0), uv: Point2F::new(1.0, 0.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v3
-    ];
-
-    pub static ref INDEX_DATA: [vkuint; 6] = [0,1,2, 2,3,0];
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct Vertex {
-    pos: Point3F,
-    uv : Point2F,
-    normal: Vector3F,
-}
-
-impl Vertex {
-
-    pub fn input_description() -> VertexInputSCI {
-
-        VertexInputSCI::new()
-            .add_binding(vk::VertexInputBindingDescription {
-                binding: 0,
-                stride : ::std::mem::size_of::<Vertex>() as _,
-                input_rate: vk::VertexInputRate::VERTEX,
-            })
-            .add_attribute(vk::VertexInputAttributeDescription {
-                location: 0,
-                binding : 0,
-                format  : vk::Format::R32G32B32_SFLOAT,
-                offset  : memoffset::offset_of!(Vertex, pos) as _,
-            })
-            .add_attribute(vk::VertexInputAttributeDescription {
-                location: 1,
-                binding : 0,
-                format  : vk::Format::R32G32_SFLOAT,
-                offset  : memoffset::offset_of!(Vertex, uv) as _,
-            }).add_attribute(vk::VertexInputAttributeDescription {
-                location: 2,
-                binding : 0,
-                format  : vk::Format::R32G32B32_SFLOAT,
-                offset  : memoffset::offset_of!(Vertex, normal) as _,
-            })
-    }
-}
 
 pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> {
 
@@ -115,23 +71,24 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
     Ok((vertex_buffer, index_buffer))
 }
 
-
+/*
+    layout (binding = 0) uniform UBO  {
+        mat4 projection;
+        mat4 model;
+        float lodBias;
+    } ubo;
+*/
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct UboVS {
     pub projection: Matrix4F,
     pub model     : Matrix4F,
-    pub view_pos  : Point4F,
     pub lod_bias  : f32,
-}
-
-pub struct UboVSData {
-    pub content: [UboVS; 1],
 }
 
 impl UboVSData {
 
-    pub fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, UboVSData)> {
+    pub fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, [UboVS; 1])> {
 
         let buffer_ci = BufferCI::new(mem::size_of::<UboVSData>() as vkbytes)
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
@@ -161,7 +118,7 @@ impl UboVSData {
 }
 
 /// `Texture` contains all Vulkan objects that are required to store and use a texture.
-pub struct Texture {
+pub struct TextureCube {
     pub sampler: vk::Sampler,
     pub image  : VmaImage,
     pub view   : vk::ImageView,
@@ -172,61 +129,48 @@ pub struct Texture {
     pub mip_levels: vkuint,
 }
 
+fn load_textures(device: &mut VkDevice) -> VkResult<TextureCube> {
 
-/*
-    SaschaWillems's comment:
+    // Sascha Willems's comment:
+    // Vulkan core supports three different compressed texture formats
+    // As the support differs between implementations, we need to check device features and select a proper format and file.
 
-    Upload texture image data to the GPU
+    let (texture_path, texture_format) = if device.phy.features_enabled().texture_compression_bc == vk::TRUE {
+        (Path::new(CUBEMAP_TEXTURE_COMPRESSION_BC_PATH), vk::Format::BC2_UNORM_BLOCK)
+    } else if device.phy.features_enabled().texture_compression_astc_ldr == vk::TRUE {
+        (Path::new(CUBEMAP_TEXTURE_COMPRESSION_ASTC_LDR_PATH), vk::Format::ASTC_8X8_UNORM_BLOCK)
+    } else if device.phy.features_enabled().texture_compression_etc2 == vk::TRUE {
+        (Path::new(CUBEMAP_TEXTURE_COMPRESSION_ETC2_PATH), vk::Format::ETC2_R8G8B8_UNORM_BLOCK)
+    } else {
+        return Err(VkError::unsupported("Device does not support any compressed texture format!"))
+    };
 
-    Vulkan offers two types of image tiling (memory layout):
+    TextureCube::load_ktx(device, texture_path, texture_format)
+}
 
-    Linear tiled images:
-        These are stored as is and can be copied directly to. But due to the linear nature they're not a good match for GPUs and format and feature support is very limited.
-        It's not advised to use linear tiled images for anything else than copying from host to GPU if buffer copies are not an option.
-        Linear tiling is thus only implemented for learning purposes, one should always prefer optimal tiled image.
+impl TextureCube {
 
-    Optimal tiled images:
-        These are stored in an implementation specific layout matching the capability of the hardware. They usually support more formats and features and are much faster.
-        Optimal tiled images are stored on the device and not accessible by the host. So they can't be written directly to (like liner tiled images) and always require
-        some sort of data copy, either from a buffer or	a linear tiled image.
-
-    In Short: Always use optimal tiled images for rendering.
-*/
-
-impl Texture {
-
-    pub fn load_ktx(device: &mut VkDevice, texture_path: impl AsRef<Path>) -> VkResult<Texture> {
+    pub fn load_ktx(device: &mut VkDevice, texture_path: &impl AsRef<Path>, format: vk::Format) -> VkResult<TextureCube> {
 
         use gli::GliTexture;
 
-        // For more detail about ktx format, visit https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/ .
-        // Texture data contains 4 channels (RGBA) with unnormalized 8-bit values, this is the most commonly supported format.
-        let format = vk::Format::R8G8B8A8_UNORM;
-
-        let tex_2d: gli::Texture2D = gli::load_ktx(texture_path)
+        let tex_cube: gli::TextureCube = gli::load_ktx(texture_path)
             .map_err(VkErrorKind::Gli)?;
 
-        debug_assert!(!tex_2d.empty());
+        debug_assert!(!tex_cube.empty());
 
-        let (width, height) = {
+        let (width, height, mip_levels) = {
             // get the base level image in this texture.
-            let base_image = tex_2d.get_level(0);
-            (base_image.extent()[0], base_image.extent()[1])
+            let base_extent = tex_cube.extent(0);
+            (base_extent[0], base_extent[1], tex_cube.levels() as vkuint)
         };
-
-        // Here we use staging buffer to create optimal image on DEVICE_LOCAL memory.
-        // For initialize detail of linear tiling image, please visit
-        // https://github.com/SaschaWillems/Vulkan/blob/master/examples/texture/texture.cpp#L159.
-
-        // copy data to an optimal tiled image.
-        // this loads the texture data into a host local buffer that is copied to the optimal tiled image on the device.
 
         let staging_buffer = {
 
             // create a host-visible staging buffer that contains the raw image data.
             // this buffer will be the data source for copying texture data to the optimal tiled image on the device.
 
-            let staging_ci = BufferCI::new(tex_2d.size() as vkbytes)
+            let staging_ci = BufferCI::new(tex_cube.size() as vkbytes)
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let staging_allocation = device.vma.create_buffer(
@@ -239,7 +183,7 @@ impl Texture {
             debug_assert_ne!(data_ptr, ptr::null_mut());
 
             unsafe {
-                data_ptr.copy_from(tex_2d.data() as *const u8, tex_2d.size());
+                data_ptr.copy_from(tex_cube.data() as *const u8, tex_cube.size());
             }
 
             device.vma.unmap_memory(&staging_allocation.1)
@@ -248,43 +192,15 @@ impl Texture {
             VmaBuffer::from(staging_allocation)
         };
 
-        // setup buffer copy regions for each mip level.
-        let mut buffer_copy_regions = Vec::with_capacity(tex_2d.levels());
-        let mut staging_offset = 0;
-
-        for i in 0..tex_2d.levels() {
-
-            let image_level_i = tex_2d.get_level(i);
-
-            let copy_region = vk::BufferImageCopy {
-                buffer_offset: staging_offset,
-                // specify the following two member to 0 to tell vulkan the image is tightly packed.
-                buffer_row_length  : 0,
-                buffer_image_height: 0,
-                image_subresource: vk::ImageSubresourceLayers {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    mip_level: i as vkuint,
-                    base_array_layer: 0,
-                    layer_count     : 1,
-                },
-                image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
-                image_extent: vk::Extent3D {
-                    width : image_level_i.extent()[0],
-                    height: image_level_i.extent()[1],
-                    depth : 1,
-                },
-            };
-
-            buffer_copy_regions.push(copy_region);
-            staging_offset += image_level_i.size() as vkbytes;
-        }
-
         // create optimal tiled target image on the device.
         let dst_image = {
 
             let image_ci = ImageCI::new_2d(format, vk::Extent2D { width, height })
-                .mip_levels(tex_2d.levels() as vkuint)
-                .array_layers(1)
+                // This flag is required for cube map images.
+                .flags(vk::ImageCreateFlags::CUBE_COMPATIBLE)
+                // Cube faces count as array layers in Vulkan.
+                .array_layers(CUBE_FACES_COUNT as vkuint)
+                .mip_levels(mip_levels)
                 .samples(vk::SampleCountFlags::TYPE_1)
                 .tiling(vk::ImageTiling::OPTIMAL)
                 .initial_layout(vk::ImageLayout::UNDEFINED)
@@ -300,28 +216,61 @@ impl Texture {
         };
 
 
+        // setup buffer copy regions for each face including all of it's mip level.
+        let mut buffer_copy_regions = Vec::with_capacity(tex_cube.levels() * CUBE_FACES_COUNT);
+        let mut staging_offset = 0;
+
+        for face in 0..CUBE_FACES_COUNT {
+
+            let cube_face = tex_cube.get_face(face);
+
+            for level in 0..tex_cube.levels() {
+
+                let image_level_i = cube_face.get_level(level);
+
+                let copy_region = vk::BufferImageCopy {
+                    buffer_offset: staging_offset,
+                    // specify the following two member to 0 to tell vulkan the image is tightly packed.
+                    buffer_row_length  : 0,
+                    buffer_image_height: 0,
+                    image_subresource: vk::ImageSubresourceLayers {
+                        aspect_mask: vk::ImageAspectFlags::COLOR,
+                        mip_level: level as vkuint,
+                        base_array_layer: face as vkuint,
+                        layer_count     : 1,
+                    },
+                    image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+                    image_extent: vk::Extent3D {
+                        width : image_level_i.extent()[0],
+                        height: image_level_i.extent()[1],
+                        depth : 1,
+                    },
+                };
+
+                buffer_copy_regions.push(copy_region);
+                // Increase offset into staging buffer for next level/face.
+                staging_offset += image_level_i.size() as vkbytes;
+            }
+        }
+
+
         {
-            // The sub resource range describes the regions of the image that will be transitioned using the memory barriers below.
+            // Set barrier range between levels and layers across all the cube map image.
             let sub_range = vk::ImageSubresourceRange {
-                // Image only contains color data.
                 aspect_mask: vk::ImageAspectFlags::COLOR,
-                // Start at first mip level.
                 base_mip_level: 0,
-                // We will transition on all mip levels.
-                level_count: tex_2d.levels() as vkuint,
+                level_count   : mip_levels,
                 base_array_layer: 0,
-                // The 2D texture only has one layer.
-                layer_count: 1,
+                layer_count     : CUBE_FACES_COUNT as vkuint,
             };
 
             // image memory barriers for the texture image. -------------
 
-            // Transition the texture image layout to transfer target, so we can safely copy our buffer data to it.
             let barrier1 = ImageBarrierCI::new(dst_image.handle, sub_range)
                 .access_mask(vk::AccessFlags::empty(), vk::AccessFlags::TRANSFER_WRITE)
                 .layout(vk::ImageLayout::UNDEFINED, vk::ImageLayout::TRANSFER_DST_OPTIMAL);
 
-            // Once the data has been uploaded we transfer to the texture image to the shader read layout, so it can be sampled from.
+            // change texture image layout to shader read after all faces have been copied.
             let barrier2 = ImageBarrierCI::new(dst_image.handle, sub_range)
                 .access_mask(vk::AccessFlags::TRANSFER_WRITE, vk::AccessFlags::SHADER_READ)
                 .layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
@@ -331,15 +280,8 @@ impl Texture {
             let copy_recorder = device.get_transfer_recorder();
 
             copy_recorder.begin_record()?
-                // Insert a memory dependency at the proper pipeline stages that will execute the image layout transition.
-                // Source pipeline stage is host write/read execution (vk::PipelineStageFlags::HOST)
-                // Destination pipeline stage is copy command execution (vk::PipelineStageFlags::TRANSFER)
                 .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.value()])
-                // Copy mip levels from staging buffer.
                 .copy_buf2img(staging_buffer.handle, dst_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &buffer_copy_regions)
-                // Insert a memory dependency at the proper pipeline stages that will execute the image layout transition.
-                // Source pipeline stage stage is copy command execution (vk::PipelineStageFlags::TRANSFER).
-                // Destination pipeline stage fragment shader access (vk::PipelineStageFlags::FRAGMENT_SHADER).
                 .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::FRAGMENT_SHADER, vk::DependencyFlags::empty(), &[barrier2.value()])
                 .end_record()?;
 
@@ -353,23 +295,15 @@ impl Texture {
 
         let dst_sampler = {
 
-            // Create a texture sampler.
-            // In Vulkan textures are accessed by samplers.
-            // This separates all the sampling information from the texture data.
-            // This means you could have multiple sampler objects for the same texture with different settings.
-
             let mut sampler_ci = SamplerCI::new()
                 .filter(vk::Filter::LINEAR, vk::Filter::LINEAR)
-                .mipmap(vk::SamplerMipmapMode::LINEAR, vk::SamplerAddressMode::REPEAT, vk::SamplerAddressMode::REPEAT, vk::SamplerAddressMode::REPEAT)
-                // Set max level-of-detail to mip level count of the texture.
-                .lod(0.0, 0.0, tex_2d.levels() as vkfloat)
+                .mipmap(vk::SamplerMipmapMode::LINEAR)
+                .address(vk::SamplerAddressMode::CLAMP_TO_EDGE, vk::SamplerAddressMode::CLAMP_TO_EDGE, vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .lod(0.0, 0.0, mip_levels as vkfloat)
                 .compare_op(Some(vk::CompareOp::NEVER))
                 .border_color(vk::BorderColor::FLOAT_OPAQUE_WHITE);
 
-            // Enable anisotropic filtering.
-            // This feature is optional, so we must check if it's supported on the device.
             if device.phy.features_enabled().sampler_anisotropy == vk::TRUE {
-                // Use max level of anisotropy for this example.
                 sampler_ci = sampler_ci.anisotropy(Some(device.phy.limits.max_sampler_anisotropy));
             } else {
                 sampler_ci = sampler_ci.anisotropy(None);
@@ -380,34 +314,28 @@ impl Texture {
 
         let dst_image_view = {
 
-            // Create image view.
-            // Textures are not directly accessed by the shaders and are abstracted by image views containing additional.
-            // information and sub resource ranges.
-
-            ImageViewCI::new(dst_image.handle, vk::ImageViewType::TYPE_2D, format)
+            ImageViewCI::new(dst_image.handle, vk::ImageViewType::CUBE, format)
                 .components(vk::ComponentMapping {
                     r: vk::ComponentSwizzle::R,
                     g: vk::ComponentSwizzle::G,
                     b: vk::ComponentSwizzle::B,
                     a: vk::ComponentSwizzle::A,
                 })
-                // The subresource range describes the set of mip levels (and array layers) that can be accessed through this image view.
-                // It's possible to create multiple image views for a single image referring to different (and/or overlapping) ranges of the image.
                 .aspect_mask(vk::ImageAspectFlags::COLOR)
-                // Linear tiling usually won't support mip maps. Only set mip map count if optimal tiling is used.
-                .mip_level(0, tex_2d.levels() as vkuint)
-                .array_layers(0, 1)
+                // set number of mip levels.
+                .mip_level(0, mip_levels)
+                // 6 array layers(faces)
+                .array_layers(0, CUBE_FACES_COUNT as vkuint)
                 .build(device)?
         };
 
 
-        let result = Texture {
+        let result = TextureCube {
             sampler: dst_sampler,
             image  : dst_image,
             view   : dst_image_view,
             layout : vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            mip_levels: tex_2d.levels() as vkuint,
-            width, height,
+            width, height, mip_levels,
         };
         Ok(result)
     }

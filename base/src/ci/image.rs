@@ -392,11 +392,14 @@ impl SamplerCI {
     }
 
     /// `mode` specifies the mipmap filter to apply to lookups.
-    ///
+    #[inline(always)]
+    pub fn mipmap(mut self, mode: vk::SamplerMipmapMode) -> SamplerCI {
+        self.ci.mipmap_mode = mode; self
+    }
+
     /// `u`, `v` and `w` specifies the addressing mode for outside [0..1] range for U, V, W coordinate.
     #[inline(always)]
-    pub fn mipmap(mut self, mode: vk::SamplerMipmapMode, u: vk::SamplerAddressMode, v: vk::SamplerAddressMode, w: vk::SamplerAddressMode) -> SamplerCI {
-        self.ci.mipmap_mode = mode;
+    pub fn address(mut self, u: vk::SamplerAddressMode, v: vk::SamplerAddressMode, w: vk::SamplerAddressMode) -> SamplerCI {
         self.ci.address_mode_u = u;
         self.ci.address_mode_v = v;
         self.ci.address_mode_w = w; self

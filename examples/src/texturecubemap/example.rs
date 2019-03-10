@@ -5,8 +5,6 @@ use std::ptr;
 use std::mem;
 use std::path::Path;
 
-use arrayvec::ArrayVec;
-
 use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
@@ -15,30 +13,28 @@ use vkbase::gltf::VkglTFModel;
 use vkbase::texture::Texture2D;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkbytes, vkptr, Point3F, Matrix4F, Vector3F};
+use vkbase::{vkbytes, vkfloat, vkptr, Point3F, Matrix4F, Vector3F};
 use vkbase::{VkResult, VkErrorKind};
 
 use vkexamples::VkExampleBackend;
 
-const VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/descriptorsets/cube.vert.glsl";
-const FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/descriptorsets/cube.frag.glsl";
+const SKY_BOX_VERTEX_SHADER_SOURCE_PATH  : &'static str = "examples/src/descriptorsets/skybox.vert.glsl";
+const SKY_BOX_FRAGMENT_SHADER_SOURCE_PATH: &'static str = "examples/src/descriptorsets/skybox.frag.glsl";
 
 const CUBE_MODEL_PATH: &'static str = "assets/models/cube.gltf";
+
 const CUBE_COUNT: usize = 2;
 const CUBE_TEXTURE_PATHS: [&'static str; CUBE_COUNT] = [
     "assets/textures/crate01_color_height_rgba.ktx",
     "assets/textures/crate02_color_height_rgba.ktx",
 ];
 
-// TODO: Check box to toggle animation is not yet implemented.
-const IS_ANIMATE: bool = true;
-
 
 pub struct VulkanExample {
 
     backend: VkExampleBackend,
 
-    model: VkglTFModel,
+    skybox: VkglTFModel,
 
     cubes: ArrayVec<[Cube; 2]>,
 
@@ -48,11 +44,6 @@ pub struct VulkanExample {
     camera: FlightCamera,
 
     is_toggle_event: bool,
-}
-
-struct PipelineStaff {
-    pipeline: vk::Pipeline,
-    layout: vk::PipelineLayout,
 }
 
 impl VulkanExample {
@@ -275,115 +266,19 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 }
 
 
-/// The uniform structure for each descriptor set.
-///
-/// layout (set = 0, binding = 0) uniform UBOMatrices {
-///     mat4 projection;
-///     mat4 view;
-///     mat4 model;
-/// } ubo;
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-struct UBOMatrices {
-    projection: Matrix4F,
-    view      : Matrix4F,
-    model     : Matrix4F,
-}
-
-struct Cube {
-    matrices: UBOMatrices,
-    descriptor_set: vk::DescriptorSet,
-    uniform_buffer: VmaBuffer,
-    texture : Texture2D,
-    rotation: Vector3F,
-}
-
-
-fn prepare_uniform(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<ArrayVec<[Cube; 2]>> {
-
-    let mut cubes = ArrayVec::new();
-
-    for i in 0..CUBE_COUNT {
-
-        let ubo_buffer = {
-            let uniform_ci = BufferCI::new(mem::size_of::<UBOMatrices>() as vkbytes)
-                .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
-            let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
-                .flags(vma::AllocationCreateFlags::MAPPED);
-            let uniform_allocation = device.vma.create_buffer(&uniform_ci.value(), allocation_ci.as_ref())
-                .map_err(VkErrorKind::Vma)?;
-
-            VmaBuffer::from(uniform_allocation)
-        };
-
-        let cube = Cube {
-            matrices: UBOMatrices {
-                projection: camera.proj_matrix(),
-                model     : Matrix4F::identity(),
-                view      : camera.view_matrix(),
-            },
-            // the descriptor_set member will be set in setup_descriptor() method.
-            descriptor_set: vk::DescriptorSet::null(),
-            uniform_buffer: ubo_buffer,
-            texture : Texture2D::load_ktx(device, Path::new(CUBE_TEXTURE_PATHS[i]), vk::Format::R8G8B8A8_UNORM)?,
-            rotation: Vector3F::new(0.0, 0.0, 0.0),
-        };
-        cubes.push(cube);
-    }
-
-    Ok(cubes)
-}
-
 struct DescriptorStaff {
     pool   : vk::DescriptorPool,
     layout : vk::DescriptorSetLayout,
 }
 
-
-/*
-    SaschaWillems's comment:
-
-    Descriptor set layout
-
-    The layout describes the shader bindings and types used for a certain descriptor layout and as such must match the shader bindings
-
-    Shader bindings used in this example:
-
-    VS:
-        layout (set = 0, binding = 0) uniform UBOMatrices ...
-        layout (set = 0, binding = 1) uniform DynNode ...
-
-    FS :
-        layout (set = 0, binding = 2) uniform sampler2D ...;
-
-*/
 fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &VkglTFModel) -> VkResult<DescriptorStaff> {
 
     use vkbase::ci::descriptor::{DescriptorPoolCI, DescriptorSetLayoutCI};
     use vkbase::ci::descriptor::{DescriptorSetAI, DescriptorBufferSetWI, DescriptorImageSetWI, DescriptorSetsUpdateCI};
 
-    /*
-        SaschaWillems's comment:
-
-        Descriptor pool
-
-        Actual descriptors are allocated from a descriptor pool telling the driver what types and how many
-        descriptors this application will use.
-
-        An application can have multiple pools (e.g. for multiple threads) with any number of descriptor types
-        as long as device limits are not surpassed.
-
-        It's good practice to allocate pools with actually required descriptor types and counts.
-
-    */
-    // Descriptor Pool.
-    // Max. number of descriptor sets that can be allocated from this pool (one per object).
     let descriptor_pool = DescriptorPoolCI::new(CUBE_COUNT as _)
-        // Uniform buffers: 1 per object.
         .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER, CUBE_COUNT as _)
-        // Dynamic uniform buffers: 1 per object.
         .add_descriptor(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC, CUBE_COUNT as _)
-        // Combined image samples : 1 per mesh texture(in the example, 1 mesh per object).
         .add_descriptor(vk::DescriptorType::COMBINED_IMAGE_SAMPLER, CUBE_COUNT as _)
         .build(device)?;
 
@@ -398,13 +293,9 @@ fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &
         } ubo;
     */
     let ubo_descriptor = vk::DescriptorSetLayoutBinding {
-        // Shader binding point.
         binding: 0,
-        // The type of descriptor to bind.
         descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
-        // Binding contains one element (can be used for array bindings).
         descriptor_count: 1,
-        // Accessible from the vertex shader only (flags can be combined to make it accessible to multiple shader stages).
         stage_flags: vk::ShaderStageFlags::VERTEX,
         p_immutable_samplers: ptr::null(),
     };
@@ -445,17 +336,6 @@ fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &
         .add_binding(sampler_descriptor)
         .build(device)?;
 
-    /*
-        SaschaWillems's comment:
-
-        Descriptor sets
-
-        Using the shared descriptor set layout and the descriptor pool we will now allocate the descriptor sets.
-
-        Descriptor sets contain the actual descriptor fo the objects (buffers, images) used at render time.
-
-    */
-
     for i in 0..CUBE_COUNT {
 
         let mut descriptor_sets = DescriptorSetAI::new(descriptor_pool)
@@ -478,18 +358,6 @@ fn setup_descriptor(device: &VkDevice, cubes: &mut ArrayVec<[Cube; 2]>, model: &
         // Binding 2: Object texture.
         let sampler_write_info = DescriptorImageSetWI::new(cubes[i].descriptor_set, 2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
             .add_image(cubes[i].texture.descriptor);
-
-        /*
-            SaschaWillems's comment:
-
-            Execute the writes to update descriptors for this set.
-
-            Note that it's also possible to gather all writes and only run updates once, even for multiple sets.
-
-            This is possible because each VkWriteDescriptorSet also contains the destination set to be updated.
-
-            For simplicity we will update once per set instead.
-        */
 
         DescriptorSetsUpdateCI::new()
             .add_write(ubo_write_info.value())
@@ -542,6 +410,13 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
         .build(device)?;
 
     Ok(render_pass)
+}
+
+
+struct PipelineStaff {
+    skybox : vk::Pipeline,
+    reflect: vk::Pipeline,
+    layout: vk::PipelineLayout,
 }
 
 fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::RenderPass, set_layout: vk::DescriptorSetLayout) -> VkResult<PipelineStaff> {

@@ -70,6 +70,11 @@ path = "src/specializationconstants/main.rs"
 [[bin]]
 name = "texture"
 path = "src/texture/main.rs"
+
+# 09 - Cube map textures
+[[bin]]
+name = "texturecubemap"
+path = "src/texturecubemap/main.rs"
 # -----------------------------------------------------
 
 

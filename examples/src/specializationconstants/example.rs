@@ -77,7 +77,7 @@ impl VulkanExample {
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let model = prepare_model(device)?;
-        let color_map = Texture2D::load(device, Path::new(TEXTURE_PATH), vk::Format::R8G8B8A8_UNORM)?;
+        let color_map = Texture2D::load_ktx(device, Path::new(TEXTURE_PATH), vk::Format::R8G8B8A8_UNORM)?;
         let ubo_buffer = prepare_uniform(device)?;
         let descriptors = setup_descriptor(device, &ubo_buffer, &model, &color_map)?;
 

@@ -59,7 +59,7 @@ impl VulkanExample {
 
         let (vertices, indices) = super::data::generate_quad(device)?;
         let (ubo_buffer, ubo_data) = UboVSData::prepare_buffer(device, &camera)?;
-        let texture = Texture::load(device, Path::new(TEXTURE_PATH))?;
+        let texture = Texture::load_ktx(device, Path::new(TEXTURE_PATH))?;
 
         let descriptors = setup_descriptor(device, &ubo_buffer, &texture)?;
 
