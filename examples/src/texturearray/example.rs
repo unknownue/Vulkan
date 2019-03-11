@@ -7,17 +7,15 @@ use std::path::Path;
 use vkbase::context::{VulkanContext, VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::vma::VmaBuffer;
-use vkbase::utils::color::VkColor;
-use vkbase::ui::{TextInfo, TextType, TextHAlign};
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkuint, vkptr, Point3F, Point4F};
+use vkbase::{vkuint, vkptr, Point3F};
 use vkbase::VkResult;
 
 use vkexamples::VkExampleBackend;
-use crate::data::{INDEX_DATA, Vertex, UboVSData, TextureArray};
+use crate::data::{INDEX_DATA, Vertex, UboVS, TextureArray};
 
-const SHADER_VERTEX_PATH  : &'static str = "examples/src/texture/texture.vert.glsl";
-const SHADER_FRAGMENT_PATH: &'static str = "examples/src/texture/texture.frag.glsl";
+const SHADER_VERTEX_PATH  : &'static str = "examples/src/texturearray/instancing.vert.glsl";
+const SHADER_FRAGMENT_PATH: &'static str = "examples/src/texturearray/instancing.frag.glsl";
 
 pub struct VulkanExample {
 
@@ -28,14 +26,13 @@ pub struct VulkanExample {
     indices : VmaBuffer,
 
     ubo_buffer: VmaBuffer,
-    ubo_data: UboVSData,
+    ubo_data: UboVS,
 
     texture: TextureArray,
 
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
 
-    lod_text_id: usize,
     is_toggle_event: bool,
 }
 
@@ -57,8 +54,8 @@ impl VulkanExample {
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let (vertices, indices) = super::data::generate_quad(device)?;
-        let (ubo_buffer, ubo_data) = UboVSData::prepare_buffer(device, &camera)?;
-        let texture = TextureArray::load_ktx(device, Path::new(TEXTURE_PATH))?;
+        let texture = TextureArray::load(device)?;
+        let (ubo_buffer, ubo_data) = UboVS::prepare_buffer(device, &camera, &texture)?;
 
         let descriptors = setup_descriptor(device, &ubo_buffer, &texture)?;
 
@@ -68,8 +65,7 @@ impl VulkanExample {
             backend, descriptors, pipelines, camera,
             vertices, indices, texture,
             ubo_buffer, ubo_data,
-            lod_text_id: 0,
-            is_toggle_event: true,
+            is_toggle_event: false,
         };
         Ok(target)
     }
@@ -81,18 +77,8 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
         self.backend.set_basic_ui(device, super::WINDOW_TITLE)?;
 
-        let lod_text = TextInfo {
-            content: format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.content[0].lod_bias),
-            scale: 14.0,
-            align: TextHAlign::Left,
-            color: VkColor::WHITE,
-            location: vk::Offset2D { x: 5, y: 140 },
-            r#type: TextType::Dynamic { capacity: 40 },
-        };
-        self.lod_text_id = self.backend.ui_renderer.add_text(lod_text)?;
-
-        self.update_uniforms()?;
         self.record_commands(device, self.backend.dimension)?;
+
         Ok(())
     }
 
@@ -134,20 +120,6 @@ impl vkbase::RenderWorkflow for VulkanExample {
 
             self.is_toggle_event = true;
             self.camera.receive_input(inputer, delta_time);
-
-            if inputer.key.is_key_pressed(winit::VirtualKeyCode::Equals) && self.ubo_data.content[0].lod_bias < self.texture.mip_levels as f32 {
-
-                self.ubo_data.content[0].lod_bias += 0.05;
-                self.backend.ui_renderer.change_text(
-                    format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.content[0].lod_bias),
-                    self.lod_text_id);
-            } else if inputer.key.is_key_pressed(winit::VirtualKeyCode::Minus) && self.ubo_data.content[0].lod_bias > 0.0 {
-
-                self.ubo_data.content[0].lod_bias -= 0.05;
-                self.backend.ui_renderer.change_text(
-                    format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.content[0].lod_bias),
-                    self.lod_text_id);
-            }
         } else {
             self.is_toggle_event = false;
         }
@@ -213,7 +185,7 @@ impl VulkanExample {
                 .bind_descriptor_sets(self.pipelines.layout, 0, &[self.descriptors.set], &[])
                 .bind_vertex_buffers(0, &[self.vertices.handle], &[0])
                 .bind_index_buffer(self.indices.handle, vk::IndexType::UINT32, 0)
-                .draw_indexed(INDEX_DATA.len() as vkuint, 1, 0, 0, 0);
+                .draw_indexed(INDEX_DATA.len() as vkuint, self.texture.layer_count, 0, 0, 0);
 
             self.backend.ui_renderer.record_command(&recorder);
 
@@ -228,11 +200,8 @@ impl VulkanExample {
 
         if self.is_toggle_event {
 
-            let camera_pos = self.camera.current_position();
-            self.ubo_data.content[0].view_pos = Point4F::new(camera_pos.x, camera_pos.y, camera_pos.z, 0.0);
-            self.ubo_data.content[0].model = self.camera.view_matrix();
-
-            vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.content);
+            self.ubo_data.matrices[0].view = self.camera.view_matrix();
+            vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.matrices);
         }
 
         Ok(())
@@ -258,12 +227,12 @@ fn setup_descriptor(device: &VkDevice, ubo_buffer: &VmaBuffer, texture: &Texture
         .add_descriptor(vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1)
         .build(device)?;
 
-    // in texture.vert.glsl:
-    // layout (set = 0, binding = 0) uniform UBO {
+    // in instancing.vert.glsl:
+    //
+    // layout(set = 0, binding = 0) uniform UBO {
     //     mat4 projection;
-    //     mat4 model;
-    //     vec4 viewPos;
-    //     float lodBias;
+    //     mat4 view;
+    //     Instance instance[8];
     // } ubo;
     let ubo_descriptor = vk::DescriptorSetLayoutBinding {
         binding: 0,
@@ -273,8 +242,9 @@ fn setup_descriptor(device: &VkDevice, ubo_buffer: &VmaBuffer, texture: &Texture
         p_immutable_samplers: ptr::null(),
     };
 
-    // in texture.frag.glsl:
-    // layout (binding = 1) uniform sampler2D samplerColor;
+    // in instancing.frag.glsl:
+    //
+    // layout(set = 0, binding = 1) uniform sampler2DArray samplerArray;
     let sampler_descriptor = vk::DescriptorSetLayoutBinding {
         binding: 1,
         descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
@@ -304,11 +274,8 @@ fn setup_descriptor(device: &VkDevice, ubo_buffer: &VmaBuffer, texture: &Texture
     // Setup a descriptor image info for the current texture to be used as a combined image sampler.
     let sampler_write = DescriptorImageSetWI::new(descriptor_set, 1, vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
         .add_image(vk::DescriptorImageInfo {
-            // The sampler (Telling the pipeline how to sample the texture, including repeat, border, etc.)
             sampler      : texture.sampler,
-            // The image's view (images are never directly accessed by the shader, but rather through views defining subresources).
             image_view   : texture.view,
-            // The current layout of the image (Note: Should always fit the actual use, e.g. shader read).
             image_layout : texture.layout,
         });
 
@@ -379,7 +346,7 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, set_layout:
 
     let rasterization_state = RasterizationSCI::new()
         .polygon(vk::PolygonMode::FILL)
-        .cull_face(vk::CullModeFlags::NONE, vk::FrontFace::CLOCKWISE);
+        .cull_face(vk::CullModeFlags::NONE, vk::FrontFace::COUNTER_CLOCKWISE);
 
     let blend_attachment = BlendAttachmentSCI::new().value();
     let blend_state = ColorBlendSCI::new()

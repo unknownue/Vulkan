@@ -17,7 +17,8 @@ use vkbase::context::VkDevice;
 use vkbase::command::CmdTransferApi;
 use vkbase::FlightCamera;
 
-use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Point4F, Point3F, Point2F, Vector3F, Matrix4F};
+use vkbase::utils::memory::copy_to_ptr;
+use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Point3F, Point2F, Vector3F, Vector4F, Matrix4F};
 use vkbase::{VkResult, VkError, VkErrorKind};
 
 const TEXTURE_ARRAY_BC3_PATH      : &'static str = "assets/textures/texturearray_bc3_unorm.ktx";
@@ -27,10 +28,10 @@ const TEXTURE_ARRAY_ETC2_PATH     : &'static str = "assets/textures/texturearray
 lazy_static! {
 
     pub static ref VERTEX_DATA: [Vertex; 4] = [
-        Vertex { pos: Point3F::new( 1.0,  1.0,  0.0), uv: Point2F::new(1.0, 1.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v0
-        Vertex { pos: Point3F::new(-1.0,  1.0,  0.0), uv: Point2F::new(0.0, 1.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v1
-        Vertex { pos: Point3F::new(-1.0, -1.0,  0.0), uv: Point2F::new(0.0, 0.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v2
-        Vertex { pos: Point3F::new( 1.0, -1.0,  0.0), uv: Point2F::new(1.0, 0.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v3
+        Vertex { pos: Point3F::new( 2.5,  2.5,  0.0), uv: Point2F::new(1.0, 1.0) }, // v0
+        Vertex { pos: Point3F::new(-2.5,  2.5,  0.0), uv: Point2F::new(0.0, 1.0) }, // v1
+        Vertex { pos: Point3F::new(-2.5, -2.5,  0.0), uv: Point2F::new(0.0, 0.0) }, // v2
+        Vertex { pos: Point3F::new( 2.5, -2.5,  0.0), uv: Point2F::new(1.0, 0.0) }, // v3
     ];
 
     pub static ref INDEX_DATA: [vkuint; 6] = [0,1,2, 2,3,0];
@@ -41,7 +42,6 @@ lazy_static! {
 pub struct Vertex {
     pos: Point3F,
     uv : Point2F,
-    normal: Vector3F,
 }
 
 impl Vertex {
@@ -54,30 +54,27 @@ impl Vertex {
                 stride : ::std::mem::size_of::<Vertex>() as _,
                 input_rate: vk::VertexInputRate::VERTEX,
             })
+            // location 0: Position.
             .add_attribute(vk::VertexInputAttributeDescription {
                 location: 0,
                 binding : 0,
                 format  : vk::Format::R32G32B32_SFLOAT,
                 offset  : memoffset::offset_of!(Vertex, pos) as _,
             })
+            // location 1: Texture coordinates.
             .add_attribute(vk::VertexInputAttributeDescription {
                 location: 1,
                 binding : 0,
                 format  : vk::Format::R32G32_SFLOAT,
                 offset  : memoffset::offset_of!(Vertex, uv) as _,
-            }).add_attribute(vk::VertexInputAttributeDescription {
-                location: 2,
-                binding : 0,
-                format  : vk::Format::R32G32B32_SFLOAT,
-                offset  : memoffset::offset_of!(Vertex, normal) as _,
             })
     }
 }
 
 pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> {
 
-    // setup vertices for a single uv-mapped quad made from two triangles.
-    // for the sake of simplicity, we won't stage the vertex data to the gpu memory.
+    // Setup vertices for a single uv-mapped quad made from two triangles.
+    // For the sake of simplicity, we won't stage the vertex data to the gpu memory.
 
     use vkbase::utils::memory::copy_to_ptr;
 
@@ -119,47 +116,91 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 }
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct UboVS {
+    pub matrices: [UboMatrices; 1],
+    // Separate data for each instance.
+    pub instances: Vec<UboInstanceData>,
+}
+
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct UboMatrices {
     pub projection: Matrix4F,
-    pub model     : Matrix4F,
-    pub view_pos  : Point4F,
-    pub lod_bias  : f32,
+    pub view      : Matrix4F,
 }
 
-pub struct UboVSData {
-    pub content: [UboVS; 1],
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct UboInstanceData {
+    // model matrix.
+    pub model: Matrix4F,
+    // Texture array index(Vec4 due to padding).
+    pub array_index: Vector4F,
 }
 
-impl UboVSData {
+impl UboVS {
 
-    pub fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, UboVSData)> {
+    pub fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera, textures: &TextureArray) -> VkResult<(VmaBuffer, UboVS)> {
 
-        let buffer_ci = BufferCI::new(mem::size_of::<UboVSData>() as vkbytes)
-            .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
-        let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
-            .flags(vma::AllocationCreateFlags::MAPPED);
-        let buffer_allocation = device.vma.create_buffer(
-            &buffer_ci.value(), allocation_ci.as_ref())
-            .map_err(VkErrorKind::Vma)?;
+        let ubo_size = mem::size_of::<UboMatrices>() + (textures.layer_count as usize * mem::size_of::<UboInstanceData>());
 
-        let ubo_data = UboVSData {
-            content: [
-                UboVS {
-                    projection: camera.proj_matrix(),
-                    model     : Matrix4F::identity(),
-                    view_pos  : Point4F::new(0.0, 0.0, -2.5, 0.0),
-                    lod_bias  : 0.0,
-                },
-            ],
+        let ubo_buffer = {
+
+            let ubo_ci = BufferCI::new(ubo_size as vkbytes)
+                .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
+            let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
+                .flags(vma::AllocationCreateFlags::MAPPED);
+            let ubo_allocation = device.vma.create_buffer(
+                &ubo_ci.value(), allocation_ci.as_ref())
+                .map_err(VkErrorKind::Vma)?;
+
+            VmaBuffer::from(ubo_allocation)
         };
 
-        let data_ptr = buffer_allocation.2.get_mapped_data() as vkptr;
-        debug_assert_ne!(data_ptr, ptr::null_mut());
-        vkbase::utils::memory::copy_to_ptr(data_ptr, &ubo_data.content);
+        let ubo_data = {
 
-        Ok((VmaBuffer::from(buffer_allocation), ubo_data))
+            let mut ubo_data = UboVS {
+                matrices: [
+                    UboMatrices {
+                        projection: camera.proj_matrix(),
+                        view      : camera.view_matrix(),
+                    },
+                ],
+                instances: Vec::new(),
+            };
+
+            // Array indices and model matrices are fixed.
+            const OFFSET: vkfloat = -1.5;
+            let center = (textures.layer_count as vkfloat * OFFSET) / 2.0;
+
+            // Update instanced part of the uniform buffer.
+            for i in 0..textures.layer_count {
+                // instance model matrix.
+                let instance_data = UboInstanceData {
+                    model: Matrix4F::from_axis_angle(&Vector3F::x_axis(), ::std::f32::consts::FRAC_PI_3)
+                        * Matrix4F::new_translation(&Vector3F::new(0.0, (i as f32) * OFFSET - center, 0.0)),
+                    array_index: Vector4F::new(i as f32, 0.0, 0.0, 0.0),
+                };
+                ubo_data.instances.push(instance_data);
+            }
+
+            ubo_data
+        };
+
+        {
+            let data_ptr = ubo_buffer.info.get_mapped_data() as vkptr;
+            debug_assert_ne!(data_ptr, ptr::null_mut());
+            copy_to_ptr(data_ptr, &ubo_data.matrices);
+
+            unsafe {
+                let instance_ptr = data_ptr.offset(mem::size_of::<UboMatrices>() as isize);
+                copy_to_ptr(instance_ptr, &ubo_data.instances);
+            }
+        }
+
+        Ok((ubo_buffer, ubo_data))
     }
 }
 
@@ -178,7 +219,7 @@ pub struct TextureArray {
 
 impl TextureArray {
 
-    fn load(device: &mut VkDevice) -> VkResult<TextureArray> {
+    pub fn load(device: &mut VkDevice) -> VkResult<TextureArray> {
 
         // Sascha Willems's comment:
         // Vulkan core supports three different compressed texture formats.
@@ -239,13 +280,13 @@ impl TextureArray {
         };
 
         // setup buffer copy regions for each mip level.
-        let mut buffer_copy_regions = Vec::with_capacity(tex_2d.levels());
+        let mut buffer_copy_regions = Vec::with_capacity(layer_count as usize);
         let mut staging_offset = 0;
 
         for i in 0..layer_count {
 
             // Get a layer(Texture2D) from Texture2DArray.
-            let texture_layer_i: gli::Texture2D = tex_2d_array.get_layer(i);
+            let texture_layer_i: gli::Texture2D = tex_2d_array.get_layer(i as usize);
             // Get the base mip-level image of this layer.
             let base_level_image: gli::GliImage = texture_layer_i.get_level(0);
 
@@ -375,15 +416,6 @@ impl TextureArray {
             width, height, layer_count,
         };
         Ok(result)
-    }
-
-    #[inline]
-    pub fn descriptor(&self) -> vk::DescriptorImageInfo {
-        vk::DescriptorImageInfo {
-            sampler      : self.sampler,
-            image_view   : self.view,
-            image_layout : self.layout,
-        }
     }
 
     pub fn discard_by(self, device: &mut VkDevice) -> VkResult<()> {
