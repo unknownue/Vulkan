@@ -21,7 +21,7 @@ use vkbase::{VkResult, VkError, VkErrorKind};
 const CUBEMAP_TEXTURE_COMPRESSION_BC_PATH       : &'static str = "assets/textures/cubemap_yokohama_bc3_unorm.ktx";
 const CUBEMAP_TEXTURE_COMPRESSION_ASTC_LDR_PATH : &'static str = "assets/textures/cubemap_yokohama_astc_8x8_unorm.ktx";
 const CUBEMAP_TEXTURE_COMPRESSION_ETC2_PATH     : &'static str = "assets/textures/cubemap_yokohama_etc2_unorm.ktx";
-/// There are 6 faces for each cube.
+// There are 6 faces for each cube.
 const CUBE_FACES_COUNT: usize = 6;
 const CUBE_MODEL_PATH: &'static str = "assets/models/cube.gltf";
 
@@ -81,6 +81,10 @@ impl Skybox {
     }
 }
 
+
+
+
+
 /*
     layout (binding = 0) uniform UBO  {
         mat4 projection;
@@ -135,7 +139,7 @@ pub struct TextureCube {
 fn load_skybox_textures(device: &mut VkDevice) -> VkResult<TextureCube> {
 
     // Sascha Willems's comment:
-    // Vulkan core supports three different compressed texture formats
+    // Vulkan core supports three different compressed texture formats.
     // As the support differs between implementations, we need to check device features and select a proper format and file.
 
     let (texture_path, texture_format) = if device.phy.features_enabled().texture_compression_bc == vk::TRUE {
@@ -145,7 +149,7 @@ fn load_skybox_textures(device: &mut VkDevice) -> VkResult<TextureCube> {
     } else if device.phy.features_enabled().texture_compression_etc2 == vk::TRUE {
         (PathBuf::from(CUBEMAP_TEXTURE_COMPRESSION_ETC2_PATH), vk::Format::ETC2_R8G8B8_UNORM_BLOCK)
     } else {
-        return Err(VkError::unsupported("Device does not support any compressed texture format!"))
+        return Err(VkError::unsupported("Compressed texture format"))
     };
 
     TextureCube::load_ktx(device, texture_path, texture_format)

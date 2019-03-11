@@ -14,8 +14,8 @@ layout (location = 0) out vec4 outFragColor;
 
 void main() {
 
-	vec3 cI = normalize (inPos);
-	vec3 cR = reflect (cI, normalize(inNormal));
+	vec3 cI = normalize(inPos);
+	vec3 cR = reflect(cI, normalize(inNormal));
 
 	cR = vec3(inInvModelView * vec4(cR, 0.0));
 	cR.x *= -1.0;

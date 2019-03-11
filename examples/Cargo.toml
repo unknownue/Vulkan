@@ -75,6 +75,11 @@ path = "src/texture/main.rs"
 [[bin]]
 name = "texturecubemap"
 path = "src/texturecubemap/main.rs"
+
+# 10 - Texture arrays
+[[bin]]
+name = "texturearray"
+path = "src/texturearray/main.rs"
 # -----------------------------------------------------
 
 
