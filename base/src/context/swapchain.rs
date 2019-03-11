@@ -250,7 +250,13 @@ fn obtain_swapchain_images(device: &VkDevice, swapchain: vk::SwapchainKHR, loade
     for image_handle in image_handles.into_iter() {
 
         let image_view = ImageViewCI::new(image_handle, vk::ImageViewType::TYPE_2D, format.color_format)
-            .aspect_mask(vk::ImageAspectFlags::COLOR)
+            .sub_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            })
             .build(device)?;
 
         let swapchain_image = SwapchainImage {

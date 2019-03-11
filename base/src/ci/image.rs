@@ -231,20 +231,8 @@ impl ImageViewCI {
     }
 
     #[inline(always)]
-    pub fn aspect_mask(mut self, aspect: vk::ImageAspectFlags) -> ImageViewCI {
-        self.ci.subresource_range.aspect_mask = aspect; self
-    }
-
-    #[inline(always)]
-    pub fn mip_level(mut self, base_level: vkuint, level_count: vkuint) -> ImageViewCI {
-        self.ci.subresource_range.base_mip_level = base_level;
-        self.ci.subresource_range.level_count = level_count; self
-    }
-
-    #[inline(always)]
-    pub fn array_layers(mut self, base_layer: vkuint, layer_count: vkuint) -> ImageViewCI {
-        self.ci.subresource_range.base_array_layer = base_layer;
-        self.ci.subresource_range.layer_count = layer_count; self
+    pub fn sub_range(mut self, range: vk::ImageSubresourceRange) -> ImageViewCI {
+        self.ci.subresource_range = range; self
     }
 }
 

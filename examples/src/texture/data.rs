@@ -394,11 +394,14 @@ impl Texture {
                 })
                 // The subresource range describes the set of mip levels (and array layers) that can be accessed through this image view.
                 // It's possible to create multiple image views for a single image referring to different (and/or overlapping) ranges of the image.
-                .aspect_mask(vk::ImageAspectFlags::COLOR)
-                // Linear tiling usually won't support mip maps. Only set mip map count if optimal tiling is used.
-                .mip_level(0, tex_2d.levels() as vkuint)
-                .array_layers(0, 1)
-                .build(device)?
+                .sub_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    // Linear tiling usually won't support mip maps. Only set mip map count if optimal tiling is used.
+                    level_count   : tex_2d.levels() as vkuint,
+                    base_array_layer: 0,
+                    layer_count     : 1,
+                }).build(device)?
         };
 
 

@@ -196,9 +196,13 @@ impl Texture2D {
                 b: vk::ComponentSwizzle::B,
                 a: vk::ComponentSwizzle::A,
             })
-            .aspect_mask(vk::ImageAspectFlags::COLOR)
-            .mip_level(0, tex_2d.levels() as vkuint)
-            .array_layers(0, 1)
+            .sub_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: tex_2d.levels() as vkuint,
+                base_array_layer: 0,
+                layer_count: 1,
+            })
             .build(device)?;
 
 

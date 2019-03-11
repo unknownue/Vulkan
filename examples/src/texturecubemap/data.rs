@@ -328,12 +328,15 @@ impl TextureCube {
                     b: vk::ComponentSwizzle::B,
                     a: vk::ComponentSwizzle::A,
                 })
-                .aspect_mask(vk::ImageAspectFlags::COLOR)
-                // set number of mip levels.
-                .mip_level(0, mip_levels)
-                // 6 array layers(faces)
-                .array_layers(0, CUBE_FACES_COUNT as vkuint)
-                .build(device)?
+                .sub_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    // set number of mip levels.
+                    level_count   : mip_levels,
+                    base_array_layer: 0,
+                    // 6 array layers(faces)
+                    layer_count     : CUBE_FACES_COUNT as vkuint,
+                }).build(device)?
         };
 
 

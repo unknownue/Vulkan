@@ -78,8 +78,14 @@ impl GlyphImages {
 
         // Just store alpha value in the image.
         let glyph_view = ImageViewCI::new(glyph_image.handle, vk::ImageViewType::TYPE_2D, vk::Format::R8_UNORM)
-            .aspect_mask(vk::ImageAspectFlags::COLOR)
-            .build(device)?;
+            .sub_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count   : 1,
+                base_array_layer: 0,
+                layer_count     : 1,
+            }).build(device)?;
+
         let text_sampler = SamplerCI::new()
             .build(device)?;
 

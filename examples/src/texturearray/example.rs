@@ -7,6 +7,7 @@ use std::path::Path;
 use vkbase::context::{VulkanContext, VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::vma::VmaBuffer;
+use vkbase::utils::memory::copy_to_ptr;
 use vkbase::{FlightCamera, FrameAction};
 use vkbase::{vkuint, vkptr, Point3F};
 use vkbase::VkResult;
@@ -45,10 +46,10 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.0, 0.0, 2.5))
+            .place_at(Point3F::new(0.0, 0.0, 10.0))
             .screen_aspect_ratio(dimension.width as f32 / dimension.height as f32)
             .build();
-        camera.set_move_speed(5.0);
+        camera.set_move_speed(20.0);
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
@@ -201,7 +202,7 @@ impl VulkanExample {
         if self.is_toggle_event {
 
             self.ubo_data.matrices[0].view = self.camera.view_matrix();
-            vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.matrices);
+            copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.matrices);
         }
 
         Ok(())

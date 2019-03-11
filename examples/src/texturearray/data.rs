@@ -116,8 +116,7 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 }
 
 
-#[derive(Debug, Clone)]
-#[repr(C)]
+#[derive(Debug)]
 pub struct UboVS {
     pub matrices: [UboMatrices; 1],
     // Separate data for each instance.
@@ -172,15 +171,15 @@ impl UboVS {
             };
 
             // Array indices and model matrices are fixed.
-            const OFFSET: vkfloat = -1.5;
+            const OFFSET: vkfloat = -5.0;
             let center = (textures.layer_count as vkfloat * OFFSET) / 2.0;
 
             // Update instanced part of the uniform buffer.
             for i in 0..textures.layer_count {
                 // instance model matrix.
                 let instance_data = UboInstanceData {
-                    model: Matrix4F::from_axis_angle(&Vector3F::x_axis(), ::std::f32::consts::FRAC_PI_3)
-                        * Matrix4F::new_translation(&Vector3F::new(0.0, (i as f32) * OFFSET - center, 0.0)),
+                    model: Matrix4F::new_translation(&Vector3F::new(0.0, (i as f32) * OFFSET - center, 0.0)),
+                    // * Matrix4F::from_axis_angle(&Vector3F::x_axis(), ::std::f32::consts::FRAC_PI_3)
                     array_index: Vector4F::new(i as f32, 0.0, 0.0, 0.0),
                 };
                 ubo_data.instances.push(instance_data);
@@ -401,10 +400,13 @@ impl TextureArray {
                     b: vk::ComponentSwizzle::B,
                     a: vk::ComponentSwizzle::A,
                 })
-                .aspect_mask(vk::ImageAspectFlags::COLOR)
-                .mip_level(0, 1)
-                .array_layers(0, layer_count)
-                .build(device)?
+                .sub_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count   : 1,
+                    base_array_layer: 0,
+                    layer_count,
+                }).build(device)?
         };
 
 

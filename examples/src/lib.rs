@@ -197,8 +197,13 @@ fn setup_depth_image(device: &mut VkDevice, dimension: vk::Extent2D) -> VkResult
     };
 
     let view = ImageViewCI::new(image.handle, vk::ImageViewType::TYPE_2D, device.phy.depth_format)
-        .aspect_mask(vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL)
-        .build(device)?;
+        .sub_range(vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL,
+            base_mip_level: 0,
+            level_count   : 1,
+            base_array_layer: 0,
+            layer_count     : 1,
+        }).build(device)?;
 
     let result = DepthImage { image, view };
     Ok(result)
