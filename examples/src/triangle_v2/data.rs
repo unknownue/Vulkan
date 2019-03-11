@@ -6,7 +6,7 @@ use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
 use vkbase::VkResult;
-use vkbase::{vkuint, vkbytes, Matrix4F};
+use vkbase::{vkuint, vkptr, vkbytes, Matrix4F};
 
 use std::mem;
 
@@ -196,8 +196,8 @@ fn allocate_buffer<D: Copy>(device: &VkDevice, data: &[D], buffer_usage: vk::Buf
     let staging_memory = MemoryAI::new(staging_requirement.size, staging_memory_index)
         .build(device)?;
 
-    let data_ptr = device.map_memory(staging_memory, 0, staging_requirement.size)?;
-    vkbase::utils::memory::copy_to_ptr(data_ptr, data);
+    let data_ptr = device.map_memory(staging_memory, 0, staging_requirement.size)? as vkptr<D>;
+    unsafe { data_ptr.copy_from_nonoverlapping(data.as_ptr(), data.len()); }
     device.unmap_memory(staging_memory);
 
     device.bind_memory(staging_buffer, staging_memory, 0)?;
@@ -249,17 +249,16 @@ fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: 
 
     let screen_aspect = (dimension.width as f32) / (dimension.height as f32);
 
-    let ubo_data = [
-        UboVS {
-            projection: Matrix4F::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
-            view: Matrix4F::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
-            model: Matrix4F::identity(),
-        },
-    ];
+    let ubo_data = UboVS {
+        projection: Matrix4F::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
+        view: Matrix4F::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
+        model: Matrix4F::identity(),
+    };
 
     // Map uniform buffer and update it.
-    let data_ptr = device.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as _)?;
-    vkbase::utils::memory::copy_to_ptr(data_ptr, &ubo_data);
+    let data_ptr = device.map_memory(uniforms.memory, 0, mem::size_of::<UboVS>() as _)? as vkptr<UboVS>;
+    unsafe { data_ptr.copy_from_nonoverlapping(&ubo_data, 1) }
+
     device.unmap_memory(uniforms.memory);
 
     Ok(())

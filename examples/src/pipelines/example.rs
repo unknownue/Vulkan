@@ -39,7 +39,7 @@ pub struct VulkanExample {
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
 
-    ubo_data: [UboVS; 1],
+    ubo_data: UboVS,
     camera: FlightCamera,
 
     is_toggle_event: bool,
@@ -67,14 +67,12 @@ impl VulkanExample {
             .build();
         camera.set_move_speed(50.0);
 
-        let ubo_data = [
-            UboVS {
-                projection : camera.proj_matrix(),
-                view       : camera.view_matrix(),
-                model      : Matrix4F::identity(),
-                light_pos  : Vector4F::new(0.0, 2.0, 1.0, 0.0),
-            },
-        ];
+        let ubo_data = UboVS {
+            projection : camera.proj_matrix(),
+            view       : camera.view_matrix(),
+            model      : Matrix4F::identity(),
+            light_pos  : Vector4F::new(0.0, 2.0, 1.0, 0.0),
+        };
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
@@ -289,11 +287,12 @@ impl VulkanExample {
 
     fn update_uniforms(&mut self) -> VkResult<()> {
 
-        self.ubo_data[0].view = self.camera.view_matrix();
+        self.ubo_data.view = self.camera.view_matrix();
 
-        // dbg!(self.ubo_data[0].view);
-        use vkbase::utils::memory::copy_to_ptr;
-        copy_to_ptr(self.uniform_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
+        unsafe {
+            let data_ptr = self.uniform_buffer.info.get_mapped_data() as vkptr<UboVS>;
+            data_ptr.copy_from_nonoverlapping(&self.ubo_data, 1);
+        }
 
         Ok(())
     }
@@ -334,10 +333,10 @@ struct UboVS {
     light_pos    : Vector4F,
 }
 
-fn prepare_uniform(device: &mut VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<VmaBuffer> {
+fn prepare_uniform(device: &mut VkDevice, ubo_data: &UboVS) -> VkResult<VmaBuffer> {
 
     let uniform_buffer = {
-        let uniform_ci = BufferCI::new(mem::size_of::<[UboVS; 1]>() as vkbytes)
+        let uniform_ci = BufferCI::new(mem::size_of::<UboVS>() as vkbytes)
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
@@ -347,9 +346,11 @@ fn prepare_uniform(device: &mut VkDevice, ubo_data: &[UboVS; 1]) -> VkResult<Vma
     };
 
     // keep the uniform memory map during the program running.
-    let data_ptr = uniform_buffer.info.get_mapped_data() as vkptr;
-    debug_assert_ne!(data_ptr, ptr::null_mut());
-    vkbase::utils::memory::copy_to_ptr(data_ptr, ubo_data);
+    unsafe {
+        let data_ptr = uniform_buffer.info.get_mapped_data() as vkptr<UboVS>;
+        debug_assert_ne!(data_ptr, ptr::null_mut());
+        data_ptr.copy_from_nonoverlapping(ubo_data, 1);
+    }
 
     Ok(uniform_buffer)
 }
@@ -414,7 +415,7 @@ fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglT
         .add_buffer(vk::DescriptorBufferInfo {
             buffer: uniform_buffer.handle,
             offset: 0,
-            range : mem::size_of::<[UboVS; 1]>() as vkbytes,
+            range : mem::size_of::<UboVS>() as vkbytes,
         });
     let node_write_info = DescriptorBufferSetWI::new(descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)
         .add_buffer(model.nodes.node_descriptor());

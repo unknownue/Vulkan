@@ -240,9 +240,13 @@ impl VulkanExample {
             self.cubes[0].matrices.view = self.camera.view_matrix();
             self.cubes[1].matrices.view = self.camera.view_matrix();
 
-            use vkbase::utils::memory::copy_to_ptr;
-            copy_to_ptr(self.cubes[0].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[0].matrices]);
-            copy_to_ptr(self.cubes[1].uniform_buffer.info.get_mapped_data() as vkptr, &[self.cubes[1].matrices]);
+            unsafe {
+                let cube0_ptr = self.cubes[0].uniform_buffer.info.get_mapped_data() as vkptr<UBOMatrices>;
+                cube0_ptr.copy_from_nonoverlapping(&self.cubes[0].matrices, 1);
+
+                let cube1_ptr = self.cubes[1].uniform_buffer.info.get_mapped_data() as vkptr<UBOMatrices>;
+                cube1_ptr.copy_from_nonoverlapping(&self.cubes[1].matrices, 1);
+            }
         }
 
         Ok(())

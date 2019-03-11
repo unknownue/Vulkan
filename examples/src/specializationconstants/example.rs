@@ -36,7 +36,7 @@ pub struct VulkanExample {
     pipelines: PipelineStaff,
     descriptors: DescriptorStaff,
 
-    ubo_data: [UboVS; 1],
+    ubo_data: UboVS,
     camera: FlightCamera,
 
     is_toggle_event: bool,
@@ -65,13 +65,11 @@ impl VulkanExample {
             .build();
         camera.set_move_speed(25.0);
 
-        let ubo_data = [
-            UboVS {
-                projection : camera.proj_matrix(),
-                model      : camera.view_matrix(),
-                light_pos  : Vector4F::new(-3.0, -12.0, 30.0, 0.0),
-            },
-        ];
+        let ubo_data = UboVS {
+            projection : camera.proj_matrix(),
+            model      : camera.view_matrix(),
+            light_pos  : Vector4F::new(-3.0, -12.0, 30.0, 0.0),
+        };
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
@@ -251,10 +249,12 @@ impl VulkanExample {
 
         if self.is_toggle_event {
 
-            self.ubo_data[0].model = self.camera.view_matrix();
+            self.ubo_data.model = self.camera.view_matrix();
 
-            use vkbase::utils::memory::copy_to_ptr;
-            copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data);
+            unsafe {
+                let data_ptr = self.ubo_buffer.info.get_mapped_data() as vkptr<UboVS>;
+                data_ptr.copy_from_nonoverlapping(&self.ubo_data, 1);
+            }
         }
 
         Ok(())

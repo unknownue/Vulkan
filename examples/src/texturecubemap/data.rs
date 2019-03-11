@@ -32,7 +32,7 @@ pub struct Skybox {
     pub texture: TextureCube,
 
     pub ubo_buffer: VmaBuffer,
-    pub ubo_data: [UBOVS; 1],
+    pub ubo_data: UBOVS,
 
     pub descriptor_set: vk::DescriptorSet,
 }
@@ -102,9 +102,9 @@ pub struct UBOVS {
 
 impl UBOVS {
 
-    fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, [UBOVS; 1])> {
+    fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, UBOVS)> {
 
-        let buffer_ci = BufferCI::new(mem::size_of::<[UBOVS; 1]>() as vkbytes)
+        let buffer_ci = BufferCI::new(mem::size_of::<UBOVS>() as vkbytes)
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
@@ -112,13 +112,11 @@ impl UBOVS {
             &buffer_ci.value(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
-        let ubo_data = [
-            UBOVS {
-                projection: camera.proj_matrix(),
-                model     : camera.view_matrix(),
-                lod_bias  : 0.0,
-            },
-        ];
+        let ubo_data = UBOVS {
+            projection: camera.proj_matrix(),
+            model     : camera.view_matrix(),
+            lod_bias  : 0.0,
+        };
 
         Ok((VmaBuffer::from(buffer_allocation), ubo_data))
     }
@@ -332,10 +330,10 @@ impl TextureCube {
                     aspect_mask: vk::ImageAspectFlags::COLOR,
                     base_mip_level: 0,
                     // set number of mip levels.
-                    level_count   : mip_levels,
+                    level_count: mip_levels,
                     base_array_layer: 0,
                     // 6 array layers(faces)
-                    layer_count     : CUBE_FACES_COUNT as vkuint,
+                    layer_count: CUBE_FACES_COUNT as vkuint,
                 }).build(device)?
         };
 

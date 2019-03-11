@@ -14,7 +14,7 @@ use vkbase::{vkuint, vkptr, Point3F, Point4F};
 use vkbase::VkResult;
 
 use vkexamples::VkExampleBackend;
-use crate::data::{INDEX_DATA, Vertex, UboVSData, Texture};
+use crate::data::{INDEX_DATA, Vertex, UboVS, Texture};
 
 const SHADER_VERTEX_PATH  : &'static str = "examples/src/texture/texture.vert.glsl";
 const SHADER_FRAGMENT_PATH: &'static str = "examples/src/texture/texture.frag.glsl";
@@ -29,7 +29,7 @@ pub struct VulkanExample {
     indices : VmaBuffer,
 
     ubo_buffer: VmaBuffer,
-    ubo_data: UboVSData,
+    ubo_data: UboVS,
 
     texture: Texture,
 
@@ -58,7 +58,7 @@ impl VulkanExample {
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let (vertices, indices) = super::data::generate_quad(device)?;
-        let (ubo_buffer, ubo_data) = UboVSData::prepare_buffer(device, &camera)?;
+        let (ubo_buffer, ubo_data) = UboVS::prepare_buffer(device, &camera)?;
         let texture = Texture::load_ktx(device, Path::new(TEXTURE_PATH))?;
 
         let descriptors = setup_descriptor(device, &ubo_buffer, &texture)?;
@@ -83,7 +83,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
         self.backend.set_basic_ui(device, super::WINDOW_TITLE)?;
 
         let lod_text = TextInfo {
-            content: format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.content[0].lod_bias),
+            content: format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.lod_bias),
             scale: 14.0,
             align: TextHAlign::Left,
             color: VkColor::WHITE,
@@ -136,17 +136,17 @@ impl vkbase::RenderWorkflow for VulkanExample {
             self.is_toggle_event = true;
             self.camera.receive_input(inputer, delta_time);
 
-            if inputer.key.is_key_pressed(winit::VirtualKeyCode::Equals) && self.ubo_data.content[0].lod_bias < self.texture.mip_levels as f32 {
+            if inputer.key.is_key_pressed(winit::VirtualKeyCode::Equals) && self.ubo_data.lod_bias < self.texture.mip_levels as f32 {
 
-                self.ubo_data.content[0].lod_bias += 0.05;
+                self.ubo_data.lod_bias += 0.05;
                 self.backend.ui_renderer.change_text(
-                    format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.content[0].lod_bias),
+                    format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.lod_bias),
                     self.lod_text_id);
-            } else if inputer.key.is_key_pressed(winit::VirtualKeyCode::Minus) && self.ubo_data.content[0].lod_bias > 0.0 {
+            } else if inputer.key.is_key_pressed(winit::VirtualKeyCode::Minus) && self.ubo_data.lod_bias > 0.0 {
 
-                self.ubo_data.content[0].lod_bias -= 0.05;
+                self.ubo_data.lod_bias -= 0.05;
                 self.backend.ui_renderer.change_text(
-                    format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.content[0].lod_bias),
+                    format!("Lod bias: {:1.2} (numpad +/- to change)", self.ubo_data.lod_bias),
                     self.lod_text_id);
             }
         } else {
@@ -230,10 +230,13 @@ impl VulkanExample {
         if self.is_toggle_event {
 
             let camera_pos = self.camera.current_position();
-            self.ubo_data.content[0].view_pos = Point4F::new(camera_pos.x, camera_pos.y, camera_pos.z, 0.0);
-            self.ubo_data.content[0].model = self.camera.view_matrix();
+            self.ubo_data.view_pos = Point4F::new(camera_pos.x, camera_pos.y, camera_pos.z, 0.0);
+            self.ubo_data.model = self.camera.view_matrix();
 
-            vkbase::utils::memory::copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.content);
+            unsafe {
+                let data_ptr = self.ubo_buffer.info.get_mapped_data() as vkptr<UboVS>;
+                data_ptr.copy_from_nonoverlapping(&self.ubo_data, 1);
+            }
         }
 
         Ok(())

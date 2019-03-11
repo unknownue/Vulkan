@@ -208,11 +208,13 @@ impl VulkanExample {
             // Magic number to adjust rotation.
             let camera_rotation = Matrix4F::new_rotation(Vector3F::new(-1.41, -0.8, -0.82));
 
-            self.skybox.ubo_data[0].model = self.camera.view_matrix() * Matrix4F::new_translation(&skybox_translation) * camera_rotation;
-            //self.skybox.ubo_data[0].model = self.camera.view_matrix();
+            self.skybox.ubo_data.model = self.camera.view_matrix() * Matrix4F::new_translation(&skybox_translation) * camera_rotation;
+            //self.skybox.ubo_data.model = self.camera.view_matrix();
 
-            use vkbase::utils::memory::copy_to_ptr;
-            copy_to_ptr(self.skybox.ubo_buffer.info.get_mapped_data() as vkptr, &self.skybox.ubo_data);
+            unsafe {
+                let data_ptr = self.skybox.ubo_buffer.info.get_mapped_data() as vkptr<UBOVS>;
+                data_ptr.copy_from_nonoverlapping(&self.skybox.ubo_data, 1);
+            }
         }
 
         Ok(())
@@ -302,7 +304,7 @@ fn setup_descriptor(device: &VkDevice, skybox: &mut Skybox) -> VkResult<Descript
         .add_buffer(vk::DescriptorBufferInfo {
             buffer: skybox.ubo_buffer.handle,
             offset: 0,
-            range : mem::size_of::<[UBOVS; 1]>() as vkbytes,
+            range : mem::size_of::<UBOVS>() as vkbytes,
         });
     // Binding 1: Node hierarchy transform matrix in glTF.
     let node_write_info = DescriptorBufferSetWI::new(skybox.descriptor_set, 1, vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC)

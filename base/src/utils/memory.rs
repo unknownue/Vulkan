@@ -4,23 +4,7 @@ use ash::vk;
 use std::ops::{Add, Sub, Not, BitAnd};
 
 use crate::context::VkDevice;
-use crate::{vkuint, vkptr};
-
-
-#[inline]
-pub fn copy_to_ptr<T>(dst_ptr: vkptr, data: &[T]) {
-
-    // implementation 1.
-    unsafe {
-        (dst_ptr as vkptr<T>).copy_from(data.as_ptr(), data.len());
-    }
-
-    // implementation 2.
-    // unsafe {
-    //     let mapped_copy_target = ::std::slice::from_raw_parts_mut(data_ptr as *mut T, data.len());
-    //     mapped_copy_target.copy_from_slice(data);
-    // }
-}
+use crate::vkuint;
 
 pub fn get_memory_type_index(device: &VkDevice, mut type_bits: vkuint, properties: vk::MemoryPropertyFlags) -> vkuint {
 

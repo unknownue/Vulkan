@@ -108,7 +108,7 @@ pub struct TextPool {
     texts: Vec<TextInfo>,
     texts_length: usize,
 
-    data_ptr: vkptr,
+    data_ptr: vkptr<CharacterVertex>,
     buffer: vk::Buffer,
     memory: vk::DeviceMemory,
 }
@@ -223,7 +223,9 @@ impl TextPool {
         }
 
         // upload vertices attributes to memory.
-        vkbase::utils::memory::copy_to_ptr(self.data_ptr, &char_vertices);
+        unsafe {
+            self.data_ptr.copy_from_nonoverlapping(char_vertices.as_ptr(), char_vertices.len());
+        }
 
         Ok(())
     }
@@ -374,8 +376,8 @@ fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::
     )).build(device)?;
     device.bind_memory(staging_buffer, staging_memory, 0)?;
 
-    let data_ptr = device.map_memory(staging_memory, 0, vk::WHOLE_SIZE)?;
-    vkbase::utils::memory::copy_to_ptr(data_ptr, &image_bytes);
+    let data_ptr = device.map_memory(staging_memory, 0, vk::WHOLE_SIZE)? as vkptr<u8>;
+    unsafe { data_ptr.copy_from_nonoverlapping(image_bytes.as_ptr(), image_bytes.len()); }
     device.unmap_memory(staging_memory);
 
     // transfer image data from staging buffer to destination image.

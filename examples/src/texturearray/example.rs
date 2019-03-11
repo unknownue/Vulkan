@@ -7,13 +7,13 @@ use std::path::Path;
 use vkbase::context::{VulkanContext, VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::vma::VmaBuffer;
-use vkbase::utils::memory::copy_to_ptr;
 use vkbase::{FlightCamera, FrameAction};
 use vkbase::{vkuint, vkptr, Point3F};
 use vkbase::VkResult;
 
 use vkexamples::VkExampleBackend;
 use crate::data::{INDEX_DATA, Vertex, UboVS, TextureArray};
+use crate::data::UboMatrices;
 
 const SHADER_VERTEX_PATH  : &'static str = "examples/src/texturearray/instancing.vert.glsl";
 const SHADER_FRAGMENT_PATH: &'static str = "examples/src/texturearray/instancing.frag.glsl";
@@ -201,8 +201,12 @@ impl VulkanExample {
 
         if self.is_toggle_event {
 
-            self.ubo_data.matrices[0].view = self.camera.view_matrix();
-            copy_to_ptr(self.ubo_buffer.info.get_mapped_data() as vkptr, &self.ubo_data.matrices);
+            self.ubo_data.matrices.view = self.camera.view_matrix();
+
+            unsafe {
+                let data_ptr = self.ubo_buffer.info.get_mapped_data() as vkptr<UboMatrices>;
+                data_ptr.copy_from_nonoverlapping(&self.ubo_data.matrices, 1);
+            }
         }
 
         Ok(())

@@ -12,7 +12,7 @@ use vkbase::{vkbytes, vkuint, vkptr, Point3F};
 use vkbase::{VkResult, VkErrorKind};
 
 use vkexamples::VkExampleBackend;
-use crate::data::{OBJECT_INSTANCES, INDEX_DATA, Vertex, RotationData, UboViewData, UboDynamicData};
+use crate::data::{OBJECT_INSTANCES, INDEX_DATA, Vertex, RotationData, UboView, UboDynamicData};
 
 const SHADER_VERTEX_PATH  : &'static str = "examples/src/dynamicuniformbuffer/base.vert.glsl";
 const SHADER_FRAGMENT_PATH: &'static str = "examples/src/dynamicuniformbuffer/base.frag.glsl";
@@ -27,7 +27,7 @@ pub struct VulkanExample {
     indices : VmaBuffer,
 
     ubo_view: VmaBuffer,
-    ubo_view_data: UboViewData,
+    ubo_view_data: UboView,
 
     ubo_dynamics: VmaBuffer,
     ubo_dynamics_data: UboDynamicData,
@@ -58,7 +58,7 @@ impl VulkanExample {
         let backend = VkExampleBackend::new(device, swapchain, render_pass)?;
 
         let (vertices, indices) = super::data::generate_cube(device)?;
-        let (ubo_view, ubo_view_data) = UboViewData::prepare_buffer(device, &camera)?;
+        let (ubo_view, ubo_view_data) = UboView::prepare_buffer(device, &camera)?;
         let (ubo_dynamics, ubo_dynamics_data, dynamic_alignment) = UboDynamicData::prepare_buffer(device)?;
         let rotations = RotationData::new_by_rng();
 
@@ -220,9 +220,12 @@ impl VulkanExample {
             self.time_counter = 0.0;
 
             { // update camera.
-                self.ubo_view_data.content[0].view = self.camera.view_matrix();
-                let data_ptr = self.ubo_view.info.get_mapped_data() as vkptr;
-                vkbase::utils::memory::copy_to_ptr(data_ptr, &self.ubo_view_data.content);
+                self.ubo_view_data.view = self.camera.view_matrix();
+
+                unsafe {
+                    let data_ptr = self.ubo_view.info.get_mapped_data() as vkptr<UboView>;
+                    data_ptr.copy_from_nonoverlapping(&self.ubo_view_data, 1);
+                }
             }
 
             { // update models.

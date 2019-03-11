@@ -76,8 +76,6 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
     // setup vertices for a single uv-mapped quad made from two triangles.
     // for the sake of simplicity, we won't stage the vertex data to the gpu memory.
 
-    use vkbase::utils::memory::copy_to_ptr;
-
     let vertex_buffer = {
 
         let vertices_ci = BufferCI::new((mem::size_of::<Vertex>() * VERTEX_DATA.len()) as vkbytes)
@@ -88,9 +86,11 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
             &vertices_ci.value(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
-        let data_ptr = vertices_allocation.2.get_mapped_data() as vkptr;
-        debug_assert_ne!(data_ptr, ptr::null_mut());
-        copy_to_ptr(data_ptr, VERTEX_DATA.as_ref());
+        unsafe {
+            let data_ptr = vertices_allocation.2.get_mapped_data() as vkptr<Vertex>;
+            debug_assert_ne!(data_ptr, ptr::null_mut());
+            data_ptr.copy_from_nonoverlapping(VERTEX_DATA.as_ptr(), VERTEX_DATA.len());
+        }
 
         VmaBuffer::from(vertices_allocation)
     };
@@ -105,9 +105,11 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
             &indices_ci.value(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
-        let data_ptr = indices_allocation.2.get_mapped_data() as vkptr;
-        debug_assert_ne!(data_ptr, ptr::null_mut());
-        copy_to_ptr(data_ptr, INDEX_DATA.as_ref());
+        unsafe {
+            let data_ptr = indices_allocation.2.get_mapped_data() as vkptr<vkuint>;
+            debug_assert_ne!(data_ptr, ptr::null_mut());
+            data_ptr.copy_from_nonoverlapping(INDEX_DATA.as_ptr(), INDEX_DATA.len());
+        }
 
         VmaBuffer::from(indices_allocation)
     };
@@ -125,15 +127,11 @@ pub struct UboVS {
     pub lod_bias  : f32,
 }
 
-pub struct UboVSData {
-    pub content: [UboVS; 1],
-}
+impl UboVS {
 
-impl UboVSData {
+    pub fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, UboVS)> {
 
-    pub fn prepare_buffer(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<(VmaBuffer, UboVSData)> {
-
-        let buffer_ci = BufferCI::new(mem::size_of::<UboVSData>() as vkbytes)
+        let buffer_ci = BufferCI::new(mem::size_of::<UboVS>() as vkbytes)
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
@@ -141,20 +139,18 @@ impl UboVSData {
             &buffer_ci.value(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
-        let ubo_data = UboVSData {
-            content: [
-                UboVS {
-                    projection: camera.proj_matrix(),
-                    model     : Matrix4F::identity(),
-                    view_pos  : Point4F::new(0.0, 0.0, -2.5, 0.0),
-                    lod_bias  : 0.0,
-                },
-            ],
+        let ubo_data = UboVS {
+            projection: camera.proj_matrix(),
+            model     : Matrix4F::identity(),
+            view_pos  : Point4F::new(0.0, 0.0, -2.5, 0.0),
+            lod_bias  : 0.0,
         };
 
-        let data_ptr = buffer_allocation.2.get_mapped_data() as vkptr;
-        debug_assert_ne!(data_ptr, ptr::null_mut());
-        vkbase::utils::memory::copy_to_ptr(data_ptr, &ubo_data.content);
+        unsafe {
+            let data_ptr = buffer_allocation.2.get_mapped_data() as vkptr<UboVS>;
+            debug_assert_ne!(data_ptr, ptr::null_mut());
+            data_ptr.copy_from_nonoverlapping(&ubo_data, 1);
+        }
 
         Ok((VmaBuffer::from(buffer_allocation), ubo_data))
     }

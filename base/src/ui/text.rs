@@ -521,8 +521,10 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
             .map_err(VkErrorKind::Vma)?;
 
         let data_ptr = device.vma.map_memory(&staging_allocation.1)
-            .map_err(VkErrorKind::Vma)? as vkptr;
-        crate::utils::memory::copy_to_ptr(data_ptr, &image_bytes);
+            .map_err(VkErrorKind::Vma)? as vkptr<u8>;
+
+        unsafe { data_ptr.copy_from_nonoverlapping(image_bytes.as_ptr(), image_bytes.len()); }
+
         device.vma.unmap_memory(&staging_allocation.1)
             .map_err(VkErrorKind::Vma)?;
 
