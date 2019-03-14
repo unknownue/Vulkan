@@ -43,7 +43,7 @@ impl Texture2D {
 
         let (width, height) = {
             let base_image = tex_2d.get_level(0);
-            (base_image.extent()[0], base_image.extent()[1])
+            (base_image.extent().width, base_image.extent().height)
         };
 
         // Only use linear tiling if requested (and supported by the device).
@@ -97,8 +97,8 @@ impl Texture2D {
                 },
                 image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
                 image_extent: vk::Extent3D {
-                    width : image_level_i.extent()[0],
-                    height: image_level_i.extent()[1],
+                    width : image_level_i.extent().width,
+                    height: image_level_i.extent().height,
                     depth : 1,
                 },
             };
@@ -156,7 +156,7 @@ impl Texture2D {
                 .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.value()])
                 // Copy mip levels from staging buffer.
                 .copy_buf2img(staging_buffer.handle, dst_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &buffer_copy_regions)
-                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::FRAGMENT_SHADER, vk::DependencyFlags::empty(), &[barrier2.value()])
+                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[barrier2.value()])
                 .end_record()?;
 
             device.flush_transfer(cmd_recorder)?;

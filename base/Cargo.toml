@@ -8,7 +8,7 @@ keywords = ["Vulkan", "Rust", "Graphics"]
 description = "A library to provide convenient methods to access vulkan."
 
 [dependencies]
-ash            = "0.27.1"
+ash            = "0.28.0"
 winit          = "0.18.1"
 shaderc        = "0.3.10"
 smallvec       = "0.6.5"
@@ -23,8 +23,8 @@ memoffset      = "0.2"
 num            = "0.2"
 rusttype       = "0.7.5"
 
-vma = { package = "vk-mem", version = "0.1.4" }
-gli = { package = "gli-rs", version = "0.2.0" }
+gli = { package = "gli-rs", version = "0.2.1" }
+vma = { package = "vk-mem", version = "0.1.5" }
 
 # vulkan platform dependencies on macOS.
 [target.'cfg(target_os = "macos")'.dependencies]

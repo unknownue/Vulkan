@@ -244,8 +244,8 @@ impl TextureArray {
 
         debug_assert!(!tex_2d_array.empty());
 
-        let width  = tex_2d_array.extent(0)[0];
-        let height = tex_2d_array.extent(0)[1];
+        let width  = tex_2d_array.extent(0).width;
+        let height = tex_2d_array.extent(0).height;
         let layer_count = tex_2d_array.layers() as vkuint;
 
 
@@ -300,8 +300,8 @@ impl TextureArray {
                 },
                 image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
                 image_extent: vk::Extent3D {
-                    width : base_level_image.extent()[0],
-                    height: base_level_image.extent()[1],
+                    width : base_level_image.extent().width,
+                    height: base_level_image.extent().height,
                     depth : 1,
                 },
             };
@@ -359,7 +359,7 @@ impl TextureArray {
                 .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.value()])
                 // Copy all layers from staging buffer.
                 .copy_buf2img(staging_buffer.handle, dst_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &buffer_copy_regions)
-                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::FRAGMENT_SHADER, vk::DependencyFlags::empty(), &[barrier2.value()])
+                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[barrier2.value()])
                 .end_record()?;
 
             device.flush_transfer(copy_recorder)?;

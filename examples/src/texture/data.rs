@@ -207,7 +207,7 @@ impl Texture {
         let (width, height) = {
             // get the base level image in this texture.
             let base_image = tex_2d.get_level(0);
-            (base_image.extent()[0], base_image.extent()[1])
+            (base_image.extent().width, base_image.extent().height)
         };
 
         // Here we use staging buffer to create optimal image on DEVICE_LOCAL memory.
@@ -265,8 +265,8 @@ impl Texture {
                 },
                 image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
                 image_extent: vk::Extent3D {
-                    width : image_level_i.extent()[0],
-                    height: image_level_i.extent()[1],
+                    width : image_level_i.extent().width,
+                    height: image_level_i.extent().height,
                     depth : 1,
                 },
             };
@@ -335,8 +335,8 @@ impl Texture {
                 .copy_buf2img(staging_buffer.handle, dst_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &buffer_copy_regions)
                 // Insert a memory dependency at the proper pipeline stages that will execute the image layout transition.
                 // Source pipeline stage stage is copy command execution (vk::PipelineStageFlags::TRANSFER).
-                // Destination pipeline stage fragment shader access (vk::PipelineStageFlags::FRAGMENT_SHADER).
-                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::FRAGMENT_SHADER, vk::DependencyFlags::empty(), &[barrier2.value()])
+                // Destination pipeline stage fragment shader access (vk::PipelineStageFlags::ALL_COMMANDS).
+                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[barrier2.value()])
                 .end_record()?;
 
             device.flush_transfer(copy_recorder)?;

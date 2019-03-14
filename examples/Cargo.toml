@@ -10,7 +10,7 @@ An implementaion of SaschaWillems/Vulkan(https://github.com/SaschaWillems/Vulkan
 '''
 
 [dependencies]
-ash         = "0.27.1"
+ash         = "0.28.0"
 winit       = "0.18.1"
 nalgebra    = "0.16"
 shaderc     = "0.3.10"
@@ -21,8 +21,9 @@ rand        = "0.6"
 arrayvec    = "0.4.10"
 
 vkbase = { package = "vulkan-base", path = "../base" }
-vma = { package = "vk-mem", version = "0.1.4" }
-gli = { package = "gli-rs", version = "0.2.0" }
+gli    = { package = "gli-rs", version = "0.2.1" }
+vma    = { package = "vk-mem", version = "0.1.5" }
+
 
 # Basics ----------------------------------------------
 

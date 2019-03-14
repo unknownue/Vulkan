@@ -167,7 +167,7 @@ impl TextureCube {
         let (width, height, mip_levels) = {
             // get the base level image in this texture.
             let base_extent = tex_cube.extent(0);
-            (base_extent[0], base_extent[1], tex_cube.levels() as vkuint)
+            (base_extent.width, base_extent.height, tex_cube.levels() as vkuint)
         };
 
         let staging_buffer = {
@@ -246,8 +246,8 @@ impl TextureCube {
                     },
                     image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
                     image_extent: vk::Extent3D {
-                        width : face_level_i.extent()[0],
-                        height: face_level_i.extent()[1],
+                        width : face_level_i.extent().width,
+                        height: face_level_i.extent().height,
                         depth : 1,
                     },
                 };
@@ -287,7 +287,7 @@ impl TextureCube {
             copy_recorder.begin_record()?
                 .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.value()])
                 .copy_buf2img(staging_buffer.handle, dst_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &buffer_copy_regions)
-                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::FRAGMENT_SHADER, vk::DependencyFlags::empty(), &[barrier2.value()])
+                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[barrier2.value()])
                 .end_record()?;
 
             device.flush_transfer(copy_recorder)?;

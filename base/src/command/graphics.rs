@@ -58,7 +58,7 @@ impl<'a> CmdGraphicsApi for VkCmdRecorder<'a, IGraphics> {
     /// Set the blend constants dynamically.
     fn set_blend_constants(&self, constants: [vkfloat; 4]) -> &VkCmdRecorder<'a, IGraphics> {
         unsafe {
-            self.device.handle.cmd_set_blend_constants(self.command, constants);
+            self.device.handle.cmd_set_blend_constants(self.command, &constants);
         } self
     }
 
