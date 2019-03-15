@@ -82,7 +82,7 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let vertices_allocation = device.vma.create_buffer(
-            &vertices_ci.value(), allocation_ci.as_ref())
+            &vertices_ci, &allocation_ci)
             .map_err(VkErrorKind::Vma)?;
 
         unsafe {
@@ -101,7 +101,7 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let indices_allocation = device.vma.create_buffer(
-            &indices_ci.value(), allocation_ci.as_ref())
+            &indices_ci, &allocation_ci)
             .map_err(VkErrorKind::Vma)?;
 
         unsafe {
@@ -154,7 +154,7 @@ impl UboVS {
             let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
                 .flags(vma::AllocationCreateFlags::MAPPED);
             let ubo_allocation = device.vma.create_buffer(
-                &ubo_ci.value(), allocation_ci.as_ref())
+                &ubo_ci, &allocation_ci)
                 .map_err(VkErrorKind::Vma)?;
 
             VmaBuffer::from(ubo_allocation)
@@ -258,7 +258,7 @@ impl TextureArray {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let staging_allocation = device.vma.create_buffer(
-                &staging_ci.value(), allocation_ci.as_ref())
+                &staging_ci, &allocation_ci)
                 .map_err(VkErrorKind::Vma)?;
 
             // Copy texture data into host local staging buffer.
@@ -323,8 +323,7 @@ impl TextureArray {
 
             let allocation_ci = VmaAllocationCI::new(
                 vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-            let image_allocation = device.vma.create_image(
-                &image_ci.value(), allocation_ci.as_ref())
+            let image_allocation = device.vma.create_image(&image_ci, &allocation_ci)
                 .map_err(VkErrorKind::Vma)?;
 
             VmaImage::from(image_allocation)

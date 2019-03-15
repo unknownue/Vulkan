@@ -59,7 +59,7 @@ impl Texture2D {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let staging_allocation = device.vma.create_buffer(
-                &staging_ci.value(), allocation_ci.as_ref())
+                &staging_ci, &allocation_ci)
                 .map_err(VkErrorKind::Vma)?;
 
             // Copy texture data into staging buffer.
@@ -121,7 +121,7 @@ impl Texture2D {
             let allocation_ci = VmaAllocationCI::new(
                 vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let image_allocation = device.vma.create_image(
-                &image_ci.value(), allocation_ci.as_ref())
+                &image_ci, &allocation_ci)
                 .map_err(VkErrorKind::Vma)?;
 
             VmaImage::from(image_allocation)

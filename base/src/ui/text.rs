@@ -505,7 +505,7 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
         let glyphs_image_ci = ImageCI::new_2d(vk::Format::R8_UNORM, image_dimension)
             .usages(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-        let image_allocation = device.vma.create_image(&glyphs_image_ci.value(), allocation_ci.as_ref())
+        let image_allocation = device.vma.create_image(&glyphs_image_ci, &allocation_ci)
             .map_err(VkErrorKind::Vma)?;
         VmaImage::from(image_allocation)
     };
@@ -517,7 +517,7 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
         let staging_ci = BufferCI::new(estimate_buffer_size)
             .usage(vk::BufferUsageFlags::TRANSFER_SRC);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-        let staging_allocation = device.vma.create_buffer(&staging_ci.value(), allocation_ci.as_ref())
+        let staging_allocation = device.vma.create_buffer(&staging_ci, &allocation_ci)
             .map_err(VkErrorKind::Vma)?;
 
         let data_ptr = device.vma.map_memory(&staging_allocation.1)

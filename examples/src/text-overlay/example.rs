@@ -136,8 +136,6 @@ impl VulkanExample {
 
     fn record_commands(&self, device: &VkDevice, dimension: vk::Extent2D) -> VkResult<()> {
 
-        let clear_values = [vkexamples::DEFAULT_CLEAR_COLOR.clone()];
-
         for (i, &command) in self.backend_res.commands.iter().enumerate() {
 
             use vkbase::command::{VkCmdRecorder, CmdGraphicsApi, IGraphics};
@@ -147,7 +145,7 @@ impl VulkanExample {
 
             let render_pass_bi = RenderPassBI::new(self.backend_res.render_pass, self.backend_res.framebuffers[i])
                 .render_extent(dimension)
-                .clear_values(&clear_values);
+                .set_clear_values(vec![vkexamples::DEFAULT_CLEAR_VALUES[0].clone()]);
 
             recorder.begin_record()?
                 .begin_render_pass(render_pass_bi)
@@ -212,7 +210,7 @@ fn setup_descriptor(device: &VkDevice, glyphs: &GlyphImages) -> VkResult<Descrip
         });
 
     DescriptorSetsUpdateCI::new()
-        .add_write(sampled_image_write_info.value())
+        .add_write(&sampled_image_write_info)
         .update(device);
 
     let descriptors = DescriptorStaff {
@@ -247,10 +245,10 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
         .flags(vk::DependencyFlags::BY_REGION);
 
     let render_pass = RenderPassCI::new()
-        .add_attachment(color_attachment.value())
-        .add_subpass(subpass_description.value())
-        .add_dependency(dependency0.value())
-        .add_dependency(dependency1.value())
+        .add_attachment(color_attachment)
+        .add_subpass(subpass_description)
+        .add_dependency(dependency0)
+        .add_dependency(dependency1)
         .build(device)?;
 
     Ok(render_pass)
@@ -278,8 +276,7 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
     let blend_attachment = BlendAttachmentSCI::new()
         .blend_enable(true)
         .color(vk::BlendOp::ADD, vk::BlendFactor::SRC_ALPHA, vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
-        .alpha(vk::BlendOp::ADD, vk::BlendFactor::SRC_ALPHA, vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
-        .value();
+        .alpha(vk::BlendOp::ADD, vk::BlendFactor::SRC_ALPHA, vk::BlendFactor::ONE_MINUS_SRC_ALPHA);
     let blend_state = ColorBlendSCI::new()
         .add_attachment(blend_attachment);
 
@@ -305,11 +302,11 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
         .build(device)?;
     let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
         .build(device)?;
-
-    pipeline_ci.set_shaders(vec![
+    let shaders = [
         ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
         ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
-    ]);
+    ];
+    pipeline_ci.set_shaders(&shaders);
 
     let text_pipeline = device.build(&pipeline_ci)?;
 

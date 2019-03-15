@@ -13,16 +13,14 @@ pub mod sync;
 
 use crate::context::VkDevice;
 use crate::VkResult;
+use std::ops::Deref;
 
-pub trait VulkanCI
-    where
-        Self: Sized {
-    type CIType;
+pub(crate) trait VulkanCI<CI>: Sized + Deref<Target=CI> {
 
-    fn default_ci() -> Self::CIType;
+    fn default_ci() -> CI;
 }
 
-pub trait VkObjectBuildableCI: VulkanCI {
+pub trait VkObjectBuildableCI {
     type ObjectType;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType>;

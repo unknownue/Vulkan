@@ -8,18 +8,18 @@ use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
 
 use std::ptr;
+use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::MemoryAllocateInfo.
 #[derive(Debug, Clone)]
 pub struct MemoryAI {
-    ai: vk::MemoryAllocateInfo,
+    inner: vk::MemoryAllocateInfo,
 }
 
-impl VulkanCI for MemoryAI {
-    type CIType = vk::MemoryAllocateInfo;
+impl VulkanCI<vk::MemoryAllocateInfo> for MemoryAI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::MemoryAllocateInfo {
 
         vk::MemoryAllocateInfo {
             s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
@@ -30,13 +30,21 @@ impl VulkanCI for MemoryAI {
     }
 }
 
+impl Deref for MemoryAI {
+    type Target = vk::MemoryAllocateInfo;
+
+    fn deref(&self) -> &vk::MemoryAllocateInfo {
+        &self.inner
+    }
+}
+
 impl VkObjectBuildableCI for MemoryAI {
     type ObjectType = vk::DeviceMemory;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let memory = unsafe {
-            device.logic.handle.allocate_memory(&self.ai, None)
+            device.logic.handle.allocate_memory(self, None)
                 .map_err(|_| VkError::create("Memory Allocate"))?
         };
         Ok(memory)
@@ -48,7 +56,7 @@ impl MemoryAI {
     pub fn new(allocation_size: vkbytes, memory_type_index: vkuint) -> MemoryAI {
 
         MemoryAI {
-            ai: vk::MemoryAllocateInfo {
+            inner: vk::MemoryAllocateInfo {
                 allocation_size, memory_type_index,
                 ..MemoryAI::default_ci()
             },

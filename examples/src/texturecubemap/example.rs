@@ -143,11 +143,6 @@ impl VulkanExample {
 
     fn record_commands(&self, device: &VkDevice, dimension: vk::Extent2D) -> VkResult<()> {
 
-        let clear_values = [
-            vkexamples::DEFAULT_CLEAR_COLOR.clone(),
-            vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
-        ];
-
         let scissor = vk::Rect2D {
             extent: dimension.clone(),
             offset: vk::Offset2D { x: 0, y: 0 },
@@ -168,7 +163,7 @@ impl VulkanExample {
 
             let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[i])
                 .render_extent(dimension)
-                .clear_values(&clear_values);
+                .set_clear_values(vkexamples::DEFAULT_CLEAR_VALUES.clone());
 
             recorder.begin_record()?
                 .begin_render_pass(render_pass_bi)
@@ -314,9 +309,9 @@ fn setup_descriptor(device: &VkDevice, skybox: &mut Skybox) -> VkResult<Descript
         .add_image(skybox.texture.descriptor());
 
     DescriptorSetsUpdateCI::new()
-        .add_write(ubo_write_info.value())
-        .add_write(node_write_info.value())
-        .add_write(sampler_write_info.value())
+        .add_write(&ubo_write_info)
+        .add_write(&node_write_info)
+        .add_write(&sampler_write_info)
         .update(device);
 
     let descriptors = DescriptorStaff {
@@ -354,11 +349,11 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
         .flags(vk::DependencyFlags::BY_REGION);
 
     let render_pass = RenderPassCI::new()
-        .add_attachment(color_attachment.value())
-        .add_attachment(depth_attachment.value())
-        .add_subpass(subpass_description.value())
-        .add_dependency(dependency0.value())
-        .add_dependency(dependency1.value())
+        .add_attachment(color_attachment)
+        .add_attachment(depth_attachment)
+        .add_subpass(subpass_description)
+        .add_dependency(dependency0)
+        .add_dependency(dependency1)
         .build(device)?;
 
     Ok(render_pass)
@@ -383,7 +378,7 @@ fn prepare_pipelines(device: &VkDevice, skybox: &Skybox, render_pass: vk::Render
         .polygon(vk::PolygonMode::FILL)
         .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::COUNTER_CLOCKWISE);
 
-    let blend_attachment = BlendAttachmentSCI::new().value();
+    let blend_attachment = BlendAttachmentSCI::new();
     let blend_state = ColorBlendSCI::new()
         .add_attachment(blend_attachment);
 
@@ -415,10 +410,11 @@ fn prepare_pipelines(device: &VkDevice, skybox: &Skybox, render_pass: vk::Render
     // Pipeline.
     let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, pipeline_layout);
 
-    pipeline_ci.set_shaders(vec![
+    let shaders = [
         ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
         ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
-    ]);
+    ];
+    pipeline_ci.set_shaders(&shaders);
 
     pipeline_ci.set_vertex_input(skybox.model.meshes.vertex_input.clone());
     pipeline_ci.set_viewport(viewport_state);

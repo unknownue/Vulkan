@@ -19,11 +19,9 @@ impl<'a> CmdGraphicsApi for VkCmdRecorder<'a, IGraphics> {
 
     fn begin_render_pass(&self, bi: RenderPassBI) -> &VkCmdRecorder<'a, IGraphics> {
 
-        let begin_bi = bi.value();
-
         // Currently only use primary command buffer, so always set vk::SubpassContents::INLINE here.
         unsafe {
-            self.device.handle.cmd_begin_render_pass(self.command, &begin_bi, vk::SubpassContents::INLINE);
+            self.device.handle.cmd_begin_render_pass(self.command, &(*bi), vk::SubpassContents::INLINE);
         } self
     }
 

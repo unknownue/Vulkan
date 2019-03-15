@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::Read;
 use std::ffi::CString;
+use std::ops::Deref;
 use std::ptr;
 
 // ---------------------------------------------------------------------------------------------------
@@ -17,23 +18,15 @@ use std::ptr;
 #[derive(Debug, Clone)]
 pub struct ShaderModuleCI {
 
-    ci: vk::ShaderModuleCreateInfo,
+    inner: vk::ShaderModuleCreateInfo,
 
-    main : String,
-    shader_type: ShaderType,
+    codes: Vec<u8>,
     shader_stage: vk::ShaderStageFlags,
 }
 
-#[derive(Debug, Clone)]
-enum ShaderType {
-    GLSLSource(Vec<u8>),
-    SprivSource(PathBuf),
-}
+impl VulkanCI<vk::ShaderModuleCreateInfo> for ShaderModuleCI {
 
-impl VulkanCI for ShaderModuleCI {
-    type CIType = vk::ShaderModuleCreateInfo;
-
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::ShaderModuleCreateInfo {
 
         vk::ShaderModuleCreateInfo {
             s_type    : vk::StructureType::SHADER_MODULE_CREATE_INFO,
@@ -45,37 +38,22 @@ impl VulkanCI for ShaderModuleCI {
     }
 }
 
+impl Deref for ShaderModuleCI {
+    type Target = vk::ShaderModuleCreateInfo;
+
+    fn deref(&self) -> &vk::ShaderModuleCreateInfo {
+        &self.inner
+    }
+}
+
 impl VkObjectBuildableCI for ShaderModuleCI {
     type ObjectType = vk::ShaderModule;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
-        macro_rules! build_module {
-            ($codes:ident) => {
-
-                {
-                    let shader_module_ci = vk::ShaderModuleCreateInfo {
-                        code_size : $codes.len(),
-                        p_code    : $codes.as_ptr() as _,
-                        ..self.ci
-                    };
-
-                    unsafe {
-                        device.logic.handle.create_shader_module(&shader_module_ci, None)
-                            .or(Err(VkError::create("Shader Module")))?
-                    }
-                }
-            };
-        }
-
-        let module = match &self.shader_type {
-            | ShaderType::GLSLSource(codes) => {
-                build_module!(codes)
-            },
-            | ShaderType::SprivSource(path) => {
-                let codes = load_spriv_bytes(path)?;
-                build_module!(codes)
-            },
+        let module = unsafe {
+            device.logic.handle.create_shader_module(self, None)
+                .or(Err(VkError::create("Shader Module")))?
         };
 
         Ok(module)
@@ -86,32 +64,31 @@ impl ShaderModuleCI {
 
     pub fn from_glsl(stage: vk::ShaderStageFlags, codes: Vec<u8>) -> ShaderModuleCI {
 
-        ShaderModuleCI::inner_new(stage, ShaderType::GLSLSource(codes))
+        ShaderModuleCI::inner_new(stage, codes)
     }
 
-    pub fn from_spriv(stage: vk::ShaderStageFlags, path: impl AsRef<Path>) -> ShaderModuleCI {
+    pub fn from_spriv(stage: vk::ShaderStageFlags, path: impl AsRef<Path>) -> VkResult<ShaderModuleCI> {
 
-        ShaderModuleCI::inner_new(stage, ShaderType::SprivSource(PathBuf::from(path.as_ref())))
+        let codes = load_spriv_bytes(&path.as_ref().to_path_buf())?;
+        let ci = ShaderModuleCI::inner_new(stage, codes);
+        Ok(ci)
     }
 
-    fn inner_new(stage: vk::ShaderStageFlags, ty: ShaderType) -> ShaderModuleCI {
+    fn inner_new(shader_stage: vk::ShaderStageFlags, codes: Vec<u8>) -> ShaderModuleCI {
 
         ShaderModuleCI {
-            ci: ShaderModuleCI::default_ci(),
-            main: String::from("main"),
-            shader_type : ty,
-            shader_stage: stage,
+            inner: vk::ShaderModuleCreateInfo {
+                code_size: codes.len(),
+                p_code   : codes.as_ptr() as _,
+                ..ShaderModuleCI::default_ci()
+            },
+            codes, shader_stage,
         }
     }
 
     #[inline(always)]
-    pub fn main(mut self, name: impl AsRef<str>) -> ShaderModuleCI {
-        self.main = String::from(name.as_ref()); self
-    }
-
-    #[inline(always)]
     pub fn flags(mut self, flags: vk::ShaderModuleCreateFlags) -> ShaderModuleCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 }
 
@@ -130,16 +107,15 @@ impl crate::context::VkObjectDiscardable for vk::ShaderModule {
 #[derive(Debug, Clone)]
 pub struct ShaderStageCI {
 
-    ci: vk::PipelineShaderStageCreateInfo,
+    inner: vk::PipelineShaderStageCreateInfo,
 
     main: CString,
     specialization: Option<vk::SpecializationInfo>,
 }
 
-impl VulkanCI for ShaderStageCI {
-    type CIType = vk::PipelineShaderStageCreateInfo;
+impl VulkanCI<vk::PipelineShaderStageCreateInfo> for ShaderStageCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::PipelineShaderStageCreateInfo {
 
         vk::PipelineShaderStageCreateInfo {
             s_type : vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -153,12 +129,20 @@ impl VulkanCI for ShaderStageCI {
     }
 }
 
+impl Deref for ShaderStageCI {
+    type Target = vk::PipelineShaderStageCreateInfo;
+
+    fn deref(&self) -> &vk::PipelineShaderStageCreateInfo {
+        &self.inner
+    }
+}
+
 impl ShaderStageCI {
 
     pub fn new(stage: vk::ShaderStageFlags, module: vk::ShaderModule) -> ShaderStageCI {
 
         ShaderStageCI {
-            ci: vk::PipelineShaderStageCreateInfo {
+            inner: vk::PipelineShaderStageCreateInfo {
                 stage, module,
                 ..ShaderStageCI::default_ci()
             },
@@ -170,30 +154,19 @@ impl ShaderStageCI {
     #[inline(always)]
     pub fn main(mut self, name: impl AsRef<str>) -> ShaderStageCI {
         self.main = CString::new(name.as_ref().to_owned())
-            .expect("Invalid name of main func in shader."); self
+            .expect("Invalid name of main func in shader.");
+        self.inner.p_name = self.main.as_ptr(); self
     }
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::PipelineShaderStageCreateFlags) -> ShaderStageCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 
     #[inline(always)]
     pub fn specialization(mut self, info: vk::SpecializationInfo) -> ShaderStageCI {
-        self.specialization = Some(info); self
-    }
-
-    pub fn value(&self) -> vk::PipelineShaderStageCreateInfo {
-
-        let specialization = self.specialization.as_ref()
-            .and_then(|s| Some(s as *const vk::SpecializationInfo))
-            .unwrap_or(ptr::null());
-
-        vk::PipelineShaderStageCreateInfo {
-            p_name: self.main.as_ptr(),
-            p_specialization_info: specialization,
-            ..self.ci
-        }
+        self.specialization = Some(info);
+        self.inner.p_specialization_info = &info; self
     }
 }
 // ---------------------------------------------------------------------------------------------------

@@ -6,6 +6,8 @@ use crate::context::VmaResourceDiscardable;
 use crate::{VkResult, VkErrorKind};
 use crate::{vkuint, vkptr};
 
+use std::ops::Deref;
+
 // ----------------------------------------------------------------------------------------------
 /// A type contains the buffer allocation result from `vma::Allocator`.
 #[derive(Debug, Clone)]
@@ -78,11 +80,10 @@ impl VmaResourceDiscardable for VmaImage {
 /// Wrapper class for vma::AllocationCreateInfo.
 #[derive(Debug, Clone)]
 pub struct VmaAllocationCI {
-    ci: vma::AllocationCreateInfo,
+    inner: vma::AllocationCreateInfo,
 }
 
-impl VulkanCI for VmaAllocationCI {
-    type CIType = vma::AllocationCreateInfo;
+impl VulkanCI<vma::AllocationCreateInfo> for VmaAllocationCI {
 
     fn default_ci() -> vma::AllocationCreateInfo {
 
@@ -99,12 +100,20 @@ impl VulkanCI for VmaAllocationCI {
     }
 }
 
+impl Deref for VmaAllocationCI {
+    type Target = vma::AllocationCreateInfo;
+
+    fn deref(&self) -> &vma::AllocationCreateInfo {
+        &self.inner
+    }
+}
+
 impl VmaAllocationCI {
 
     pub fn new(usage: vma::MemoryUsage, required_flags: vk::MemoryPropertyFlags) -> VmaAllocationCI {
 
         VmaAllocationCI {
-            ci: vma::AllocationCreateInfo {
+            inner: vma::AllocationCreateInfo {
                 usage, required_flags,
                 ..VmaAllocationCI::default_ci()
             }
@@ -113,39 +122,27 @@ impl VmaAllocationCI {
 
     #[inline(always)]
     pub fn flags(mut self, flags: vma::AllocationCreateFlags) -> VmaAllocationCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 
     #[inline(always)]
     pub fn preferred_flags(mut self, flags: vk::MemoryPropertyFlags) -> VmaAllocationCI {
-        self.ci.preferred_flags = flags; self
+        self.inner.preferred_flags = flags; self
     }
 
     #[inline(always)]
     pub fn accept_memory_types(mut self, acceptable_type_bits: vkuint) -> VmaAllocationCI {
-        self.ci.memory_type_bits = acceptable_type_bits; self
+        self.inner.memory_type_bits = acceptable_type_bits; self
     }
 
     #[inline(always)]
     pub fn with_pool(mut self, pool: vma::AllocatorPool) -> VmaAllocationCI {
-        self.ci.pool = Some(pool); self
+        self.inner.pool = Some(pool); self
     }
 
     #[inline(always)]
     pub fn with_user_data(mut self, data_ptr: vkptr) -> VmaAllocationCI {
-        self.ci.user_data = Some(data_ptr); self
-    }
-
-    #[inline(always)]
-    pub fn value(&self) -> vma::AllocationCreateInfo {
-        self.ci.clone()
-    }
-}
-
-impl AsRef<vma::AllocationCreateInfo> for VmaAllocationCI {
-
-    fn as_ref(&self) -> &vma::AllocationCreateInfo {
-        &self.ci
+        self.inner.user_data = Some(data_ptr); self
     }
 }
 // ----------------------------------------------------------------------------------------------

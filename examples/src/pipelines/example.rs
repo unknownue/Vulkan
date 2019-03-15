@@ -207,11 +207,6 @@ impl VulkanExample {
 
     fn record_commands(&self, device: &VkDevice, dimension: vk::Extent2D) -> VkResult<()> {
 
-        let clear_values = [
-            vkexamples::DEFAULT_CLEAR_COLOR.clone(),
-            vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
-        ];
-
         let scissor = vk::Rect2D {
             extent: dimension.clone(),
             offset: vk::Offset2D { x: 0, y: 0 },
@@ -238,7 +233,7 @@ impl VulkanExample {
 
             let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[i])
                 .render_extent(dimension)
-                .clear_values(&clear_values);
+                .set_clear_values(vkexamples::DEFAULT_CLEAR_VALUES.clone());
 
             recorder.begin_record()?
                 .begin_render_pass(render_pass_bi)
@@ -340,7 +335,7 @@ fn prepare_uniform(device: &mut VkDevice, ubo_data: &UboVS) -> VkResult<VmaBuffe
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
-        let uniform_allocation = device.vma.create_buffer(&uniform_ci.value(), allocation_ci.as_ref())
+        let uniform_allocation = device.vma.create_buffer(&uniform_ci, &allocation_ci)
             .map_err(VkErrorKind::Vma)?;
         VmaBuffer::from(uniform_allocation)
     };
@@ -421,8 +416,8 @@ fn setup_descriptor(device: &VkDevice, uniform_buffer: &VmaBuffer, model: &VkglT
         .add_buffer(model.nodes.node_descriptor());
 
     DescriptorSetsUpdateCI::new()
-        .add_write(ubo_write_info.value())
-        .add_write(node_write_info.value())
+        .add_write(&ubo_write_info)
+        .add_write(&node_write_info)
         .update(device);
 
     let descriptors = DescriptorStaff {
@@ -461,11 +456,11 @@ fn setup_renderpass(device: &VkDevice, swapchain: &VkSwapchain) -> VkResult<vk::
         .flags(vk::DependencyFlags::BY_REGION);
 
     let render_pass = RenderPassCI::new()
-        .add_attachment(color_attachment.value())
-        .add_attachment(depth_attachment.value())
-        .add_subpass(subpass_description.value())
-        .add_dependency(dependency0.value())
-        .add_dependency(dependency1.value())
+        .add_attachment(color_attachment)
+        .add_attachment(depth_attachment)
+        .add_subpass(subpass_description)
+        .add_dependency(dependency0)
+        .add_dependency(dependency1)
         .build(device)?;
 
     Ok(render_pass)
@@ -483,9 +478,9 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         .polygon(vk::PolygonMode::FILL)
         .cull_face(vk::CullModeFlags::BACK, vk::FrontFace::CLOCKWISE);
 
-    let blend_attachment = BlendAttachmentSCI::new().value();
+    let blend_attachment = BlendAttachmentSCI::new();
     let blend_state = ColorBlendSCI::new()
-        .add_attachment(blend_attachment);
+        .add_attachment(blend_attachment.into());
 
     let depth_stencil_state = DepthStencilSCI::new()
         .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);
@@ -533,10 +528,11 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
             .build(device)?;
 
-        pipeline_ci.set_shaders(vec![
+        let shaders = [
             ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
             ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
-        ]);
+        ];
+        pipeline_ci.set_shaders(&shaders);
 
         // Using this pipeline as the base for the other pipelines (derivatives).
         // Pipeline derivatives can be used for pipelines that share most of their state
@@ -561,10 +557,11 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
             .build(device)?;
 
-        pipeline_ci.set_shaders(vec![
+        let shaders = [
             ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
             ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
-        ]);
+        ];
+        pipeline_ci.set_shaders(&shaders);
         // Base pipeline will be our first created pipeline.
         pipeline_ci.set_base_pipeline(phong_pipeline);
         // All pipelines created after the base pipeline will be derivatives.
@@ -588,10 +585,11 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
         let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
             .build(device)?;
 
-        pipeline_ci.set_shaders(vec![
+        let shaders = [
             ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
             ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
-        ]);
+        ];
+        pipeline_ci.set_shaders(&shaders);
 
         // Non solid rendering is not a mandatory Vulkan feature.
         if device.phy.features_enabled().fill_mode_non_solid == vk::TRUE {

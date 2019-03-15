@@ -8,19 +8,19 @@ use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
 
 use std::ptr;
+use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::BufferCreateInfo.
 #[derive(Debug, Clone)]
 pub struct BufferCI {
-    ci: vk::BufferCreateInfo,
-    queue_families: Vec<vkuint>,
+    inner: vk::BufferCreateInfo,
+    queue_families: Option<Vec<vkuint>>,
 }
 
-impl VulkanCI for BufferCI {
-    type CIType = vk::BufferCreateInfo;
+impl VulkanCI<vk::BufferCreateInfo> for BufferCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::BufferCreateInfo {
 
         vk::BufferCreateInfo {
             s_type: vk::StructureType::BUFFER_CREATE_INFO,
@@ -35,13 +35,21 @@ impl VulkanCI for BufferCI {
     }
 }
 
+impl Deref for BufferCI {
+    type Target = vk::BufferCreateInfo;
+
+    fn deref(&self) -> &vk::BufferCreateInfo {
+        &self.inner
+    }
+}
+
 impl VkObjectBuildableCI for BufferCI {
     type ObjectType = (vk::Buffer, vk::MemoryRequirements);
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let buffer = unsafe {
-            device.logic.handle.create_buffer(&self.value(), None)
+            device.logic.handle.create_buffer(self, None)
                 .map_err(|_| VkError::create("Buffer"))?
         };
 
@@ -58,37 +66,32 @@ impl BufferCI {
     pub fn new(size: vkbytes) -> BufferCI {
 
         BufferCI {
-            ci: vk::BufferCreateInfo {
+            inner: vk::BufferCreateInfo {
                 size,
                 ..BufferCI::default_ci()
             },
-            queue_families: Vec::new(),
-        }
-    }
-
-    pub fn value(&self) -> vk::BufferCreateInfo {
-
-        vk::BufferCreateInfo {
-            queue_family_index_count: self.queue_families.len() as _,
-            p_queue_family_indices  : self.queue_families.as_ptr(),
-            ..self.ci
+            queue_families: None,
         }
     }
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::BufferCreateFlags) -> BufferCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 
     #[inline(always)]
     pub fn usage(mut self, flags: vk::BufferUsageFlags) -> BufferCI {
-        self.ci.usage = flags; self
+        self.inner.usage = flags; self
     }
 
     #[inline(always)]
     pub fn sharing_queues(mut self, mode: vk::SharingMode, families_indices: Vec<vkuint>) -> BufferCI {
-        self.queue_families = families_indices;
-        self.ci.sharing_mode = mode; self
+
+        self.inner.queue_family_index_count = families_indices.len() as _;
+        self.inner.p_queue_family_indices   = families_indices.as_ptr();
+
+        self.queue_families = Some(families_indices);
+        self.inner.sharing_mode = mode; self
     }
 }
 

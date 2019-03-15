@@ -3,6 +3,7 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use std::ptr;
+use std::ops::Deref;
 
 use crate::context::VkDevice;
 use crate::context::{VkObjectDiscardable, VkObjectWaitable};
@@ -15,13 +16,12 @@ use crate::utils::time::VkTimeDuration;
 /// Wrapper class for vk::SemaphoreCreateInfo.
 #[derive(Debug, Clone)]
 pub struct SemaphoreCI {
-    ci: vk::SemaphoreCreateInfo,
+    inner: vk::SemaphoreCreateInfo,
 }
 
-impl VulkanCI for SemaphoreCI {
-    type CIType = vk::SemaphoreCreateInfo;
+impl VulkanCI<vk::SemaphoreCreateInfo> for SemaphoreCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::SemaphoreCreateInfo {
 
         vk::SemaphoreCreateInfo {
             s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
@@ -31,13 +31,21 @@ impl VulkanCI for SemaphoreCI {
     }
 }
 
+impl Deref for SemaphoreCI {
+    type Target = vk::SemaphoreCreateInfo;
+
+    fn deref(&self) -> &vk::SemaphoreCreateInfo {
+        &self.inner
+    }
+}
+
 impl VkObjectBuildableCI for SemaphoreCI {
     type ObjectType = vk::Semaphore;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let semaphore = unsafe {
-            device.logic.handle.create_semaphore(&self.ci, None)
+            device.logic.handle.create_semaphore(self, None)
                 .map_err(|_| VkError::create("Semaphore"))?
         };
         Ok(semaphore)
@@ -49,13 +57,13 @@ impl SemaphoreCI {
     pub fn new() -> SemaphoreCI {
 
         SemaphoreCI {
-            ci: SemaphoreCI::default_ci(),
+            inner: SemaphoreCI::default_ci(),
         }
     }
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::SemaphoreCreateFlags) {
-        self.ci.flags = flags;
+        self.inner.flags = flags;
     }
 }
 
@@ -70,16 +78,15 @@ impl VkObjectDiscardable for vk::Semaphore {
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::SemaphoreCreateInfo.
+/// Wrapper class for vk::FenceCreateInfo.
 #[derive(Debug, Clone)]
 pub struct FenceCI {
-    ci: vk::FenceCreateInfo,
+    inner: vk::FenceCreateInfo,
 }
 
-impl VulkanCI for FenceCI {
-    type CIType = vk::FenceCreateInfo;
+impl VulkanCI<vk::FenceCreateInfo> for FenceCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::FenceCreateInfo {
 
         vk::FenceCreateInfo {
             s_type: vk::StructureType::FENCE_CREATE_INFO,
@@ -89,13 +96,21 @@ impl VulkanCI for FenceCI {
     }
 }
 
+impl Deref for FenceCI {
+    type Target = vk::FenceCreateInfo;
+
+    fn deref(&self) -> &vk::FenceCreateInfo {
+        &self.inner
+    }
+}
+
 impl VkObjectBuildableCI for FenceCI {
     type ObjectType = vk::Fence;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let fence = unsafe {
-            device.logic.handle.create_fence(&self.ci, None)
+            device.logic.handle.create_fence(self, None)
                 .or(Err(VkError::create("Fence")))?
         };
         Ok(fence)
@@ -106,10 +121,10 @@ impl FenceCI {
 
     pub fn new(is_signed: bool) -> FenceCI {
 
-        let mut fence = FenceCI { ci: FenceCI::default_ci() };
+        let mut fence = FenceCI { inner: FenceCI::default_ci() };
 
         if is_signed {
-            fence.ci.flags = vk::FenceCreateFlags::SIGNALED;
+            fence.inner.flags = vk::FenceCreateFlags::SIGNALED;
         }
 
         fence
@@ -148,7 +163,7 @@ impl VkObjectWaitable for vk::Fence {
 impl AsRef<vk::FenceCreateInfo> for FenceCI {
 
     fn as_ref(&self) -> &vk::FenceCreateInfo {
-        &self.ci
+        &self.inner
     }
 }
 // ----------------------------------------------------------------------------------------------

@@ -4,34 +4,33 @@ use ash::version::DeviceV1_0;
 
 use crate::context::VkDevice;
 use crate::context::VkObjectDiscardable;
+
 use crate::ci::{VulkanCI, VkObjectBuildableCI};
+
 use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
 use std::ptr;
+use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::RenderPassBeginInfo.
 #[derive(Clone)]
 pub struct RenderPassBI {
 
-    bi: vk::RenderPassBeginInfo,
-    clears: Vec<vk::ClearValue>,
+    inner: vk::RenderPassBeginInfo,
+    clears: Option<Vec<vk::ClearValue>>,
 }
 
-impl VulkanCI for RenderPassBI {
-    type CIType = vk::RenderPassBeginInfo;
+impl VulkanCI<vk::RenderPassBeginInfo> for RenderPassBI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::RenderPassBeginInfo {
 
         vk::RenderPassBeginInfo {
             s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
             p_next: ptr::null(),
             render_area: vk::Rect2D {
-                extent: vk::Extent2D {
-                    width : 0,
-                    height: 0,
-                },
+                extent: vk::Extent2D { width : 0, height: 0 },
                 offset: vk::Offset2D { x: 0, y: 0 },
             },
             clear_value_count: 0,
@@ -42,41 +41,54 @@ impl VulkanCI for RenderPassBI {
     }
 }
 
+impl Deref for RenderPassBI {
+    type Target = vk::RenderPassBeginInfo;
+
+    fn deref(&self) -> &vk::RenderPassBeginInfo {
+        &self.inner
+    }
+}
+
 impl RenderPassBI {
 
     pub fn new(render_pass: vk::RenderPass, framebuffer: vk::Framebuffer) -> RenderPassBI {
 
         RenderPassBI {
-            bi: vk::RenderPassBeginInfo {
+            inner: vk::RenderPassBeginInfo {
                 render_pass, framebuffer,
                 ..RenderPassBI::default_ci()
             },
-            clears: Vec::new(),
+            clears: None,
         }
     }
 
     #[inline(always)]
     pub fn render_extent(mut self, area: vk::Extent2D) -> RenderPassBI {
-        self.bi.render_area.extent = area; self
+        self.inner.render_area.extent = area; self
     }
 
     #[inline(always)]
     pub fn render_area_offset(mut self, offset: vk::Offset2D) -> RenderPassBI {
-        self.bi.render_area.offset = offset; self
+        self.inner.render_area.offset = offset; self
     }
 
-    #[inline(always)]
-    pub fn clear_values(mut self, values: &[vk::ClearValue]) -> RenderPassBI {
-        self.clears.extend_from_slice(values); self
+    #[inline]
+    pub fn add_clear_value(mut self, value: vk::ClearValue) -> RenderPassBI {
+
+        let clear_values = self.clears.get_or_insert(Vec::new());
+        clear_values.push(value);
+
+        self.inner.clear_value_count = clear_values.len() as _;
+        self.inner.p_clear_values    = clear_values.as_ptr(); self
     }
 
-    pub(crate) fn value(&self) -> vk::RenderPassBeginInfo {
+    #[inline]
+    pub fn set_clear_values(mut self, values: Vec<vk::ClearValue>) -> RenderPassBI {
 
-        vk::RenderPassBeginInfo {
-            clear_value_count: self.clears.len() as _,
-            p_clear_values   : self.clears.as_ptr(),
-            ..self.bi
-        }
+        self.inner.clear_value_count = values.len() as _;
+        self.inner.p_clear_values    = values.as_ptr();
+
+        self.clears.replace(values); self
     }
 }
 // ----------------------------------------------------------------------------------------------
@@ -84,19 +96,20 @@ impl RenderPassBI {
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::RenderPassCreateInfo.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RenderPassCI {
 
-    ci: vk::RenderPassCreateInfo,
+    inner: vk::RenderPassCreateInfo,
     attachments : Vec<vk::AttachmentDescription>,
     subpasses   : Vec<vk::SubpassDescription>,
-    dependencies: Vec<vk::SubpassDependency>,
+    dependencies: Option<Vec<vk::SubpassDependency>>,
+
+    subpass_cis: Vec<SubpassDescCI>,
 }
 
-impl VulkanCI for RenderPassCI {
-    type CIType = vk::RenderPassCreateInfo;
+impl VulkanCI<vk::RenderPassCreateInfo> for RenderPassCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::RenderPassCreateInfo {
 
         vk::RenderPassCreateInfo {
             s_type: vk::StructureType::RENDER_PASS_CREATE_INFO,
@@ -112,23 +125,21 @@ impl VulkanCI for RenderPassCI {
     }
 }
 
+impl Deref for RenderPassCI {
+    type Target = vk::RenderPassCreateInfo;
+
+    fn deref(&self) -> &vk::RenderPassCreateInfo {
+        &self.inner
+    }
+}
+
 impl VkObjectBuildableCI for RenderPassCI {
     type ObjectType = vk::RenderPass;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
-        let renderpass_ci = vk::RenderPassCreateInfo {
-            attachment_count: self.attachments.len() as _,
-            p_attachments   : self.attachments.as_ptr(),
-            subpass_count   : self.subpasses.len() as _,
-            p_subpasses     : self.subpasses.as_ptr(),
-            dependency_count: self.dependencies.len() as _,
-            p_dependencies  : self.dependencies.as_ptr(),
-            ..self.ci
-        };
-
         let render_pass = unsafe {
-            device.logic.handle.create_render_pass(&renderpass_ci, None)
+            device.logic.handle.create_render_pass(self, None)
                 .map_err(|_| VkError::create("Render Pass"))?
         };
         Ok(render_pass)
@@ -140,31 +151,49 @@ impl RenderPassCI {
     pub fn new() -> RenderPassCI {
 
         RenderPassCI {
-            ci: RenderPassCI::default_ci(),
+            inner: RenderPassCI::default_ci(),
             attachments : Vec::new(),
             subpasses   : Vec::new(),
-            dependencies: Vec::new(),
+            dependencies: None,
+            subpass_cis : Vec::new(),
         }
     }
 
-    #[inline(always)]
-    pub fn add_attachment(mut self, attachment: vk::AttachmentDescription) -> RenderPassCI {
-        self.attachments.push(attachment); self
+    #[inline]
+    pub fn add_attachment(mut self, attachment: AttachmentDescCI) -> RenderPassCI {
+
+        self.attachments.push(attachment.into());
+        self.inner.attachment_count = self.attachments.len() as _;
+        self.inner.p_attachments    = self.attachments.as_ptr(); self
     }
 
-    #[inline(always)]
-    pub fn add_subpass(mut self, subpass: vk::SubpassDescription) -> RenderPassCI {
-        self.subpasses.push(subpass); self
+    #[inline]
+    pub fn add_subpass(mut self, subpass: SubpassDescCI) -> RenderPassCI {
+
+        if let Some(ref resolves) = subpass.resolves {
+            assert_eq!(resolves.len() as vkuint, subpass.color_attachment_count);
+        }
+
+        self.subpasses.push(subpass.inner.clone());
+        self.subpass_cis.push(subpass);
+
+        self.inner.subpass_count = self.subpasses.len() as _;
+        self.inner.p_subpasses   = self.subpasses.as_ptr(); self
     }
 
-    #[inline(always)]
-    pub fn add_dependency(mut self, dependency: vk::SubpassDependency) -> RenderPassCI {
-        self.dependencies.push(dependency); self
+    #[inline]
+    pub fn add_dependency(mut self, dependency: SubpassDependencyCI) -> RenderPassCI {
+
+        let dependencies = self.dependencies.get_or_insert(Vec::new());
+        dependencies.push(dependency.into());
+
+        self.inner.dependency_count = dependencies.len() as _;
+        self.inner.p_dependencies   = dependencies.as_ptr(); self
     }
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::RenderPassCreateFlags) -> RenderPassCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 }
 
@@ -182,11 +211,10 @@ impl VkObjectDiscardable for vk::RenderPass {
 /// Wrapper class for vk::AttachmentDescription.
 #[derive(Debug, Clone)]
 pub struct AttachmentDescCI {
-    ci: vk::AttachmentDescription,
+    inner: vk::AttachmentDescription,
 }
 
-impl VulkanCI for AttachmentDescCI {
-    type CIType = vk::AttachmentDescription;
+impl VulkanCI<vk::AttachmentDescription> for AttachmentDescCI {
 
     fn default_ci() -> vk::AttachmentDescription {
 
@@ -204,12 +232,20 @@ impl VulkanCI for AttachmentDescCI {
     }
 }
 
+impl Deref for AttachmentDescCI {
+    type Target = vk::AttachmentDescription;
+
+    fn deref(&self) -> &vk::AttachmentDescription {
+        &self.inner
+    }
+}
+
 impl AttachmentDescCI {
 
     pub fn new(format: vk::Format) -> AttachmentDescCI {
 
         AttachmentDescCI {
-            ci: vk::AttachmentDescription {
+            inner: vk::AttachmentDescription {
                 format,
                 ..AttachmentDescCI::default_ci()
             }
@@ -217,43 +253,38 @@ impl AttachmentDescCI {
     }
 
     #[inline(always)]
-    pub fn value(&self) -> vk::AttachmentDescription {
-        self.ci.clone()
-    }
-
-    #[inline(always)]
     pub fn sample_count(mut self, count: vk::SampleCountFlags) -> AttachmentDescCI {
-        self.ci.samples = count; self
+        self.inner.samples = count; self
     }
 
     #[inline(always)]
     pub fn op(mut self, load: vk::AttachmentLoadOp, store: vk::AttachmentStoreOp) -> AttachmentDescCI {
-        self.ci.load_op  = load;
-        self.ci.store_op = store; self
+        self.inner.load_op  = load;
+        self.inner.store_op = store; self
     }
 
     #[inline(always)]
     pub fn stencil_op(mut self, load: vk::AttachmentLoadOp, store: vk::AttachmentStoreOp) -> AttachmentDescCI {
-        self.ci.stencil_load_op  = load;
-        self.ci.stencil_store_op = store; self
+        self.inner.stencil_load_op  = load;
+        self.inner.stencil_store_op = store; self
     }
 
     #[inline(always)]
     pub fn layout(mut self, initial: vk::ImageLayout, r#final: vk::ImageLayout) -> AttachmentDescCI {
-        self.ci.initial_layout = initial;
-        self.ci.final_layout   = r#final; self
+        self.inner.initial_layout = initial;
+        self.inner.final_layout   = r#final; self
     }
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::AttachmentDescriptionFlags) -> AttachmentDescCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 }
 
 impl From<AttachmentDescCI> for vk::AttachmentDescription {
 
-    fn from(value: AttachmentDescCI) -> vk::AttachmentDescription {
-        value.ci
+    fn from(v: AttachmentDescCI) -> vk::AttachmentDescription {
+        v.inner
     }
 }
 // ----------------------------------------------------------------------------------------------
@@ -262,17 +293,16 @@ impl From<AttachmentDescCI> for vk::AttachmentDescription {
 /// Wrapper class for vk::SubpassDescription.
 #[derive(Debug)]
 pub struct SubpassDescCI {
-    ci: vk::SubpassDescription,
+    inner: vk::SubpassDescription,
 
-    inputs   : Vec<vk::AttachmentReference>,
-    colors   : Vec<vk::AttachmentReference>,
-    resolves : Vec<vk::AttachmentReference>,
-    preserves: Vec<vkuint>,
-    depth_stencil: Vec<vk::AttachmentReference>,
+    inputs   : Option<Vec<vk::AttachmentReference>>,
+    colors   : Option<Vec<vk::AttachmentReference>>,
+    resolves : Option<Vec<vk::AttachmentReference>>,
+    preserves: Option<Vec<vkuint>>,
+    depth_stencil: Option<Vec<vk::AttachmentReference>>,
 }
 
-impl VulkanCI for SubpassDescCI {
-    type CIType = vk::SubpassDescription;
+impl VulkanCI<vk::SubpassDescription> for SubpassDescCI {
 
     fn default_ci() -> vk::SubpassDescription {
 
@@ -291,88 +321,93 @@ impl VulkanCI for SubpassDescCI {
     }
 }
 
+impl Deref for SubpassDescCI {
+    type Target = vk::SubpassDescription;
+
+    fn deref(&self) -> &vk::SubpassDescription {
+        &self.inner
+    }
+}
+
 impl SubpassDescCI {
 
     pub fn new(bind_point: vk::PipelineBindPoint) -> SubpassDescCI {
 
         SubpassDescCI {
-            ci: vk::SubpassDescription {
+            inner: vk::SubpassDescription {
                 pipeline_bind_point: bind_point,
                 ..SubpassDescCI::default_ci()
             },
-            inputs   : Vec::new(),
-            colors   : Vec::new(),
-            resolves : Vec::new(),
-            preserves: Vec::new(),
-            depth_stencil: Vec::new(),
+            inputs   : None,
+            colors   : None,
+            resolves : None,
+            preserves: None,
+            depth_stencil: None,
         }
     }
 
-    pub fn value(&self) -> vk::SubpassDescription {
-
-        if self.resolves.is_empty() == false {
-            debug_assert_eq!(self.colors.len(), self.resolves.len(), "The amount of resolve attachments must be equal to color attachments if it is not empty.");
-        }
-
-        vk::SubpassDescription {
-            input_attachment_count: self.inputs.len() as _,
-            p_input_attachments   : self.inputs.as_ptr(),
-            color_attachment_count: self.colors.len() as _,
-            p_color_attachments   : self.colors.as_ptr(),
-            p_resolve_attachments : if self.resolves.is_empty() { ptr::null() } else { self.resolves.as_ptr() },
-            preserve_attachment_count: self.preserves.len() as _,
-            p_preserve_attachments   : self.preserves.as_ptr(),
-            p_depth_stencil_attachment: if self.depth_stencil.is_empty() { ptr::null() } else { self.depth_stencil.as_ptr() },
-            ..self.ci
-        }
-    }
-
-    #[inline(always)]
+    #[inline]
     pub fn add_input_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
-        self.inputs.push(vk::AttachmentReference {
+
+        let inputs = self.inputs.get_or_insert(Vec::new());
+        inputs.push(vk::AttachmentReference {
             attachment: attachment_index,
             layout: image_layout
-        }); self
+        });
+
+        self.inner.input_attachment_count = inputs.len() as _;
+        self.inner.p_input_attachments    = inputs.as_ptr(); self
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn add_color_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
-        self.colors.push(vk::AttachmentReference {
+
+        let colors = self.colors.get_or_insert(Vec::new());
+        colors.push(vk::AttachmentReference {
             attachment: attachment_index,
             layout: image_layout,
-        }); self
+        });
+
+        self.inner.color_attachment_count = colors.len() as _;
+        self.inner.p_color_attachments    = colors.as_ptr(); self
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn add_resolve_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
-        self.resolves.push(vk::AttachmentReference {
+
+        let resolves = self.resolves.get_or_insert(Vec::new());
+        resolves.push(vk::AttachmentReference {
             attachment: attachment_index,
             layout: image_layout,
-        }); self
+        });
+
+        self.inner.preserve_attachment_count = resolves.len() as _;
+        self.inner.p_resolve_attachments     = resolves.as_ptr(); self
     }
 
     #[inline(always)]
     pub fn add_preserve_attachment(mut self, attachment_index: vkuint) -> SubpassDescCI {
-        self.preserves.push(attachment_index); self
+
+        let preserves = self.preserves.get_or_insert(Vec::new());
+        preserves.push(attachment_index);
+
+        self.inner.p_preserve_attachments = preserves.as_ptr(); self
     }
 
     pub fn set_depth_stencil_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
 
-        let depth_stencil_ref = vk::AttachmentReference {
+        let depth_stencil_ref = self.depth_stencil.get_or_insert(vec![vk::AttachmentReference::default()]);
+        depth_stencil_ref[0] = vk::AttachmentReference {
             attachment: attachment_index,
             layout: image_layout,
         };
-        if self.depth_stencil.is_empty() {
-            self.depth_stencil.push(depth_stencil_ref);
-        } else {
-            self.depth_stencil[0] = depth_stencil_ref;
-        }
-        self
+
+        self.inner.p_depth_stencil_attachment = depth_stencil_ref.as_ptr(); self
     }
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::SubpassDescriptionFlags) -> SubpassDescCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 }
 // ----------------------------------------------------------------------------------------------
@@ -382,13 +417,12 @@ impl SubpassDescCI {
 /// Wrapper class for vk::SubpassDependency.
 #[derive(Debug, Clone)]
 pub struct SubpassDependencyCI {
-    ci: vk::SubpassDependency,
+    inner: vk::SubpassDependency,
 }
 
-impl VulkanCI for SubpassDependencyCI {
-    type CIType = vk::SubpassDependency;
+impl VulkanCI<vk::SubpassDependency> for SubpassDependencyCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::SubpassDependency {
 
         vk::SubpassDependency {
             src_subpass: vk::SUBPASS_EXTERNAL,
@@ -402,12 +436,20 @@ impl VulkanCI for SubpassDependencyCI {
     }
 }
 
+impl Deref for SubpassDependencyCI {
+    type Target = vk::SubpassDependency;
+
+    fn deref(&self) -> &vk::SubpassDependency {
+        &self.inner
+    }
+}
+
 impl SubpassDependencyCI {
 
     pub fn new(src: vkuint, dst: vkuint) -> SubpassDependencyCI {
 
         SubpassDependencyCI {
-            ci: vk::SubpassDependency {
+            inner: vk::SubpassDependency {
                 src_subpass: src,
                 dst_subpass: dst,
                 ..SubpassDependencyCI::default_ci()
@@ -416,32 +458,27 @@ impl SubpassDependencyCI {
     }
 
     #[inline(always)]
-    pub fn value(&self) -> vk::SubpassDependency {
-        self.ci.clone()
-    }
-
-    #[inline(always)]
     pub fn stage_mask(mut self, src: vk::PipelineStageFlags, dst: vk::PipelineStageFlags) -> SubpassDependencyCI {
-        self.ci.src_stage_mask = src;
-        self.ci.dst_stage_mask = dst; self
+        self.inner.src_stage_mask = src;
+        self.inner.dst_stage_mask = dst; self
     }
 
     #[inline(always)]
     pub fn access_mask(mut self, src: vk::AccessFlags, dst: vk::AccessFlags) -> SubpassDependencyCI {
-        self.ci.src_access_mask = src;
-        self.ci.dst_access_mask = dst; self
+        self.inner.src_access_mask = src;
+        self.inner.dst_access_mask = dst; self
     }
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::DependencyFlags) -> SubpassDependencyCI {
-        self.ci.dependency_flags = flags; self
+        self.inner.dependency_flags = flags; self
     }
 }
 
 impl From<SubpassDependencyCI> for vk::SubpassDependency {
 
-    fn from(value: SubpassDependencyCI) -> vk::SubpassDependency {
-        value.ci
+    fn from(v: SubpassDependencyCI) -> vk::SubpassDependency {
+        v.inner
     }
 }
 // ----------------------------------------------------------------------------------------------

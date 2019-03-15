@@ -96,7 +96,7 @@ fn setup_descriptor(device: &VkDevice, glyphs: &GlyphImages) -> VkResult<(vk::De
         });
 
     DescriptorSetsUpdateCI::new()
-        .add_write(sampled_image_write_info.value())
+        .add_write(&sampled_image_write_info)
         .update(device);
 
     Ok((descriptor_pool, descriptor_set, set_layout))
@@ -124,10 +124,9 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
     let blend_attachment = BlendAttachmentSCI::new()
         .blend_enable(true)
         .color(vk::BlendOp::ADD, vk::BlendFactor::SRC_ALPHA, vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
-        .alpha(vk::BlendOp::ADD, vk::BlendFactor::SRC_ALPHA, vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
-        .value();
+        .alpha(vk::BlendOp::ADD, vk::BlendFactor::SRC_ALPHA, vk::BlendFactor::ONE_MINUS_SRC_ALPHA);
     let blend_state = ColorBlendSCI::new()
-        .add_attachment(blend_attachment);
+        .add_attachment(blend_attachment.into());
 
     // Pipeline Layout.
     let pipeline_layout = PipelineLayoutCI::new()
@@ -158,11 +157,12 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
         .build(device)?;
     let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
         .build(device)?;
-
-    pipeline_ci.set_shaders(vec![
+    let shaders = [
         ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
         ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
-    ]);
+    ];
+
+    pipeline_ci.set_shaders(&shaders);
 
     let text_pipeline = device.build(&pipeline_ci)?;
 

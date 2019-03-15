@@ -8,20 +8,20 @@ use crate::error::{VkResult, VkError};
 use crate::{vkbytes, vkuint, vkfloat};
 
 use std::ptr;
+use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::ImageCreateInfo.
 #[derive(Debug, Clone)]
 pub struct ImageCI {
 
-    ci: vk::ImageCreateInfo,
-    queue_families: Vec<vkuint>,
+    inner: vk::ImageCreateInfo,
+    queue_families: Option<Vec<vkuint>>,
 }
 
-impl VulkanCI for ImageCI {
-    type CIType = vk::ImageCreateInfo;
+impl VulkanCI<vk::ImageCreateInfo> for ImageCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::ImageCreateInfo {
 
         vk::ImageCreateInfo {
             s_type: vk::StructureType::IMAGE_CREATE_INFO,
@@ -43,13 +43,21 @@ impl VulkanCI for ImageCI {
     }
 }
 
+impl Deref for ImageCI {
+    type Target = vk::ImageCreateInfo;
+
+    fn deref(&self) -> &vk::ImageCreateInfo {
+        &self.inner
+    }
+}
+
 impl VkObjectBuildableCI for ImageCI {
     type ObjectType = (vk::Image, vk::MemoryRequirements);
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let image = unsafe {
-            device.logic.handle.create_image(&self.value(), None)
+            device.logic.handle.create_image(self, None)
                 .map_err(|_| VkError::create("Image"))?
         };
 
@@ -66,13 +74,13 @@ impl ImageCI {
     pub fn new(r#type: vk::ImageType, format: vk::Format, dimension: vk::Extent3D) -> ImageCI {
 
         ImageCI {
-            ci: vk::ImageCreateInfo {
+            inner: vk::ImageCreateInfo {
                 image_type: r#type,
                 format,
                 extent: dimension,
                 ..ImageCI::default_ci()
             },
-            queue_families: Vec::new(),
+            queue_families: None,
         }
     }
 
@@ -87,54 +95,49 @@ impl ImageCI {
         ImageCI::new(vk::ImageType::TYPE_2D, format, extent)
     }
 
-    pub fn value(&self) -> vk::ImageCreateInfo {
-
-        vk::ImageCreateInfo {
-            queue_family_index_count: self.queue_families.len() as _,
-            p_queue_family_indices  : self.queue_families.as_ptr(),
-            ..self.ci
-        }
-    }
-
     #[inline(always)]
     pub fn flags(mut self, flags: vk::ImageCreateFlags) -> ImageCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 
     #[inline(always)]
     pub fn usages(mut self, flags: vk::ImageUsageFlags) -> ImageCI {
-        self.ci.usage = flags; self
+        self.inner.usage = flags; self
     }
 
     #[inline(always)]
     pub fn tiling(mut self, tiling: vk::ImageTiling) -> ImageCI {
-        self.ci.tiling = tiling; self
+        self.inner.tiling = tiling; self
     }
 
     #[inline(always)]
     pub fn samples(mut self, count: vk::SampleCountFlags) -> ImageCI {
-        self.ci.samples = count; self
+        self.inner.samples = count; self
     }
 
     #[inline(always)]
     pub fn mip_levels(mut self, level: vkuint) -> ImageCI {
-        self.ci.mip_levels = level; self
+        self.inner.mip_levels = level; self
     }
 
     #[inline(always)]
     pub fn array_layers(mut self, layers: vkuint) -> ImageCI {
-        self.ci.array_layers = layers; self
+        self.inner.array_layers = layers; self
     }
 
     #[inline(always)]
     pub fn initial_layout(mut self, layout: vk::ImageLayout) -> ImageCI {
-        self.ci.initial_layout = layout; self
+        self.inner.initial_layout = layout; self
     }
 
     #[inline(always)]
     pub fn sharing_queues(mut self, mode: vk::SharingMode, families_indices: Vec<vkuint>) -> ImageCI {
-        self.queue_families = families_indices;
-        self.ci.sharing_mode = mode; self
+
+        self.inner.queue_family_index_count = families_indices.len() as _;
+        self.inner.p_queue_family_indices   = families_indices.as_ptr();
+
+        self.queue_families = Some(families_indices);
+        self.inner.sharing_mode = mode; self
     }
 }
 
@@ -162,13 +165,12 @@ impl VkObjectBindable for vk::Image {
 /// Wrapper class for vk::ImageViewCreateInfo.
 #[derive(Debug, Clone)]
 pub struct ImageViewCI {
-    ci: vk::ImageViewCreateInfo,
+    inner: vk::ImageViewCreateInfo,
 }
 
-impl VulkanCI for ImageViewCI {
-    type CIType = vk::ImageViewCreateInfo;
+impl VulkanCI<vk::ImageViewCreateInfo> for ImageViewCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::ImageViewCreateInfo {
 
         vk::ImageViewCreateInfo {
             s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
@@ -194,13 +196,21 @@ impl VulkanCI for ImageViewCI {
     }
 }
 
+impl Deref for ImageViewCI {
+    type Target = vk::ImageViewCreateInfo;
+
+    fn deref(&self) -> &vk::ImageViewCreateInfo {
+        &self.inner
+    }
+}
+
 impl VkObjectBuildableCI for ImageViewCI {
     type ObjectType = vk::ImageView;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let view = unsafe {
-            device.logic.handle.create_image_view(&self.ci, None)
+            device.logic.handle.create_image_view(self, None)
                 .map_err(|_| VkError::create("Image View"))?
         };
         Ok(view)
@@ -212,7 +222,7 @@ impl ImageViewCI {
     pub fn new(image: vk::Image, r#type: vk::ImageViewType, format: vk::Format) -> ImageViewCI {
 
         ImageViewCI {
-            ci: vk::ImageViewCreateInfo {
+            inner: vk::ImageViewCreateInfo {
                 image, format,
                 view_type: r#type,
                 ..ImageViewCI::default_ci()
@@ -222,17 +232,17 @@ impl ImageViewCI {
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::ImageViewCreateFlags) -> ImageViewCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 
     #[inline(always)]
     pub fn components(mut self, components: vk::ComponentMapping) -> ImageViewCI {
-        self.ci.components = components;; self
+        self.inner.components = components;; self
     }
 
     #[inline(always)]
     pub fn sub_range(mut self, range: vk::ImageSubresourceRange) -> ImageViewCI {
-        self.ci.subresource_range = range; self
+        self.inner.subresource_range = range; self
     }
 }
 
@@ -250,13 +260,12 @@ impl VkObjectDiscardable for vk::ImageView {
 /// Wrapper class for vk::ImageMemoryBarrier.
 #[derive(Debug, Clone)]
 pub struct ImageBarrierCI {
-    ci: vk::ImageMemoryBarrier,
+    inner: vk::ImageMemoryBarrier,
 }
 
-impl VulkanCI for ImageBarrierCI {
-    type CIType = vk::ImageMemoryBarrier;
+impl VulkanCI<vk::ImageMemoryBarrier> for ImageBarrierCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::ImageMemoryBarrier {
 
         vk::ImageMemoryBarrier {
             s_type: vk::StructureType::IMAGE_MEMORY_BARRIER,
@@ -273,12 +282,20 @@ impl VulkanCI for ImageBarrierCI {
     }
 }
 
+impl Deref for ImageBarrierCI {
+    type Target = vk::ImageMemoryBarrier;
+
+    fn deref(&self) -> &vk::ImageMemoryBarrier {
+        &self.inner
+    }
+}
+
 impl ImageBarrierCI {
 
     pub fn new(image: vk::Image, subrange: vk::ImageSubresourceRange) -> ImageBarrierCI {
 
         ImageBarrierCI {
-            ci: vk::ImageMemoryBarrier {
+            inner: vk::ImageMemoryBarrier {
                 image,
                 subresource_range: subrange,
                 ..ImageBarrierCI::default_ci()
@@ -288,32 +305,25 @@ impl ImageBarrierCI {
 
     #[inline(always)]
     pub fn value(&self) -> vk::ImageMemoryBarrier {
-        self.ci.clone()
+        self.inner.clone()
     }
 
     #[inline(always)]
     pub fn access_mask(mut self, from: vk::AccessFlags, to: vk::AccessFlags) -> Self {
-        self.ci.src_access_mask = from;
-        self.ci.dst_access_mask = to; self
+        self.inner.src_access_mask = from;
+        self.inner.dst_access_mask = to; self
     }
 
     #[inline(always)]
     pub fn layout(mut self, from: vk::ImageLayout, to: vk::ImageLayout) -> Self {
-        self.ci.old_layout = from;
-        self.ci.new_layout = to; self
+        self.inner.old_layout = from;
+        self.inner.new_layout = to; self
     }
 
     #[inline(always)]
     pub fn queue_family_index(mut self, from: vkuint, to: vkuint) -> Self {
-        self.ci.src_queue_family_index = from;
-        self.ci.dst_queue_family_index = to; self
-    }
-}
-
-impl From<ImageBarrierCI> for vk::ImageMemoryBarrier {
-
-    fn from(value: ImageBarrierCI) -> vk::ImageMemoryBarrier {
-        value.ci
+        self.inner.src_queue_family_index = from;
+        self.inner.dst_queue_family_index = to; self
     }
 }
 // ----------------------------------------------------------------------------------------------
@@ -321,11 +331,10 @@ impl From<ImageBarrierCI> for vk::ImageMemoryBarrier {
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::SamplerCreateInfo.
 pub struct SamplerCI {
-    ci: vk::SamplerCreateInfo,
+    inner: vk::SamplerCreateInfo,
 }
 
-impl VulkanCI for SamplerCI {
-    type CIType = vk::SamplerCreateInfo;
+impl VulkanCI<vk::SamplerCreateInfo> for SamplerCI {
 
     fn default_ci() -> vk::SamplerCreateInfo {
 
@@ -352,19 +361,27 @@ impl VulkanCI for SamplerCI {
     }
 }
 
+impl Deref for SamplerCI {
+    type Target = vk::SamplerCreateInfo;
+
+    fn deref(&self) -> &vk::SamplerCreateInfo {
+        &self.inner
+    }
+}
+
 impl SamplerCI {
 
     #[inline(always)]
     pub fn new() -> SamplerCI {
         SamplerCI {
-            ci: SamplerCI::default_ci(),
+            inner: SamplerCI::default_ci(),
         }
     }
 
     pub fn build(&self, device: &VkDevice) -> VkResult<vk::Sampler> {
 
         let sampler = unsafe {
-            device.logic.handle.create_sampler(&self.ci, None)
+            device.logic.handle.create_sampler(self, None)
                 .map_err(|_| VkError::create("Sampler"))?
         };
         Ok(sampler)
@@ -375,22 +392,22 @@ impl SamplerCI {
     /// `min` specifies the minification filter to apply to lookups.
     #[inline(always)]
     pub fn filter(mut self, mag: vk::Filter, min: vk::Filter) -> SamplerCI {
-        self.ci.mag_filter = mag;
-        self.ci.min_filter = min; self
+        self.inner.mag_filter = mag;
+        self.inner.min_filter = min; self
     }
 
     /// `mode` specifies the mipmap filter to apply to lookups.
     #[inline(always)]
     pub fn mipmap(mut self, mode: vk::SamplerMipmapMode) -> SamplerCI {
-        self.ci.mipmap_mode = mode; self
+        self.inner.mipmap_mode = mode; self
     }
 
     /// `u`, `v` and `w` specifies the addressing mode for outside [0..1] range for U, V, W coordinate.
     #[inline(always)]
     pub fn address(mut self, u: vk::SamplerAddressMode, v: vk::SamplerAddressMode, w: vk::SamplerAddressMode) -> SamplerCI {
-        self.ci.address_mode_u = u;
-        self.ci.address_mode_v = v;
-        self.ci.address_mode_w = w; self
+        self.inner.address_mode_u = u;
+        self.inner.address_mode_v = v;
+        self.inner.address_mode_w = w; self
     }
 
     /// `mip_bias` is the bias to be added to mipmap LOD (level-of-detail) calculation and bias provided by image sampling functions in SPIR-V.
@@ -400,9 +417,9 @@ impl SamplerCI {
     /// `max` used to clamp the maximum computed LOD value, as described in the Level-of-Detail Operation section.
     #[inline(always)]
     pub fn lod(mut self, mip_bias: vkfloat, min: vkfloat, max: vkfloat) -> SamplerCI {
-        self.ci.mip_lod_bias = mip_bias;
-        self.ci.min_lod = min;
-        self.ci.max_lod = max; self
+        self.inner.mip_lod_bias = mip_bias;
+        self.inner.min_lod = min;
+        self.inner.max_lod = max; self
     }
 
     /// This function needs to enable an physical feature named 'sampler_anisotropy'.
@@ -414,10 +431,10 @@ impl SamplerCI {
     pub fn anisotropy(mut self, max: Option<vkfloat>) -> SamplerCI {
 
         if let Some(max) = max {
-            self.ci.anisotropy_enable = vk::TRUE;
-            self.ci.max_anisotropy = max;
+            self.inner.anisotropy_enable = vk::TRUE;
+            self.inner.max_anisotropy = max;
         } else {
-            self.ci.anisotropy_enable = vk::FALSE;
+            self.inner.anisotropy_enable = vk::FALSE;
         }
 
         self
@@ -433,10 +450,10 @@ impl SamplerCI {
     pub fn compare_op(mut self, op: Option<vk::CompareOp>) -> SamplerCI {
 
         if let Some(op) = op  {
-            self.ci.compare_enable = vk::TRUE;
-            self.ci.compare_op = op;
+            self.inner.compare_enable = vk::TRUE;
+            self.inner.compare_op = op;
         } else {
-            self.ci.compare_enable = vk::FALSE;
+            self.inner.compare_enable = vk::FALSE;
         }
 
         self
@@ -445,7 +462,7 @@ impl SamplerCI {
     /// `border_color` specifies the predefined border color to use.
     #[inline(always)]
     pub fn border_color(mut self, color: vk::BorderColor) -> SamplerCI {
-        self.ci.border_color = color; self
+        self.inner.border_color = color; self
     }
 
     /// `unnormalize_coordinates_enable` controls whether to use unnormalized or normalized texel coordinates to address texels of the image.
@@ -456,14 +473,7 @@ impl SamplerCI {
     /// When set to false, the range of image coordinates is zero to one.
     #[inline(always)]
     pub fn unnormalize_coordinates_enable(mut self, enable: bool) -> SamplerCI {
-        self.ci.unnormalized_coordinates = if enable { vk::TRUE } else { vk::FALSE }; self
-    }
-}
-
-impl From<SamplerCI> for vk::SamplerCreateInfo {
-
-    fn from(value: SamplerCI) -> vk::SamplerCreateInfo {
-        value.ci
+        self.inner.unnormalized_coordinates = if enable { vk::TRUE } else { vk::FALSE }; self
     }
 }
 

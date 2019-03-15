@@ -2,22 +2,27 @@
 use ash::vk;
 use ash::version::DeviceV1_0;
 
-use vkbase::context::{VkDevice, VkSwapchain};
+use lazy_static::lazy_static;
+
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::sync::SemaphoreCI;
 use vkbase::ci::image::{ImageCI, ImageViewCI};
 use vkbase::ci::vma::{VmaImage, VmaAllocationCI};
 use vkbase::ui::{UIRenderer, TextInfo, TextID, TextType, TextHAlign};
+
+use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::utils::color::VkColor;
 use vkbase::vkuint;
 use vkbase::{VkResult, VkError, VkErrorKind};
 
-pub const DEFAULT_CLEAR_COLOR: vk::ClearValue = vk::ClearValue {
-    color: vk::ClearColorValue {
-        float32: [0.025, 0.025, 0.025, 1.0],
-    }
-};
+lazy_static! {
 
+    pub static ref DEFAULT_CLEAR_VALUES: Vec<vk::ClearValue> = vec![
+        vk::ClearValue { color: vk::ClearColorValue { float32: [0.025, 0.025, 0.025, 1.0] } },
+        vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
+    ];
+
+}
 
 pub struct VkExampleBackend {
 
@@ -191,7 +196,7 @@ fn setup_depth_image(device: &mut VkDevice, dimension: vk::Extent2D) -> VkResult
             .usages(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
         let depth_allocation = device.vma.create_image(
-            &depth_ci.value(), allocation_ci.as_ref())
+            &depth_ci, &allocation_ci)
             .map_err(VkErrorKind::Vma)?;
         VmaImage::from(depth_allocation)
     };

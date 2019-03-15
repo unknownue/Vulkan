@@ -9,18 +9,18 @@ use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
 use std::ptr;
+use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::CommandBufferAllocateInfo.
 #[derive(Debug, Clone)]
 pub struct CommandBufferAI {
-    ai: vk::CommandBufferAllocateInfo,
+    inner: vk::CommandBufferAllocateInfo,
 }
 
-impl VulkanCI for CommandBufferAI {
-    type CIType = vk::CommandBufferAllocateInfo;
+impl VulkanCI<vk::CommandBufferAllocateInfo> for CommandBufferAI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::CommandBufferAllocateInfo {
 
         vk::CommandBufferAllocateInfo {
             s_type: vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
@@ -32,13 +32,22 @@ impl VulkanCI for CommandBufferAI {
     }
 }
 
+impl Deref for CommandBufferAI {
+    type Target = vk::CommandBufferAllocateInfo;
+
+    fn deref(&self) -> &vk::CommandBufferAllocateInfo {
+        &self.inner
+    }
+}
+
+
 impl VkObjectBuildableCI for CommandBufferAI {
     type ObjectType = Vec<vk::CommandBuffer>;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let commands = unsafe {
-            device.logic.handle.allocate_command_buffers(&self.ai)
+            device.logic.handle.allocate_command_buffers(self)
                 .map_err(|_| VkError::create("Command Buffers"))?
         };
         Ok(commands)
@@ -50,7 +59,7 @@ impl CommandBufferAI {
     pub fn new(pool: vk::CommandPool, count: vkuint) -> CommandBufferAI {
 
         CommandBufferAI {
-            ai: vk::CommandBufferAllocateInfo {
+            inner: vk::CommandBufferAllocateInfo {
                 command_pool: pool,
                 command_buffer_count: count,
                 ..CommandBufferAI::default_ci()
@@ -60,7 +69,7 @@ impl CommandBufferAI {
 
     #[inline(always)]
     pub fn level(mut self, level: vk::CommandBufferLevel) -> CommandBufferAI {
-        self.ai.level = level; self
+        self.inner.level = level; self
     }
 }
 
@@ -88,13 +97,12 @@ impl VkObjectAllocatable for &[vk::CommandBuffer] {
 // ----------------------------------------------------------------------------------------------
 #[derive(Debug, Clone)]
 pub struct CommandPoolCI {
-    ci: vk::CommandPoolCreateInfo,
+    inner: vk::CommandPoolCreateInfo,
 }
 
-impl VulkanCI for CommandPoolCI {
-    type CIType = vk::CommandPoolCreateInfo;
+impl VulkanCI<vk::CommandPoolCreateInfo> for CommandPoolCI {
 
-    fn default_ci() -> Self::CIType {
+    fn default_ci() -> vk::CommandPoolCreateInfo {
 
         vk::CommandPoolCreateInfo {
             s_type: vk::StructureType::COMMAND_POOL_CREATE_INFO,
@@ -105,13 +113,22 @@ impl VulkanCI for CommandPoolCI {
     }
 }
 
+impl Deref for CommandPoolCI {
+    type Target = vk::CommandPoolCreateInfo;
+
+    fn deref(&self) -> &vk::CommandPoolCreateInfo {
+        &self.inner
+    }
+}
+
+
 impl VkObjectBuildableCI for CommandPoolCI {
     type ObjectType = vk::CommandPool;
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let pool = unsafe {
-            device.logic.handle.create_command_pool(&self.ci, None)
+            device.logic.handle.create_command_pool(self, None)
                 .map_err(|_| VkError::create("Command Pool"))?
         };
         Ok(pool)
@@ -123,7 +140,7 @@ impl CommandPoolCI {
     pub fn new(queue_family: vkuint) -> CommandPoolCI {
 
         CommandPoolCI {
-            ci: vk::CommandPoolCreateInfo {
+            inner: vk::CommandPoolCreateInfo {
                 queue_family_index: queue_family,
                 ..CommandPoolCI::default_ci()
             },
@@ -132,7 +149,7 @@ impl CommandPoolCI {
 
     #[inline(always)]
     pub fn flags(mut self, flags: vk::CommandPoolCreateFlags) -> CommandPoolCI {
-        self.ci.flags = flags; self
+        self.inner.flags = flags; self
     }
 }
 
