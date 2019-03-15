@@ -126,7 +126,7 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
         .color(vk::BlendOp::ADD, vk::BlendFactor::SRC_ALPHA, vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
         .alpha(vk::BlendOp::ADD, vk::BlendFactor::SRC_ALPHA, vk::BlendFactor::ONE_MINUS_SRC_ALPHA);
     let blend_state = ColorBlendSCI::new()
-        .add_attachment(blend_attachment.into());
+        .add_attachment(blend_attachment);
 
     // Pipeline Layout.
     let pipeline_layout = PipelineLayoutCI::new()

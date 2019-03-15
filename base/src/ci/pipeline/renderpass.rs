@@ -11,7 +11,6 @@ use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
 use std::ptr;
-use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::RenderPassBeginInfo.
@@ -41,10 +40,9 @@ impl VulkanCI<vk::RenderPassBeginInfo> for RenderPassBI {
     }
 }
 
-impl Deref for RenderPassBI {
-    type Target = vk::RenderPassBeginInfo;
+impl AsRef<vk::RenderPassBeginInfo> for RenderPassBI {
 
-    fn deref(&self) -> &vk::RenderPassBeginInfo {
+    fn as_ref(&self) -> &vk::RenderPassBeginInfo {
         &self.inner
     }
 }
@@ -125,10 +123,9 @@ impl VulkanCI<vk::RenderPassCreateInfo> for RenderPassCI {
     }
 }
 
-impl Deref for RenderPassCI {
-    type Target = vk::RenderPassCreateInfo;
+impl AsRef<vk::RenderPassCreateInfo> for RenderPassCI {
 
-    fn deref(&self) -> &vk::RenderPassCreateInfo {
+    fn as_ref(&self) -> &vk::RenderPassCreateInfo {
         &self.inner
     }
 }
@@ -139,7 +136,7 @@ impl VkObjectBuildableCI for RenderPassCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let render_pass = unsafe {
-            device.logic.handle.create_render_pass(self, None)
+            device.logic.handle.create_render_pass(self.as_ref(), None)
                 .map_err(|_| VkError::create("Render Pass"))?
         };
         Ok(render_pass)
@@ -171,7 +168,7 @@ impl RenderPassCI {
     pub fn add_subpass(mut self, subpass: SubpassDescCI) -> RenderPassCI {
 
         if let Some(ref resolves) = subpass.resolves {
-            assert_eq!(resolves.len() as vkuint, subpass.color_attachment_count);
+            assert_eq!(resolves.len() as vkuint, subpass.as_ref().color_attachment_count);
         }
 
         self.subpasses.push(subpass.inner.clone());
@@ -232,10 +229,9 @@ impl VulkanCI<vk::AttachmentDescription> for AttachmentDescCI {
     }
 }
 
-impl Deref for AttachmentDescCI {
-    type Target = vk::AttachmentDescription;
+impl AsRef<vk::AttachmentDescription> for AttachmentDescCI {
 
-    fn deref(&self) -> &vk::AttachmentDescription {
+    fn as_ref(&self) -> &vk::AttachmentDescription {
         &self.inner
     }
 }
@@ -321,10 +317,9 @@ impl VulkanCI<vk::SubpassDescription> for SubpassDescCI {
     }
 }
 
-impl Deref for SubpassDescCI {
-    type Target = vk::SubpassDescription;
+impl AsRef<vk::SubpassDescription> for SubpassDescCI {
 
-    fn deref(&self) -> &vk::SubpassDescription {
+    fn as_ref(&self) -> &vk::SubpassDescription {
         &self.inner
     }
 }
@@ -436,10 +431,9 @@ impl VulkanCI<vk::SubpassDependency> for SubpassDependencyCI {
     }
 }
 
-impl Deref for SubpassDependencyCI {
-    type Target = vk::SubpassDependency;
+impl AsRef<vk::SubpassDependency> for SubpassDependencyCI {
 
-    fn deref(&self) -> &vk::SubpassDependency {
+    fn as_ref(&self) -> &vk::SubpassDependency {
         &self.inner
     }
 }

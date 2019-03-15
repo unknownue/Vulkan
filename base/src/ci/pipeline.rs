@@ -28,7 +28,6 @@ use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
 use std::ptr;
-use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::PipelineLayoutCreateInfo.
@@ -56,10 +55,9 @@ impl VulkanCI<vk::PipelineLayoutCreateInfo> for PipelineLayoutCI {
     }
 }
 
-impl Deref for PipelineLayoutCI {
-    type Target = vk::PipelineLayoutCreateInfo;
+impl AsRef<vk::PipelineLayoutCreateInfo> for PipelineLayoutCI {
 
-    fn deref(&self) -> &vk::PipelineLayoutCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineLayoutCreateInfo {
         &self.inner
     }
 }
@@ -70,7 +68,7 @@ impl VkObjectBuildableCI for PipelineLayoutCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let pipeline_layout = unsafe {
-            device.logic.handle.create_pipeline_layout(self, None)
+            device.logic.handle.create_pipeline_layout(self.as_ref(), None)
                 .map_err(|_| VkError::create("Pipeline Layout"))?
         };
         Ok(pipeline_layout)
@@ -151,10 +149,9 @@ impl VulkanCI<vk::FramebufferCreateInfo> for FramebufferCI {
     }
 }
 
-impl Deref for FramebufferCI {
-    type Target = vk::FramebufferCreateInfo;
+impl AsRef<vk::FramebufferCreateInfo> for FramebufferCI {
 
-    fn deref(&self) -> &vk::FramebufferCreateInfo {
+    fn as_ref(&self) -> &vk::FramebufferCreateInfo {
         &self.inner
     }
 }
@@ -165,7 +162,7 @@ impl VkObjectBuildableCI for FramebufferCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let framebuffer = unsafe {
-            device.logic.handle.create_framebuffer(self, None)
+            device.logic.handle.create_framebuffer(self.as_ref(), None)
                 .map_err(|_| VkError::create("Framebuffer"))?
         };
         Ok(framebuffer)
@@ -246,47 +243,12 @@ pub struct GraphicsPipelineCI<'a> {
     viewport       : ViewportSCI,
     depth_stencil  : DepthStencilSCI,
     multisample    : MultisampleSCI,
-    dynamic        : DynamicSCI,
+    dynamics       : DynamicSCI,
 
     cache: Option<vk::PipelineCache>,
+    shader_stages: Vec<vk::PipelineShaderStageCreateInfo>,
 
     phantom_type: ::std::marker::PhantomData<&'a ()>,
-}
-
-impl<'a> VulkanCI<vk::GraphicsPipelineCreateInfo> for GraphicsPipelineCI<'a> {
-
-    fn default_ci() -> vk::GraphicsPipelineCreateInfo {
-
-        vk::GraphicsPipelineCreateInfo {
-            s_type: vk::StructureType::GRAPHICS_PIPELINE_CREATE_INFO,
-            p_next: ptr::null(),
-            flags : vk::PipelineCreateFlags::empty(),
-            layout: vk::PipelineLayout::null(),
-            render_pass: vk::RenderPass::null(),
-            stage_count            : 0,
-            p_stages               : ptr::null(),
-            p_vertex_input_state   : ptr::null(),
-            p_input_assembly_state : ptr::null(),
-            p_tessellation_state   : ptr::null(),
-            p_viewport_state       : ptr::null(),
-            p_rasterization_state  : ptr::null(),
-            p_multisample_state    : ptr::null(),
-            p_depth_stencil_state  : ptr::null(),
-            p_color_blend_state    : ptr::null(),
-            p_dynamic_state        : ptr::null(),
-            subpass: 0,
-            base_pipeline_handle: vk::Pipeline::null(),
-            base_pipeline_index : -1,
-        }
-    }
-}
-
-impl<'a> Deref for GraphicsPipelineCI<'a> {
-    type Target = vk::GraphicsPipelineCreateInfo;
-
-    fn deref(&self) -> &vk::GraphicsPipelineCreateInfo {
-        &self.inner
-    }
 }
 
 impl<'a> VkObjectBuildableCI for GraphicsPipelineCI<'a> {
@@ -294,8 +256,23 @@ impl<'a> VkObjectBuildableCI for GraphicsPipelineCI<'a> {
 
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
+        let pipeline_ci = vk::GraphicsPipelineCreateInfo {
+            stage_count            : self.shader_stages.len() as _,
+            p_stages               : self.shader_stages.as_ptr(),
+            p_vertex_input_state   : self.vertex_input.as_ref(),
+            p_input_assembly_state : self.input_assembly.as_ref(),
+            p_tessellation_state   : ptr::null(), // this field is not cover yet.
+            p_viewport_state       : self.viewport.as_ref(),
+            p_rasterization_state  : self.rasterization.as_ref(),
+            p_multisample_state    : self.multisample.as_ref(),
+            p_depth_stencil_state  : self.depth_stencil.as_ref(),
+            p_color_blend_state    : self.color_blend.as_ref(),
+            p_dynamic_state        : self.dynamics.as_ref(),
+            ..self.inner
+        };
+
         let pipeline = unsafe {
-            device.logic.handle.create_graphics_pipelines(self.cache.unwrap_or(device.pipeline_cache), &[self.inner], None)
+            device.logic.handle.create_graphics_pipelines(self.cache.unwrap_or(device.pipeline_cache), &[pipeline_ci], None)
                 .map_err(|_| VkError::create("Graphics Pipeline"))?
         }.remove(0);
 
@@ -303,16 +280,18 @@ impl<'a> VkObjectBuildableCI for GraphicsPipelineCI<'a> {
     }
 }
 
-impl<'a, 'b> GraphicsPipelineCI<'a> {
+impl<'b, 'a: 'b> GraphicsPipelineCI<'a> {
 
     pub fn new(pass: vk::RenderPass, pipeline_layout: vk::PipelineLayout) -> GraphicsPipelineCI<'a> {
 
-        let mut pipeline_ci = GraphicsPipelineCI {
+        GraphicsPipelineCI {
             inner: vk::GraphicsPipelineCreateInfo {
                 render_pass: pass,
                 layout: pipeline_layout,
-                ..GraphicsPipelineCI::default_ci()
+                base_pipeline_index: -1,
+                ..Default::default()
             },
+            shader_stages  : Vec::new(),
             vertex_input   : VertexInputSCI::new(),
             input_assembly : InputAssemblySCI::new(),
             rasterization  : RasterizationSCI::new(),
@@ -320,26 +299,15 @@ impl<'a, 'b> GraphicsPipelineCI<'a> {
             viewport       : ViewportSCI::new(),
             depth_stencil  : DepthStencilSCI::new(),
             multisample    : MultisampleSCI::new(),
-            dynamic        : DynamicSCI::new(),
+            dynamics       : DynamicSCI::new(),
             cache: None,
             phantom_type: ::std::marker::PhantomData,
-        };
-
-        pipeline_ci.inner.p_vertex_input_state   = pipeline_ci.vertex_input.deref();
-        pipeline_ci.inner.p_input_assembly_state = pipeline_ci.input_assembly.deref();
-        pipeline_ci.inner.p_rasterization_state  = pipeline_ci.rasterization.deref();
-        pipeline_ci.inner.p_color_blend_state    = pipeline_ci.color_blend.deref();
-        pipeline_ci.inner.p_viewport_state       = pipeline_ci.viewport.deref();
-        pipeline_ci.inner.p_depth_stencil_state  = pipeline_ci.depth_stencil.deref();
-        pipeline_ci.inner.p_multisample_state    = pipeline_ci.multisample.deref();
-        pipeline_ci.inner.p_dynamic_state        = pipeline_ci.dynamic.deref();
-
-        pipeline_ci
+        }
     }
 
     #[inline(always)]
     pub fn set_use_subpass(&mut self, subpass: vkuint) {
-        self.inner.subpass = subpass;
+        self.inner.subpass = subpass
     }
 
     #[inline(always)]
@@ -355,59 +323,49 @@ impl<'a, 'b> GraphicsPipelineCI<'a> {
     #[inline(always)]
     pub fn set_shaders(&mut self, cis: &'b [ShaderStageCI]) {
 
-        let stages: Vec<vk::PipelineShaderStageCreateInfo> = cis.iter()
-            .map(|s| s.deref().clone()).collect();
-
-        self.inner.stage_count = stages.len() as _;
-        self.inner.p_stages    = stages.as_ptr();
+        self.shader_stages = cis.iter()
+            .map(|s| s.as_ref().clone())
+            .collect();
     }
 
     #[inline(always)]
     pub fn set_vertex_input(&mut self, sci: VertexInputSCI) {
-        self.inner.p_vertex_input_state = sci.deref();
         self.vertex_input = sci;
     }
 
     #[inline(always)]
     pub fn set_input_assembly(&mut self, sci: InputAssemblySCI) {
-        self.inner.p_input_assembly_state = sci.deref();
         self.input_assembly = sci;
     }
 
     #[inline(always)]
     pub fn set_rasterization(&mut self, sci: RasterizationSCI) {
-        self.inner.p_rasterization_state = sci.deref();
         self.rasterization = sci;
     }
 
     #[inline(always)]
     pub fn set_color_blend(&mut self, sci: ColorBlendSCI) {
-        self.inner.p_color_blend_state = sci.deref();
         self.color_blend = sci;
     }
 
     #[inline(always)]
     pub fn set_viewport(&mut self, sci: ViewportSCI) {
-        self.inner.p_viewport_state = sci.deref();
         self.viewport = sci;
     }
 
     #[inline(always)]
     pub fn set_depth_stencil(&mut self, sci: DepthStencilSCI) {
-        self.inner.p_depth_stencil_state = sci.deref();
         self.depth_stencil = sci;
     }
 
     #[inline(always)]
     pub fn set_multisample(&mut self, sci: MultisampleSCI) {
-        self.inner.p_multisample_state = sci.deref();
         self.multisample = sci;
     }
 
     #[inline(always)]
     pub fn set_dynamic(&mut self, sci: DynamicSCI) {
-        self.inner.p_dynamic_state = sci.deref();
-        self.dynamic = sci;
+        self.dynamics = sci;
     }
 
     #[inline(always)]
@@ -447,10 +405,9 @@ impl VulkanCI<vk::PipelineCacheCreateInfo> for PipelineCacheCI {
     }
 }
 
-impl Deref for PipelineCacheCI {
-    type Target = vk::PipelineCacheCreateInfo;
+impl AsRef<vk::PipelineCacheCreateInfo> for PipelineCacheCI {
 
-    fn deref(&self) -> &vk::PipelineCacheCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineCacheCreateInfo {
         &self.inner
     }
 }
@@ -471,7 +428,7 @@ impl PipelineCacheCI {
 
     pub fn build(&self, device: &VkDevice) -> VkResult<vk::PipelineCache> {
         unsafe {
-            device.logic.handle.create_pipeline_cache(self, None)
+            device.logic.handle.create_pipeline_cache(self.as_ref(), None)
                 .map_err(|_| VkError::create("Graphics Cache"))
         }
     }

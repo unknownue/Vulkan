@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::Read;
 use std::ffi::CString;
-use std::ops::Deref;
 use std::ptr;
 
 // ---------------------------------------------------------------------------------------------------
@@ -38,10 +37,9 @@ impl VulkanCI<vk::ShaderModuleCreateInfo> for ShaderModuleCI {
     }
 }
 
-impl Deref for ShaderModuleCI {
-    type Target = vk::ShaderModuleCreateInfo;
+impl AsRef<vk::ShaderModuleCreateInfo> for ShaderModuleCI {
 
-    fn deref(&self) -> &vk::ShaderModuleCreateInfo {
+    fn as_ref(&self) -> &vk::ShaderModuleCreateInfo {
         &self.inner
     }
 }
@@ -52,7 +50,7 @@ impl VkObjectBuildableCI for ShaderModuleCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let module = unsafe {
-            device.logic.handle.create_shader_module(self, None)
+            device.logic.handle.create_shader_module(self.as_ref(), None)
                 .or(Err(VkError::create("Shader Module")))?
         };
 
@@ -129,10 +127,9 @@ impl VulkanCI<vk::PipelineShaderStageCreateInfo> for ShaderStageCI {
     }
 }
 
-impl Deref for ShaderStageCI {
-    type Target = vk::PipelineShaderStageCreateInfo;
+impl AsRef<vk::PipelineShaderStageCreateInfo> for ShaderStageCI {
 
-    fn deref(&self) -> &vk::PipelineShaderStageCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineShaderStageCreateInfo {
         &self.inner
     }
 }
@@ -141,13 +138,16 @@ impl ShaderStageCI {
 
     pub fn new(stage: vk::ShaderStageFlags, module: vk::ShaderModule) -> ShaderStageCI {
 
+        let main = CString::new("main").unwrap();
+
         ShaderStageCI {
             inner: vk::PipelineShaderStageCreateInfo {
                 stage, module,
+                p_name: main.as_ptr(),
                 ..ShaderStageCI::default_ci()
             },
-            main: CString::new("main").unwrap(),
             specialization: None,
+            main,
         }
     }
 

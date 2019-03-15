@@ -21,7 +21,7 @@ impl<'a> CmdGraphicsApi for VkCmdRecorder<'a, IGraphics> {
 
         // Currently only use primary command buffer, so always set vk::SubpassContents::INLINE here.
         unsafe {
-            self.device.handle.cmd_begin_render_pass(self.command, &(*bi), vk::SubpassContents::INLINE);
+            self.device.handle.cmd_begin_render_pass(self.command, &(bi.as_ref()), vk::SubpassContents::INLINE);
         } self
     }
 

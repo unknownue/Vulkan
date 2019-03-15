@@ -21,7 +21,6 @@ lazy_static! {
         vk::ClearValue { color: vk::ClearColorValue { float32: [0.025, 0.025, 0.025, 1.0] } },
         vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
     ];
-
 }
 
 pub struct VkExampleBackend {
@@ -196,7 +195,7 @@ fn setup_depth_image(device: &mut VkDevice, dimension: vk::Extent2D) -> VkResult
             .usages(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
         let depth_allocation = device.vma.create_image(
-            &depth_ci, &allocation_ci)
+            depth_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
         VmaImage::from(depth_allocation)
     };

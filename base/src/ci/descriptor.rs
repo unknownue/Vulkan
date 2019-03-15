@@ -9,8 +9,6 @@ use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
 use std::ptr;
-use std::ops::Deref;
-
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::DescriptorPoolCreateInfo.
@@ -36,10 +34,9 @@ impl VulkanCI<vk::DescriptorPoolCreateInfo> for DescriptorPoolCI {
     }
 }
 
-impl Deref for DescriptorPoolCI {
-    type Target = vk::DescriptorPoolCreateInfo;
+impl AsRef<vk::DescriptorPoolCreateInfo> for DescriptorPoolCI {
 
-    fn deref(&self) -> &vk::DescriptorPoolCreateInfo {
+    fn as_ref(&self) -> &vk::DescriptorPoolCreateInfo {
         &self.inner
     }
 }
@@ -50,7 +47,7 @@ impl VkObjectBuildableCI for DescriptorPoolCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let descriptor_pool = unsafe {
-            device.logic.handle.create_descriptor_pool(self, None)
+            device.logic.handle.create_descriptor_pool(self.as_ref(), None)
                 .map_err(|_| VkError::create("Descriptor Pool"))?
         };
         Ok(descriptor_pool)
@@ -120,10 +117,9 @@ impl VulkanCI<vk::DescriptorSetLayoutCreateInfo> for DescriptorSetLayoutCI {
     }
 }
 
-impl Deref for DescriptorSetLayoutCI {
-    type Target = vk::DescriptorSetLayoutCreateInfo;
+impl AsRef<vk::DescriptorSetLayoutCreateInfo> for DescriptorSetLayoutCI {
 
-    fn deref(&self) -> &vk::DescriptorSetLayoutCreateInfo {
+    fn as_ref(&self) -> &vk::DescriptorSetLayoutCreateInfo {
         &self.inner
     }
 }
@@ -134,7 +130,7 @@ impl VkObjectBuildableCI for DescriptorSetLayoutCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let descriptor_set_layout = unsafe {
-            device.logic.handle.create_descriptor_set_layout(self, None)
+            device.logic.handle.create_descriptor_set_layout(self.as_ref(), None)
                 .map_err(|_| VkError::create("Descriptor Set Layout"))?
         };
         Ok(descriptor_set_layout)
@@ -197,10 +193,9 @@ impl VulkanCI<vk::DescriptorSetAllocateInfo> for DescriptorSetAI {
     }
 }
 
-impl Deref for DescriptorSetAI {
-    type Target = vk::DescriptorSetAllocateInfo;
+impl AsRef<vk::DescriptorSetAllocateInfo> for DescriptorSetAI {
 
-    fn deref(&self) -> &vk::DescriptorSetAllocateInfo {
+    fn as_ref(&self) -> &vk::DescriptorSetAllocateInfo {
         &self.inner
     }
 }
@@ -211,7 +206,7 @@ impl VkObjectBuildableCI for DescriptorSetAI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let descriptor_sets = unsafe {
-            device.logic.handle.allocate_descriptor_sets(self)
+            device.logic.handle.allocate_descriptor_sets(self.as_ref())
                 .map_err(|_| VkError::create("Allocate Descriptor Set"))?
         };
         Ok(descriptor_sets)
@@ -289,10 +284,9 @@ impl VulkanCI<vk::WriteDescriptorSet> for DescriptorBufferSetWI {
     }
 }
 
-impl Deref for DescriptorBufferSetWI {
-    type Target = vk::WriteDescriptorSet;
+impl AsRef<vk::WriteDescriptorSet> for DescriptorBufferSetWI {
 
-    fn deref(&self) -> &vk::WriteDescriptorSet {
+    fn as_ref(&self) -> &vk::WriteDescriptorSet {
         &self.inner
     }
 }
@@ -364,10 +358,9 @@ impl VulkanCI<vk::WriteDescriptorSet> for DescriptorImageSetWI {
     }
 }
 
-impl Deref for DescriptorImageSetWI {
-    type Target = vk::WriteDescriptorSet;
+impl AsRef<vk::WriteDescriptorSet> for DescriptorImageSetWI {
 
-    fn deref(&self) -> &vk::WriteDescriptorSet {
+    fn as_ref(&self) -> &vk::WriteDescriptorSet {
         &self.inner
     }
 }
@@ -422,7 +415,7 @@ pub struct DescriptorSetsUpdateCI<'a> {
     phantom_type: ::std::marker::PhantomData<& 'a ()>,
 }
 
-pub trait DescriptorSetWritable: Deref<Target=vk::WriteDescriptorSet> {}
+pub trait DescriptorSetWritable: AsRef<vk::WriteDescriptorSet> {}
 
 impl DescriptorSetWritable for DescriptorBufferSetWI {}
 impl DescriptorSetWritable for DescriptorImageSetWI  {}
@@ -436,7 +429,7 @@ impl<'a, 'b: 'a> DescriptorSetsUpdateCI<'a> {
 
     #[inline(always)]
     pub fn add_write(mut self, value: &'b impl DescriptorSetWritable) -> DescriptorSetsUpdateCI<'a> {
-        self.writes.push(value.deref().clone()); self
+        self.writes.push(value.as_ref().clone()); self
     }
 
     #[inline(always)]

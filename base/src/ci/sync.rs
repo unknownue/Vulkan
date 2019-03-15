@@ -3,7 +3,6 @@ use ash::vk;
 use ash::version::DeviceV1_0;
 
 use std::ptr;
-use std::ops::Deref;
 
 use crate::context::VkDevice;
 use crate::context::{VkObjectDiscardable, VkObjectWaitable};
@@ -31,10 +30,9 @@ impl VulkanCI<vk::SemaphoreCreateInfo> for SemaphoreCI {
     }
 }
 
-impl Deref for SemaphoreCI {
-    type Target = vk::SemaphoreCreateInfo;
+impl AsRef<vk::SemaphoreCreateInfo> for SemaphoreCI {
 
-    fn deref(&self) -> &vk::SemaphoreCreateInfo {
+    fn as_ref(&self) -> &vk::SemaphoreCreateInfo {
         &self.inner
     }
 }
@@ -45,7 +43,7 @@ impl VkObjectBuildableCI for SemaphoreCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let semaphore = unsafe {
-            device.logic.handle.create_semaphore(self, None)
+            device.logic.handle.create_semaphore(self.as_ref(), None)
                 .map_err(|_| VkError::create("Semaphore"))?
         };
         Ok(semaphore)
@@ -96,10 +94,9 @@ impl VulkanCI<vk::FenceCreateInfo> for FenceCI {
     }
 }
 
-impl Deref for FenceCI {
-    type Target = vk::FenceCreateInfo;
+impl AsRef<vk::FenceCreateInfo> for FenceCI {
 
-    fn deref(&self) -> &vk::FenceCreateInfo {
+    fn as_ref(&self) -> &vk::FenceCreateInfo {
         &self.inner
     }
 }
@@ -110,7 +107,7 @@ impl VkObjectBuildableCI for FenceCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let fence = unsafe {
-            device.logic.handle.create_fence(self, None)
+            device.logic.handle.create_fence(self.as_ref(), None)
                 .or(Err(VkError::create("Fence")))?
         };
         Ok(fence)
@@ -157,13 +154,6 @@ impl VkObjectWaitable for vk::Fence {
             device.logic.handle.wait_for_fences(&[self], true, time.into())
                 .map_err(|_| VkError::device("Wait for fences"))
         }
-    }
-}
-
-impl AsRef<vk::FenceCreateInfo> for FenceCI {
-
-    fn as_ref(&self) -> &vk::FenceCreateInfo {
-        &self.inner
     }
 }
 // ----------------------------------------------------------------------------------------------

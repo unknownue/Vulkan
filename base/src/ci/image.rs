@@ -8,7 +8,6 @@ use crate::error::{VkResult, VkError};
 use crate::{vkbytes, vkuint, vkfloat};
 
 use std::ptr;
-use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::ImageCreateInfo.
@@ -43,10 +42,9 @@ impl VulkanCI<vk::ImageCreateInfo> for ImageCI {
     }
 }
 
-impl Deref for ImageCI {
-    type Target = vk::ImageCreateInfo;
+impl AsRef<vk::ImageCreateInfo> for ImageCI {
 
-    fn deref(&self) -> &vk::ImageCreateInfo {
+    fn as_ref(&self) -> &vk::ImageCreateInfo {
         &self.inner
     }
 }
@@ -57,7 +55,7 @@ impl VkObjectBuildableCI for ImageCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let image = unsafe {
-            device.logic.handle.create_image(self, None)
+            device.logic.handle.create_image(self.as_ref(), None)
                 .map_err(|_| VkError::create("Image"))?
         };
 
@@ -196,10 +194,9 @@ impl VulkanCI<vk::ImageViewCreateInfo> for ImageViewCI {
     }
 }
 
-impl Deref for ImageViewCI {
-    type Target = vk::ImageViewCreateInfo;
+impl AsRef<vk::ImageViewCreateInfo> for ImageViewCI {
 
-    fn deref(&self) -> &vk::ImageViewCreateInfo {
+    fn as_ref(&self) -> &vk::ImageViewCreateInfo {
         &self.inner
     }
 }
@@ -210,7 +207,7 @@ impl VkObjectBuildableCI for ImageViewCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let view = unsafe {
-            device.logic.handle.create_image_view(self, None)
+            device.logic.handle.create_image_view(self.as_ref(), None)
                 .map_err(|_| VkError::create("Image View"))?
         };
         Ok(view)
@@ -282,10 +279,9 @@ impl VulkanCI<vk::ImageMemoryBarrier> for ImageBarrierCI {
     }
 }
 
-impl Deref for ImageBarrierCI {
-    type Target = vk::ImageMemoryBarrier;
+impl AsRef<vk::ImageMemoryBarrier> for ImageBarrierCI {
 
-    fn deref(&self) -> &vk::ImageMemoryBarrier {
+    fn as_ref(&self) -> &vk::ImageMemoryBarrier {
         &self.inner
     }
 }
@@ -304,11 +300,6 @@ impl ImageBarrierCI {
     }
 
     #[inline(always)]
-    pub fn value(&self) -> vk::ImageMemoryBarrier {
-        self.inner.clone()
-    }
-
-    #[inline(always)]
     pub fn access_mask(mut self, from: vk::AccessFlags, to: vk::AccessFlags) -> Self {
         self.inner.src_access_mask = from;
         self.inner.dst_access_mask = to; self
@@ -324,6 +315,13 @@ impl ImageBarrierCI {
     pub fn queue_family_index(mut self, from: vkuint, to: vkuint) -> Self {
         self.inner.src_queue_family_index = from;
         self.inner.dst_queue_family_index = to; self
+    }
+}
+
+impl From<ImageBarrierCI> for vk::ImageMemoryBarrier {
+
+    fn from(v: ImageBarrierCI) -> vk::ImageMemoryBarrier {
+        v.inner
     }
 }
 // ----------------------------------------------------------------------------------------------
@@ -361,10 +359,9 @@ impl VulkanCI<vk::SamplerCreateInfo> for SamplerCI {
     }
 }
 
-impl Deref for SamplerCI {
-    type Target = vk::SamplerCreateInfo;
+impl AsRef<vk::SamplerCreateInfo> for SamplerCI {
 
-    fn deref(&self) -> &vk::SamplerCreateInfo {
+    fn as_ref(&self) -> &vk::SamplerCreateInfo {
         &self.inner
     }
 }
@@ -381,7 +378,7 @@ impl SamplerCI {
     pub fn build(&self, device: &VkDevice) -> VkResult<vk::Sampler> {
 
         let sampler = unsafe {
-            device.logic.handle.create_sampler(self, None)
+            device.logic.handle.create_sampler(self.as_ref(), None)
                 .map_err(|_| VkError::create("Sampler"))?
         };
         Ok(sampler)

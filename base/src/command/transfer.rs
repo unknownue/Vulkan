@@ -28,7 +28,7 @@ impl<'a> VkCmdRecorder<'a, ITransfer> {
 
             let wait_fence = self.device.handle.create_fence(FenceCI::new(false).as_ref(), None)
                 .or(Err(VkError::create("Fence")))?;
-            self.device.handle.queue_submit(queue, &[*submit_ci], wait_fence)
+            self.device.handle.queue_submit(queue, &[*submit_ci.as_ref()], wait_fence)
                 .map_err(|_| VkError::device("Queue Submit"))?;
             self.device.handle.wait_for_fences(&[wait_fence], true, VkTimeDuration::Infinite.into())
                 .map_err(|_| VkError::device("Wait for fences"))?;

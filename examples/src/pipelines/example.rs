@@ -335,7 +335,7 @@ fn prepare_uniform(device: &mut VkDevice, ubo_data: &UboVS) -> VkResult<VmaBuffe
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
-        let uniform_allocation = device.vma.create_buffer(&uniform_ci, &allocation_ci)
+        let uniform_allocation = device.vma.create_buffer(uniform_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
         VmaBuffer::from(uniform_allocation)
     };
@@ -480,7 +480,7 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
 
     let blend_attachment = BlendAttachmentSCI::new();
     let blend_state = ColorBlendSCI::new()
-        .add_attachment(blend_attachment.into());
+        .add_attachment(blend_attachment);
 
     let depth_stencil_state = DepthStencilSCI::new()
         .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);

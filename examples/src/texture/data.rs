@@ -83,7 +83,7 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let vertices_allocation = device.vma.create_buffer(
-            &vertices_ci, &allocation_ci)
+            vertices_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         unsafe {
@@ -102,7 +102,7 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let indices_allocation = device.vma.create_buffer(
-            &indices_ci, &allocation_ci)
+            indices_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         unsafe {
@@ -136,7 +136,7 @@ impl UboVS {
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let buffer_allocation = device.vma.create_buffer(
-            &buffer_ci, &allocation_ci)
+            buffer_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         let ubo_data = UboVS {
@@ -226,7 +226,7 @@ impl Texture {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let staging_allocation = device.vma.create_buffer(
-                &staging_ci, &allocation_ci)
+                staging_ci.as_ref(), allocation_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             // Copy texture data into host local staging buffer.
@@ -289,7 +289,7 @@ impl Texture {
             let allocation_ci = VmaAllocationCI::new(
                 vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let image_allocation = device.vma.create_image(
-                &image_ci, &allocation_ci)
+                image_ci.as_ref(), allocation_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             VmaImage::from(image_allocation)
@@ -330,13 +330,13 @@ impl Texture {
                 // Insert a memory dependency at the proper pipeline stages that will execute the image layout transition.
                 // Source pipeline stage is host write/read execution (vk::PipelineStageFlags::HOST)
                 // Destination pipeline stage is copy command execution (vk::PipelineStageFlags::TRANSFER)
-                .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.value()])
+                .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.into()])
                 // Copy mip levels from staging buffer.
                 .copy_buf2img(staging_buffer.handle, dst_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &buffer_copy_regions)
                 // Insert a memory dependency at the proper pipeline stages that will execute the image layout transition.
                 // Source pipeline stage stage is copy command execution (vk::PipelineStageFlags::TRANSFER).
                 // Destination pipeline stage fragment shader access (vk::PipelineStageFlags::ALL_COMMANDS).
-                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[barrier2.value()])
+                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[barrier2.into()])
                 .end_record()?;
 
             device.flush_transfer(copy_recorder)?;

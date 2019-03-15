@@ -109,7 +109,7 @@ impl UBOVS {
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let buffer_allocation = device.vma.create_buffer(
-            &buffer_ci, &allocation_ci)
+            buffer_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         let ubo_data = UBOVS {
@@ -179,7 +179,7 @@ impl TextureCube {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let staging_allocation = device.vma.create_buffer(
-                &staging_ci, &allocation_ci)
+                staging_ci.as_ref(), allocation_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             // Copy texture data into host local staging buffer.
@@ -214,7 +214,7 @@ impl TextureCube {
             let allocation_ci = VmaAllocationCI::new(
                 vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let image_allocation = device.vma.create_image(
-                &image_ci, &allocation_ci)
+                image_ci.as_ref(), allocation_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             VmaImage::from(image_allocation)
@@ -285,9 +285,9 @@ impl TextureCube {
             let copy_recorder = device.get_transfer_recorder();
 
             copy_recorder.begin_record()?
-                .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.value()])
+                .image_pipeline_barrier(vk::PipelineStageFlags::HOST, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[barrier1.into()])
                 .copy_buf2img(staging_buffer.handle, dst_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &buffer_copy_regions)
-                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[barrier2.value()])
+                .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[barrier2.into()])
                 .end_record()?;
 
             device.flush_transfer(copy_recorder)?;

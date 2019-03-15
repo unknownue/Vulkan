@@ -6,8 +6,6 @@ use crate::context::VmaResourceDiscardable;
 use crate::{VkResult, VkErrorKind};
 use crate::{vkuint, vkptr};
 
-use std::ops::Deref;
-
 // ----------------------------------------------------------------------------------------------
 /// A type contains the buffer allocation result from `vma::Allocator`.
 #[derive(Debug, Clone)]
@@ -100,10 +98,9 @@ impl VulkanCI<vma::AllocationCreateInfo> for VmaAllocationCI {
     }
 }
 
-impl Deref for VmaAllocationCI {
-    type Target = vma::AllocationCreateInfo;
+impl AsRef<vma::AllocationCreateInfo> for VmaAllocationCI {
 
-    fn deref(&self) -> &vma::AllocationCreateInfo {
+    fn as_ref(&self) -> &vma::AllocationCreateInfo {
         &self.inner
     }
 }

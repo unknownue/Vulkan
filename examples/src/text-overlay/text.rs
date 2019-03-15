@@ -415,9 +415,9 @@ fn allocate_image(device: &VkDevice, image_bytes: Vec<u8>, image_dimension: vk::
         .layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
 
     recorder.begin_record()?
-        .image_pipeline_barrier(vk::PipelineStageFlags::TOP_OF_PIPE, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[copy_dst_barrier.value()])
+        .image_pipeline_barrier(vk::PipelineStageFlags::TOP_OF_PIPE, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[copy_dst_barrier.into()])
         .copy_buf2img(staging_buffer, glyphs_image, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &[copy_region])
-        .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[shader_read_barrier.value()])
+        .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[shader_read_barrier.into()])
         .end_record()?;
 
     recorder.flush_copy_command(device.logic.queues.transfer.handle)?;

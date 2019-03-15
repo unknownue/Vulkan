@@ -81,7 +81,7 @@ impl NodeAsset {
                 .usage(vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let attachments_allocation = device.vma.create_buffer(
-                &attachments_ci, &allocate_ci)
+                attachments_ci.as_ref(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             VmaBuffer::from(attachments_allocation)
@@ -94,7 +94,7 @@ impl NodeAsset {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let (staging_buffer, allocation, info) = device.vma.create_buffer(
-                &staging_ci, &allocate_ci)
+                staging_ci.as_ref(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             let data_ptr = device.vma.map_memory(&allocation)

@@ -9,7 +9,6 @@ use crate::error::{VkResult, VkError};
 use crate::vkuint;
 
 use std::ptr;
-use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::CommandBufferAllocateInfo.
@@ -32,10 +31,9 @@ impl VulkanCI<vk::CommandBufferAllocateInfo> for CommandBufferAI {
     }
 }
 
-impl Deref for CommandBufferAI {
-    type Target = vk::CommandBufferAllocateInfo;
+impl AsRef<vk::CommandBufferAllocateInfo> for CommandBufferAI {
 
-    fn deref(&self) -> &vk::CommandBufferAllocateInfo {
+    fn as_ref(&self) -> &vk::CommandBufferAllocateInfo {
         &self.inner
     }
 }
@@ -47,7 +45,7 @@ impl VkObjectBuildableCI for CommandBufferAI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let commands = unsafe {
-            device.logic.handle.allocate_command_buffers(self)
+            device.logic.handle.allocate_command_buffers(self.as_ref())
                 .map_err(|_| VkError::create("Command Buffers"))?
         };
         Ok(commands)
@@ -113,10 +111,9 @@ impl VulkanCI<vk::CommandPoolCreateInfo> for CommandPoolCI {
     }
 }
 
-impl Deref for CommandPoolCI {
-    type Target = vk::CommandPoolCreateInfo;
+impl AsRef<vk::CommandPoolCreateInfo> for CommandPoolCI {
 
-    fn deref(&self) -> &vk::CommandPoolCreateInfo {
+    fn as_ref(&self) -> &vk::CommandPoolCreateInfo {
         &self.inner
     }
 }
@@ -128,7 +125,7 @@ impl VkObjectBuildableCI for CommandPoolCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let pool = unsafe {
-            device.logic.handle.create_command_pool(self, None)
+            device.logic.handle.create_command_pool(self.as_ref(), None)
                 .map_err(|_| VkError::create("Command Pool"))?
         };
         Ok(pool)

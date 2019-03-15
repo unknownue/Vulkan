@@ -105,7 +105,7 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let vertices_allocation = vma.create_buffer(
-                &vertex_ci, &allocate_ci)
+                vertex_ci.as_ref(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             VmaBuffer::from(vertices_allocation)
@@ -118,7 +118,7 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
             let indices_allocation = vma.create_buffer(
-                &indices_ci, &allocate_ci)
+                indices_ci.as_ref(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             Some(VmaBuffer::from(indices_allocation))
@@ -141,7 +141,7 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let (handle, allocation, info) = vma.create_buffer(
-                &vertex_ci, &allocate_ci)
+                vertex_ci.as_ref(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             let data_ptr = vma.map_memory(&allocation)
@@ -162,7 +162,7 @@ impl MeshAsset {
                 .usage(vk::BufferUsageFlags::TRANSFER_SRC);
             let allocate_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
             let (handle, allocation, info) = vma.create_buffer(
-                &indices_ci, &allocate_ci)
+                indices_ci.as_ref(), allocate_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             let data_ptr = vma.map_memory(&allocation)

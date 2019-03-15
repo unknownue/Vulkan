@@ -505,7 +505,7 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
         let glyphs_image_ci = ImageCI::new_2d(vk::Format::R8_UNORM, image_dimension)
             .usages(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::GpuOnly, vk::MemoryPropertyFlags::DEVICE_LOCAL);
-        let image_allocation = device.vma.create_image(&glyphs_image_ci, &allocation_ci)
+        let image_allocation = device.vma.create_image(glyphs_image_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
         VmaImage::from(image_allocation)
     };
@@ -517,7 +517,7 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
         let staging_ci = BufferCI::new(estimate_buffer_size)
             .usage(vk::BufferUsageFlags::TRANSFER_SRC);
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuToGpu, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT);
-        let staging_allocation = device.vma.create_buffer(&staging_ci, &allocation_ci)
+        let staging_allocation = device.vma.create_buffer(staging_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         let data_ptr = device.vma.map_memory(&staging_allocation.1)
@@ -560,9 +560,9 @@ fn allocate_glyph_image(device: &mut VkDevice, image_bytes: Vec<u8>, image_dimen
         .layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
 
     recorder.begin_record()?
-        .image_pipeline_barrier(vk::PipelineStageFlags::TOP_OF_PIPE, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[copy_dst_barrier.value()])
+        .image_pipeline_barrier(vk::PipelineStageFlags::TOP_OF_PIPE, vk::PipelineStageFlags::TRANSFER, vk::DependencyFlags::empty(), &[copy_dst_barrier.into()])
         .copy_buf2img(staging_buffer.handle, glyphs_image.handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &[copy_region])
-        .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[shader_read_barrier.value()])
+        .image_pipeline_barrier(vk::PipelineStageFlags::TRANSFER, vk::PipelineStageFlags::ALL_COMMANDS, vk::DependencyFlags::empty(), &[shader_read_barrier.into()])
         .end_record()?;
 
     device.flush_transfer(recorder)?;

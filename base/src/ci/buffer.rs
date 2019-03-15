@@ -8,7 +8,6 @@ use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
 
 use std::ptr;
-use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::BufferCreateInfo.
@@ -35,10 +34,9 @@ impl VulkanCI<vk::BufferCreateInfo> for BufferCI {
     }
 }
 
-impl Deref for BufferCI {
-    type Target = vk::BufferCreateInfo;
+impl AsRef<vk::BufferCreateInfo> for BufferCI {
 
-    fn deref(&self) -> &vk::BufferCreateInfo {
+    fn as_ref(&self) -> &vk::BufferCreateInfo {
         &self.inner
     }
 }
@@ -49,7 +47,7 @@ impl VkObjectBuildableCI for BufferCI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let buffer = unsafe {
-            device.logic.handle.create_buffer(self, None)
+            device.logic.handle.create_buffer(self.as_ref(), None)
                 .map_err(|_| VkError::create("Buffer"))?
         };
 

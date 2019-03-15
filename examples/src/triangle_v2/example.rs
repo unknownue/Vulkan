@@ -123,6 +123,11 @@ impl VulkanExample {
 
     fn record_commands(&self, device: &VkDevice, dimension: vk::Extent2D) -> VkResult<()> {
 
+        let clear_values = vec![
+            vk::ClearValue { color: vk::ClearColorValue { float32: [0.0, 0.0, 0.2, 1.0] } },
+            vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } },
+        ];
+
         let viewport = vk::Viewport {
             x: 0.0, y: 0.0,
             width: dimension.width as f32, height: dimension.height as f32,
@@ -143,7 +148,7 @@ impl VulkanExample {
 
             let render_pass_bi = RenderPassBI::new(self.backend.render_pass, self.backend.framebuffers[i])
                 .render_extent(dimension)
-                .set_clear_values(vkexamples::DEFAULT_CLEAR_VALUES.clone());
+                .set_clear_values(clear_values.clone());
 
             recorder.begin_record()?
                 .begin_render_pass(render_pass_bi)
@@ -256,7 +261,7 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
 
     let blend_attachment = BlendAttachmentSCI::new();
     let blend_state = ColorBlendSCI::new()
-        .add_attachment(blend_attachment.into());
+        .add_attachment(blend_attachment);
 
     let depth_stencil_state = DepthStencilSCI::new()
         .depth_test(true, true, vk::CompareOp::LESS_OR_EQUAL);

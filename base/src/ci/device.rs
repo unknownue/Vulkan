@@ -7,7 +7,6 @@ use crate::context::{VkSubmitCI, VkDevice};
 use crate::error::{VkResult, VkError};
 
 use std::ptr;
-use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::SubmitInfo.
@@ -39,10 +38,9 @@ impl VulkanCI<vk::SubmitInfo> for SubmitCI {
     }
 }
 
-impl Deref for SubmitCI {
-    type Target = vk::SubmitInfo;
+impl AsRef<vk::SubmitInfo> for SubmitCI {
 
-    fn deref(&self) -> &vk::SubmitInfo {
+    fn as_ref(&self) -> &vk::SubmitInfo {
         &self.inner
     }
 }
@@ -108,7 +106,7 @@ impl VkSubmitCI for SubmitCI {
 
     fn submit(self, device: &VkDevice, queue: vk::Queue, wait_fence: vk::Fence) -> VkResult<()> {
 
-        (*self).submit(device, queue, wait_fence)
+        (self.as_ref()).submit(device, queue, wait_fence)
     }
 }
 // ----------------------------------------------------------------------------------------------

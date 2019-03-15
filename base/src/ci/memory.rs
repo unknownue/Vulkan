@@ -8,7 +8,6 @@ use crate::error::{VkResult, VkError};
 use crate::{vkuint, vkbytes};
 
 use std::ptr;
-use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::MemoryAllocateInfo.
@@ -30,10 +29,9 @@ impl VulkanCI<vk::MemoryAllocateInfo> for MemoryAI {
     }
 }
 
-impl Deref for MemoryAI {
-    type Target = vk::MemoryAllocateInfo;
+impl AsRef<vk::MemoryAllocateInfo> for MemoryAI {
 
-    fn deref(&self) -> &vk::MemoryAllocateInfo {
+    fn as_ref(&self) -> &vk::MemoryAllocateInfo {
         &self.inner
     }
 }
@@ -44,7 +42,7 @@ impl VkObjectBuildableCI for MemoryAI {
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let memory = unsafe {
-            device.logic.handle.allocate_memory(self, None)
+            device.logic.handle.allocate_memory(self.as_ref(), None)
                 .map_err(|_| VkError::create("Memory Allocate"))?
         };
         Ok(memory)

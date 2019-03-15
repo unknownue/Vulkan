@@ -13,9 +13,8 @@ pub mod sync;
 
 use crate::context::VkDevice;
 use crate::VkResult;
-use std::ops::Deref;
 
-pub(crate) trait VulkanCI<CI>: Sized + Deref<Target=CI> {
+pub(crate) trait VulkanCI<CI>: Sized + AsRef<CI> {
 
     fn default_ci() -> CI;
 }

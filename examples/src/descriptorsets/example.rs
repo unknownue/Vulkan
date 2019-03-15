@@ -310,7 +310,7 @@ fn prepare_uniform(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<Arr
                 .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
             let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
                 .flags(vma::AllocationCreateFlags::MAPPED);
-            let uniform_allocation = device.vma.create_buffer(&uniform_ci, &allocation_ci)
+            let uniform_allocation = device.vma.create_buffer(uniform_ci.as_ref(), allocation_ci.as_ref())
                 .map_err(VkErrorKind::Vma)?;
 
             VmaBuffer::from(uniform_allocation)

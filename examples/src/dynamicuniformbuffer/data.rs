@@ -78,7 +78,7 @@ pub fn generate_cube(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let vertices_allocation = device.vma.create_buffer(
-            &vertices_ci, &allocation_ci)
+            vertices_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         unsafe {
@@ -97,7 +97,7 @@ pub fn generate_cube(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let indices_allocation = device.vma.create_buffer(
-            &indices_ci, &allocation_ci)
+            indices_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         unsafe {
@@ -129,7 +129,7 @@ impl UboView {
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let buffer_allocation = device.vma.create_buffer(
-            &buffer_ci, &allocation_ci)
+            buffer_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         let ubo_view_data = UboView {
@@ -173,7 +173,7 @@ impl UboDynamicData {
         let allocation_ci = VmaAllocationCI::new(vma::MemoryUsage::CpuOnly, vk::MemoryPropertyFlags::HOST_VISIBLE)
             .flags(vma::AllocationCreateFlags::MAPPED);
         let buffer_allocation = device.vma.create_buffer(
-            &buffer_ci, &allocation_ci)
+            buffer_ci.as_ref(), allocation_ci.as_ref())
             .map_err(VkErrorKind::Vma)?;
 
         let data_ptr = buffer_allocation.2.get_mapped_data() as vkptr;

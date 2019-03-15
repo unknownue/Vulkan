@@ -5,7 +5,6 @@ use crate::ci::VulkanCI;
 use crate::vkfloat;
 
 use std::ptr;
-use std::ops::Deref;
 
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for vk::PipelineVertexInputStateCreateInfo.
@@ -33,23 +32,29 @@ impl VulkanCI<vk::PipelineVertexInputStateCreateInfo> for VertexInputSCI {
     }
 }
 
-impl Deref for VertexInputSCI {
-    type Target = vk::PipelineVertexInputStateCreateInfo;
+impl AsRef<vk::PipelineVertexInputStateCreateInfo> for VertexInputSCI {
 
-    fn deref(&self) -> &vk::PipelineVertexInputStateCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineVertexInputStateCreateInfo {
         &self.inner
     }
 }
 
-impl VertexInputSCI {
+impl Default for VertexInputSCI {
 
-    pub fn new() -> VertexInputSCI {
-
+    fn default() -> VertexInputSCI {
         VertexInputSCI {
             inner: VertexInputSCI::default_ci(),
             bindings  : Vec::new(),
             attributes: Vec::new(),
         }
+    }
+}
+
+impl VertexInputSCI {
+
+    #[inline(always)]
+    pub fn new() -> VertexInputSCI {
+        Default::default()
     }
 
     #[inline(always)]
@@ -104,11 +109,19 @@ impl VulkanCI<vk::PipelineInputAssemblyStateCreateInfo> for InputAssemblySCI {
     }
 }
 
-impl Deref for InputAssemblySCI {
-    type Target = vk::PipelineInputAssemblyStateCreateInfo;
+impl AsRef<vk::PipelineInputAssemblyStateCreateInfo> for InputAssemblySCI {
 
-    fn deref(&self) -> &vk::PipelineInputAssemblyStateCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineInputAssemblyStateCreateInfo {
         &self.inner
+    }
+}
+
+impl Default for InputAssemblySCI {
+
+    fn default() -> InputAssemblySCI {
+        InputAssemblySCI {
+            inner: InputAssemblySCI::default_ci(),
+        }
     }
 }
 
@@ -116,10 +129,7 @@ impl InputAssemblySCI {
 
     #[inline(always)]
     pub fn new() -> InputAssemblySCI {
-
-        InputAssemblySCI {
-            inner: InputAssemblySCI::default_ci(),
-        }
+        Default::default()
     }
 
     #[inline(always)]
@@ -168,11 +178,19 @@ impl VulkanCI<vk::PipelineRasterizationStateCreateInfo> for RasterizationSCI {
     }
 }
 
-impl Deref for RasterizationSCI {
-    type Target = vk::PipelineRasterizationStateCreateInfo;
+impl AsRef<vk::PipelineRasterizationStateCreateInfo> for RasterizationSCI {
 
-    fn deref(&self) -> &vk::PipelineRasterizationStateCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineRasterizationStateCreateInfo {
         &self.inner
+    }
+}
+
+impl Default for RasterizationSCI {
+
+    fn default() -> RasterizationSCI {
+        RasterizationSCI {
+            inner: RasterizationSCI::default_ci(),
+        }
     }
 }
 
@@ -180,10 +198,7 @@ impl RasterizationSCI {
 
     #[inline(always)]
     pub fn new() -> RasterizationSCI {
-
-        RasterizationSCI {
-            inner: RasterizationSCI::default_ci(),
-        }
+        Default::default()
     }
 
     #[inline(always)]
@@ -248,22 +263,28 @@ impl VulkanCI<vk::PipelineColorBlendStateCreateInfo> for ColorBlendSCI {
     }
 }
 
-impl Deref for ColorBlendSCI {
-    type Target = vk::PipelineColorBlendStateCreateInfo;
+impl AsRef<vk::PipelineColorBlendStateCreateInfo> for ColorBlendSCI {
 
-    fn deref(&self) -> &vk::PipelineColorBlendStateCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineColorBlendStateCreateInfo {
         &self.inner
+    }
+}
+
+impl Default for ColorBlendSCI {
+
+    fn default() -> ColorBlendSCI {
+        ColorBlendSCI {
+            inner: ColorBlendSCI::default_ci(),
+            attachments: Vec::new(),
+        }
     }
 }
 
 impl ColorBlendSCI {
 
+    #[inline(always)]
     pub fn new() -> ColorBlendSCI {
-
-        ColorBlendSCI {
-            inner: ColorBlendSCI::default_ci(),
-            attachments: Vec::new(),
-        }
+        Default::default()
     }
 
     #[inline(always)]
@@ -317,11 +338,19 @@ impl VulkanCI<vk::PipelineColorBlendAttachmentState> for BlendAttachmentSCI {
     }
 }
 
-impl Deref for BlendAttachmentSCI {
-    type Target = vk::PipelineColorBlendAttachmentState;
+impl AsRef<vk::PipelineColorBlendAttachmentState> for BlendAttachmentSCI {
 
-    fn deref(&self) -> &vk::PipelineColorBlendAttachmentState {
+    fn as_ref(&self) -> &vk::PipelineColorBlendAttachmentState {
         &self.inner
+    }
+}
+
+impl Default for BlendAttachmentSCI {
+
+    fn default() -> BlendAttachmentSCI {
+        BlendAttachmentSCI {
+            inner: BlendAttachmentSCI::default_ci(),
+        }
     }
 }
 
@@ -329,10 +358,7 @@ impl BlendAttachmentSCI {
 
     #[inline(always)]
     pub fn new() -> BlendAttachmentSCI {
-
-        BlendAttachmentSCI {
-            inner: BlendAttachmentSCI::default_ci(),
-        }
+        Default::default()
     }
 
     #[inline(always)]
@@ -394,23 +420,29 @@ impl VulkanCI<vk::PipelineViewportStateCreateInfo> for ViewportSCI {
     }
 }
 
-impl Deref for ViewportSCI {
-    type Target = vk::PipelineViewportStateCreateInfo;
+impl AsRef<vk::PipelineViewportStateCreateInfo> for ViewportSCI {
 
-    fn deref(&self) -> &vk::PipelineViewportStateCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineViewportStateCreateInfo {
         &self.inner
     }
 }
 
-impl ViewportSCI {
+impl Default for ViewportSCI {
 
-    pub fn new() -> ViewportSCI {
-
+    fn default() -> ViewportSCI {
         ViewportSCI {
             inner: ViewportSCI::default_ci(),
             viewports: Vec::new(),
             scissors : Vec::new(),
         }
+    }
+}
+
+impl ViewportSCI {
+
+    #[inline(always)]
+    pub fn new() -> ViewportSCI {
+        Default::default()
     }
 
     #[inline(always)]
@@ -475,11 +507,19 @@ impl VulkanCI<vk::PipelineDepthStencilStateCreateInfo> for DepthStencilSCI {
     }
 }
 
-impl Deref for DepthStencilSCI {
-    type Target = vk::PipelineDepthStencilStateCreateInfo;
+impl AsRef<vk::PipelineDepthStencilStateCreateInfo> for DepthStencilSCI {
 
-    fn deref(&self) -> &vk::PipelineDepthStencilStateCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineDepthStencilStateCreateInfo {
         &self.inner
+    }
+}
+
+impl Default for DepthStencilSCI {
+
+    fn default() -> DepthStencilSCI {
+        DepthStencilSCI {
+            inner: DepthStencilSCI::default_ci(),
+        }
     }
 }
 
@@ -487,10 +527,7 @@ impl DepthStencilSCI {
 
     #[inline(always)]
     pub fn new() -> DepthStencilSCI {
-
-        DepthStencilSCI {
-            inner: DepthStencilSCI::default_ci(),
-        }
+        Default::default()
     }
 
     #[inline(always)]
@@ -550,22 +587,28 @@ impl VulkanCI<vk::PipelineMultisampleStateCreateInfo> for MultisampleSCI {
     }
 }
 
-impl Deref for MultisampleSCI {
-    type Target = vk::PipelineMultisampleStateCreateInfo;
+impl AsRef<vk::PipelineMultisampleStateCreateInfo> for MultisampleSCI {
 
-    fn deref(&self) -> &vk::PipelineMultisampleStateCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineMultisampleStateCreateInfo {
         &self.inner
+    }
+}
+
+impl Default for MultisampleSCI {
+
+    fn default() -> MultisampleSCI {
+        MultisampleSCI {
+            inner: MultisampleSCI::default_ci(),
+            sample_mask: None,
+        }
     }
 }
 
 impl MultisampleSCI {
 
+    #[inline(always)]
     pub fn new() -> MultisampleSCI {
-
-        MultisampleSCI {
-            inner: MultisampleSCI::default_ci(),
-            sample_mask: None,
-        }
+        Default::default()
     }
 
     #[inline(always)]
@@ -622,11 +665,20 @@ impl VulkanCI<vk::PipelineDynamicStateCreateInfo> for DynamicSCI {
     }
 }
 
-impl Deref for DynamicSCI {
-    type Target = vk::PipelineDynamicStateCreateInfo;
+impl AsRef<vk::PipelineDynamicStateCreateInfo> for DynamicSCI {
 
-    fn deref(&self) -> &vk::PipelineDynamicStateCreateInfo {
+    fn as_ref(&self) -> &vk::PipelineDynamicStateCreateInfo {
         &self.inner
+    }
+}
+
+impl Default for DynamicSCI {
+
+    fn default() -> DynamicSCI {
+        DynamicSCI {
+            inner: DynamicSCI::default_ci(),
+            dynamics: None,
+        }
     }
 }
 
@@ -634,11 +686,7 @@ impl DynamicSCI {
 
     #[inline]
     pub fn new() -> DynamicSCI {
-
-        DynamicSCI {
-            inner: DynamicSCI::default_ci(),
-            dynamics: None,
-        }
+        Default::default()
     }
 
     #[inline]
