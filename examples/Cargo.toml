@@ -2,7 +2,7 @@
 [package]
 name     = "vkexamples"
 version  = "0.2.0"
-authors  = ["usami-renko <usami-ssc@protonmail.com>"]
+authors  = ["Houjuu-Nue <usami-ssc@protonmail.com>"]
 edition  = "2018"
 keywords = ["Vulkan", "Rust", "Graphics"]
 description = '''
@@ -11,8 +11,8 @@ An implementaion of SaschaWillems/Vulkan(https://github.com/SaschaWillems/Vulkan
 
 [dependencies]
 ash         = "0.28.0"
-winit       = "0.18.1"
-nalgebra    = "0.16"
+winit       = "0.19.0"
+nalgebra    = "0.18"
 shaderc     = "0.3.10"
 memoffset   = "0.2"
 rusttype    = "0.7.5"
@@ -21,8 +21,8 @@ rand        = "0.6"
 arrayvec    = "0.4.10"
 
 vkbase = { package = "vulkan-base", path = "../base" }
-gli    = { package = "gli-rs", version = "0.2.1" }
-vma    = { package = "vk-mem", version = "0.1.5" }
+gli    = { package = "gli-rs", version = "0.3.0" }
+vma    = { package = "vk-mem", version = "0.1.6" }
 
 
 # Basics ----------------------------------------------

@@ -2,29 +2,29 @@
 [package]
 name     = "vulkan-base"
 version  = "0.2.0"
-authors  = ["usami-renko <usami-ssc@protonmail.com>"]
+authors  = ["Houjuu-Nue <usami-ssc@protonmail.com>"]
 edition  = "2018"
 keywords = ["Vulkan", "Rust", "Graphics"]
 description = "A library to provide convenient methods to access vulkan."
 
 [dependencies]
 ash            = "0.28.0"
-winit          = "0.18.1"
+winit          = "0.19.0"
 shaderc        = "0.3.10"
 smallvec       = "0.6.5"
 gltf           = "0.11.2"
-nalgebra       = "0.16"
+nalgebra       = "0.18"
 failure        = "0.1.5"
 failure_derive = "0.1.5"
 serde          = "1.0.80"
 serde_derive   = "1.0.80"
 bincode        = "1.0.1"
-memoffset      = "0.2"
+memoffset      = "0.3.0"
 num            = "0.2"
 rusttype       = "0.7.5"
 
-gli = { package = "gli-rs", version = "0.2.1" }
-vma = { package = "vk-mem", version = "0.1.5" }
+gli = { package = "gli-rs", version = "0.3.0" }
+vma = { package = "vk-mem", version = "0.1.6" }
 
 # vulkan platform dependencies on macOS.
 [target.'cfg(target_os = "macos")'.dependencies]
