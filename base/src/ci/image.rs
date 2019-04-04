@@ -199,7 +199,7 @@ impl ImageCI {
     ///
     /// The `sharing_mode` member of `vk::ImageCreateInfo` will be set to `vk::SharingMode::CONCURRENT` automatically.
     #[inline(always)]
-    pub fn sharing_queues(mut self, mode: vk::SharingMode, families_indices: Vec<vkuint>) -> ImageCI {
+    pub fn sharing_queues(mut self, families_indices: Vec<vkuint>) -> ImageCI {
 
         self.inner.queue_family_index_count = families_indices.len() as _;
         self.inner.p_queue_family_indices   = families_indices.as_ptr();
