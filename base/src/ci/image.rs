@@ -10,7 +10,31 @@ use crate::{vkbytes, vkuint, vkfloat};
 use std::ptr;
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::ImageCreateInfo.
+/// Wrapper class for `vk::ImageCreateInfo`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::ImageCreateInfo {
+///     s_type: vk::StructureType::IMAGE_CREATE_INFO,
+///     p_next: ptr::null(),
+///     flags : vk::ImageCreateFlags::empty(),
+///     image_type: vk::ImageType::TYPE_2D,
+///     format: vk::Format::UNDEFINED,
+///     extent: Default::default(),
+///     mip_levels  : 1,
+///     array_layers: 1,
+///     samples: vk::SampleCountFlags::TYPE_1,
+///     tiling : vk::ImageTiling::OPTIMAL,
+///     usage  : vk::ImageUsageFlags::empty(),
+///     sharing_mode  : vk::SharingMode::EXCLUSIVE,
+///     initial_layout: vk::ImageLayout::UNDEFINED,
+///     queue_family_index_count: 0,
+///     p_queue_family_indices  : ptr::null(),
+/// }
+/// ```
+///
+/// See [VkImageCreateInfo](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkImageCreateInfo.html) for more detail.
+///
 #[derive(Debug, Clone)]
 pub struct ImageCI {
 
@@ -52,7 +76,10 @@ impl AsRef<vk::ImageCreateInfo> for ImageCI {
 impl VkObjectBuildableCI for ImageCI {
     type ObjectType = (vk::Image, vk::MemoryRequirements);
 
+    /// Create `vk::Image` object, and return its handle and memory requirement.
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        debug_assert_ne!(self.inner.usage, vk::ImageUsageFlags::empty(), "the usage member of vk::ImageCreateInfo must not be 0!");
 
         let image = unsafe {
             device.logic.handle.create_image(self.as_ref(), None)
@@ -69,11 +96,22 @@ impl VkObjectBuildableCI for ImageCI {
 
 impl ImageCI {
 
-    pub fn new(r#type: vk::ImageType, format: vk::Format, dimension: vk::Extent3D) -> ImageCI {
+    /// Initialize `vk::ImageCreateInfo` with default value.
+    ///
+    /// `type_` specifies the basic dimensionality of the image.
+    ///
+    /// `format` specifies the texel format of this image.
+    ///
+    /// `dimension` specifies dimension of the base level.
+    pub fn new(type_: vk::ImageType, format: vk::Format, dimension: vk::Extent3D) -> ImageCI {
+
+        debug_assert!(
+            dimension.width > 0 && dimension.height > 0 && dimension.depth > 0,
+            "The width, height and depth of image must be greater than 0!");
 
         ImageCI {
             inner: vk::ImageCreateInfo {
-                image_type: r#type,
+                image_type: type_,
                 format,
                 extent: dimension,
                 ..ImageCI::default_ci()
@@ -82,60 +120,93 @@ impl ImageCI {
         }
     }
 
+    /// Convenient method to create a 2D `ImageCI`.
+    ///
+    /// `format` specifies the texel format of this image.
+    ///
+    /// `dimension` specifies dimension of the base level.
     pub fn new_2d(format: vk::Format, dimension: vk::Extent2D) -> ImageCI {
 
         let extent = vk::Extent3D {
             width : dimension.width,
             height: dimension.height,
-            depth : 1,
+            depth : 1, // depth is always 1 for vk::ImageType::TYPE_2D.
         };
 
         ImageCI::new(vk::ImageType::TYPE_2D, format, extent)
     }
 
+    /// Set the `flags` member for `vk::ImageCreateInfo`.
+    ///
+    /// It describes additional parameters of the image.
     #[inline(always)]
     pub fn flags(mut self, flags: vk::ImageCreateFlags) -> ImageCI {
         self.inner.flags = flags; self
     }
 
+    /// Set the `usage` member for `vk::ImageCreateInfo`.
+    ///
+    /// It describes the intended usage of the image.
     #[inline(always)]
     pub fn usages(mut self, flags: vk::ImageUsageFlags) -> ImageCI {
         self.inner.usage = flags; self
     }
 
+    /// Set the `tiling` member for `vk::ImageCreateInfo`.
+    ///
+    /// Set tiling to `vk::ImageTiling::OPTIMAL` for the most part.
     #[inline(always)]
     pub fn tiling(mut self, tiling: vk::ImageTiling) -> ImageCI {
         self.inner.tiling = tiling; self
     }
 
+    /// Set the `samples` member for `vk::ImageCreateInfo`.
+    ///
+    /// It specifies the sample count for each pixel.
     #[inline(always)]
     pub fn samples(mut self, count: vk::SampleCountFlags) -> ImageCI {
         self.inner.samples = count; self
     }
 
+    /// Set the `mip_levels` member for `vk::ImageCreateInfo`.
+    ///
+    /// It describes the number of mipmap level of this image.
     #[inline(always)]
     pub fn mip_levels(mut self, level: vkuint) -> ImageCI {
+        debug_assert!(level > 0, "The mip_levels of image must be greater than 0!");
         self.inner.mip_levels = level; self
     }
 
+    /// Set the `array_layers` member for `vk::ImageCreateInfo`.
+    ///
+    /// It describes the number of layers in this image.
     #[inline(always)]
     pub fn array_layers(mut self, layers: vkuint) -> ImageCI {
+        debug_assert!(layers > 0, "The array_layers of image must be greater than 0!");
         self.inner.array_layers = layers; self
     }
 
+    /// Set the `initial_layout` member for `vk::ImageCreateInfo`.
+    ///
+    /// It describes the initial `vk::ImageLayout` of this image.
     #[inline(always)]
     pub fn initial_layout(mut self, layout: vk::ImageLayout) -> ImageCI {
         self.inner.initial_layout = layout; self
     }
 
+    /// Set the list of queue families that will access this image.
+    ///
+    /// The `sharing_mode` member of `vk::ImageCreateInfo` will be set to `vk::SharingMode::CONCURRENT` automatically.
     #[inline(always)]
     pub fn sharing_queues(mut self, mode: vk::SharingMode, families_indices: Vec<vkuint>) -> ImageCI {
 
         self.inner.queue_family_index_count = families_indices.len() as _;
         self.inner.p_queue_family_indices   = families_indices.as_ptr();
 
+        debug_assert!(self.inner.queue_family_index_count > 1, "The number of shared queue families must be greater than 1!");
+
         self.queue_families = Some(families_indices);
-        self.inner.sharing_mode = mode; self
+        self.inner.sharing_mode = vk::SharingMode::CONCURRENT; self
     }
 }
 
@@ -150,6 +221,7 @@ impl VkObjectDiscardable for vk::Image {
 
 impl VkObjectBindable for vk::Image {
 
+    /// Bind a specific range of `memory` to this image.
     fn bind(self, device: &VkDevice, memory: vk::DeviceMemory, offset: vkbytes) -> VkResult<()> {
         unsafe {
             device.logic.handle.bind_image_memory(self, memory, offset)
@@ -160,7 +232,35 @@ impl VkObjectBindable for vk::Image {
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::ImageViewCreateInfo.
+/// Wrapper class for `vk::ImageViewCreateInfo`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::ImageViewCreateInfo {
+///     s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
+///     p_next: ptr::null(),
+///     flags : vk::ImageViewCreateFlags::empty(),
+///     image : vk::Image::null(),
+///     view_type: vk::ImageViewType::TYPE_2D,
+///     format: vk::Format::UNDEFINED,
+///     components: vk::ComponentMapping {
+///         r: vk::ComponentSwizzle::R,
+///         g: vk::ComponentSwizzle::G,
+///         b: vk::ComponentSwizzle::B,
+///         a: vk::ComponentSwizzle::A,
+///     },
+///     subresource_range: vk::ImageSubresourceRange {
+///         aspect_mask      : vk::ImageAspectFlags::COLOR,
+///         base_mip_level   : 0,
+///         level_count      : 1,
+///         base_array_layer : 0,
+///         layer_count      : 1,
+///     },
+/// }
+/// ```
+///
+/// See [VkImageViewCreateInfo](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkImageViewCreateInfo.html) for more detail.
+///
 #[derive(Debug, Clone)]
 pub struct ImageViewCI {
     inner: vk::ImageViewCreateInfo,
@@ -204,6 +304,7 @@ impl AsRef<vk::ImageViewCreateInfo> for ImageViewCI {
 impl VkObjectBuildableCI for ImageViewCI {
     type ObjectType = vk::ImageView;
 
+    /// Create `vk::ImageView` object, and return its handle.
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let view = unsafe {
@@ -216,27 +317,43 @@ impl VkObjectBuildableCI for ImageViewCI {
 
 impl ImageViewCI {
 
-    pub fn new(image: vk::Image, r#type: vk::ImageViewType, format: vk::Format) -> ImageViewCI {
+    /// Initialize `vk::ImageCreateInfo` with default value.
+    ///
+    /// `image` specifies the image that this image view would access.
+    ///
+    /// `type_` specifies the type of this image view.
+    ///
+    /// `format` specifies what texel format would this image view interpret to.
+    pub fn new(image: vk::Image, type_: vk::ImageViewType, format: vk::Format) -> ImageViewCI {
 
         ImageViewCI {
             inner: vk::ImageViewCreateInfo {
                 image, format,
-                view_type: r#type,
+                view_type: type_,
                 ..ImageViewCI::default_ci()
             },
         }
     }
 
+    /// Set the `flags` member for `vk::ImageViewCreateInfo`.
+    ///
+    /// It describes additional parameters of the image view.
     #[inline(always)]
     pub fn flags(mut self, flags: vk::ImageViewCreateFlags) -> ImageViewCI {
         self.inner.flags = flags; self
     }
 
+    /// Set the `components` member for `vk::ImageViewCreateInfo`.
+    ///
+    /// It specifies the color remapping for this image.
     #[inline(always)]
     pub fn components(mut self, components: vk::ComponentMapping) -> ImageViewCI {
         self.inner.components = components;; self
     }
 
+    /// Set the `subresource_range` member for `vk::ImageViewCreateInfo`.
+    ///
+    /// It specifies the levels and layers that this image view would access.
     #[inline(always)]
     pub fn sub_range(mut self, range: vk::ImageSubresourceRange) -> ImageViewCI {
         self.inner.subresource_range = range; self
