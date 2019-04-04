@@ -1,3 +1,4 @@
+//! Types which simplify the creation of Vulkan buffer objects.
 
 use ash::vk;
 use ash::version::DeviceV1_0;

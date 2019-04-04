@@ -1,3 +1,4 @@
+//! Types which simplify the creation of Vulkan image objects.
 
 use ash::vk;
 use ash::version::DeviceV1_0;
@@ -371,7 +372,26 @@ impl VkObjectDiscardable for vk::ImageView {
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::ImageMemoryBarrier.
+/// Wrapper class for `vk::ImageMemoryBarrier`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::ImageMemoryBarrier {
+///     s_type: vk::StructureType::IMAGE_MEMORY_BARRIER,
+///     p_next: ptr::null(),
+///     src_access_mask: vk::AccessFlags::empty(),
+///     dst_access_mask: vk::AccessFlags::empty(),
+///     old_layout: vk::ImageLayout::UNDEFINED,
+///     new_layout: vk::ImageLayout::UNDEFINED,
+///     src_queue_family_index: vk::QUEUE_FAMILY_IGNORED,
+///     dst_queue_family_index: vk::QUEUE_FAMILY_IGNORED,
+///     image: vk::Image::null(),
+///     subresource_range: Default::default(),
+/// }
+/// ```
+///
+/// See [VkImageMemoryBarrier](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkImageMemoryBarrier.html) for more detail.
+/////
 #[derive(Debug, Clone)]
 pub struct ImageBarrierCI {
     inner: vk::ImageMemoryBarrier,
@@ -405,6 +425,11 @@ impl AsRef<vk::ImageMemoryBarrier> for ImageBarrierCI {
 
 impl ImageBarrierCI {
 
+    /// Initialize `vk::ImageMemoryBarrier` with default value.
+    ///
+    /// `image` is the image affected by this barrier.
+    ///
+    /// `subrange` specifies the subresource range affected by this barrier.
     pub fn new(image: vk::Image, subrange: vk::ImageSubresourceRange) -> ImageBarrierCI {
 
         ImageBarrierCI {
@@ -416,18 +441,25 @@ impl ImageBarrierCI {
         }
     }
 
+    /// Set the `src_access_mask` and `dst_access_mask` members for `vk::ImageViewCreateInfo`.
     #[inline(always)]
     pub fn access_mask(mut self, from: vk::AccessFlags, to: vk::AccessFlags) -> Self {
         self.inner.src_access_mask = from;
         self.inner.dst_access_mask = to; self
     }
 
+    /// Set the `old_layout` and `new_layout` members for `vk::ImageViewCreateInfo`.
+    ///
+    /// It specifies the layout transition for the image.
     #[inline(always)]
     pub fn layout(mut self, from: vk::ImageLayout, to: vk::ImageLayout) -> Self {
         self.inner.old_layout = from;
         self.inner.new_layout = to; self
     }
 
+    /// Set the `src_queue_family_index` and `dst_queue_family_index` members for `vk::ImageViewCreateInfo`.
+    ///
+    /// It specifies the queue family ownership transfer for the image.
     #[inline(always)]
     pub fn queue_family_index(mut self, from: vkuint, to: vkuint) -> Self {
         self.inner.src_queue_family_index = from;
@@ -444,7 +476,34 @@ impl From<ImageBarrierCI> for vk::ImageMemoryBarrier {
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::SamplerCreateInfo.
+/// Wrapper class for `vk::SamplerCreateInfo`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::SamplerCreateInfo {
+///     s_type: vk::StructureType::SAMPLER_CREATE_INFO,
+///     p_next: ptr::null(),
+///     flags : vk::SamplerCreateFlags::empty(),
+///     mag_filter: vk::Filter::LINEAR,
+///     min_filter: vk::Filter::LINEAR,
+///     mipmap_mode: vk::SamplerMipmapMode::LINEAR,
+///     address_mode_u: vk::SamplerAddressMode::REPEAT,
+///     address_mode_v: vk::SamplerAddressMode::REPEAT,
+///     address_mode_w: vk::SamplerAddressMode::REPEAT,
+///     anisotropy_enable: vk::FALSE,
+///     max_anisotropy   : 1.0,
+///     compare_enable: vk::FALSE,
+///     compare_op    : vk::CompareOp::ALWAYS,
+///     mip_lod_bias: 0.0,
+///     min_lod     : 0.0,
+///     max_lod     : 0.0,
+///     border_color: vk::BorderColor::INT_OPAQUE_BLACK,
+///     unnormalized_coordinates: vk::FALSE,
+/// }
+/// ```
+///
+/// See [VkSamplerCreateInfo](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkSamplerCreateInfo.html) for more detail.
+/////
 pub struct SamplerCI {
     inner: vk::SamplerCreateInfo,
 }
@@ -476,6 +535,20 @@ impl VulkanCI<vk::SamplerCreateInfo> for SamplerCI {
     }
 }
 
+impl VkObjectBuildableCI for SamplerCI {
+    type ObjectType = vk::Sampler;
+
+    /// Create `vk::Sampler` object, and return its handle.
+    fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
+
+        let sampler = unsafe {
+            device.logic.handle.create_sampler(self.as_ref(), None)
+                .map_err(|_| VkError::create("Sampler"))?
+        };
+        Ok(sampler)
+    }
+}
+
 impl AsRef<vk::SamplerCreateInfo> for SamplerCI {
 
     fn as_ref(&self) -> &vk::SamplerCreateInfo {
@@ -485,6 +558,7 @@ impl AsRef<vk::SamplerCreateInfo> for SamplerCI {
 
 impl SamplerCI {
 
+    /// Initialize `vk::SamplerCreateInfo` with default value.
     #[inline(always)]
     pub fn new() -> SamplerCI {
         SamplerCI {
@@ -492,15 +566,8 @@ impl SamplerCI {
         }
     }
 
-    pub fn build(&self, device: &VkDevice) -> VkResult<vk::Sampler> {
-
-        let sampler = unsafe {
-            device.logic.handle.create_sampler(self.as_ref(), None)
-                .map_err(|_| VkError::create("Sampler"))?
-        };
-        Ok(sampler)
-    }
-
+    /// Set the `mag_filter` and `min_filter` members for `vk::SamplerCreateInfo`.
+    ///
     /// `mag` specifies the magnification filter to apply to lookups.
     ///
     /// `min` specifies the minification filter to apply to lookups.
@@ -510,12 +577,16 @@ impl SamplerCI {
         self.inner.min_filter = min; self
     }
 
+    /// Set the `mipmap_mode` member for `vk::SamplerCreateInfo`.
+    ///
     /// `mode` specifies the mipmap filter to apply to lookups.
     #[inline(always)]
     pub fn mipmap(mut self, mode: vk::SamplerMipmapMode) -> SamplerCI {
         self.inner.mipmap_mode = mode; self
     }
 
+    /// Set the `address_mode_u`, `address_mode_v` and `address_mode_w` members for `vk::SamplerCreateInfo`.
+    ///
     /// `u`, `v` and `w` specifies the addressing mode for outside [0..1] range for U, V, W coordinate.
     #[inline(always)]
     pub fn address(mut self, u: vk::SamplerAddressMode, v: vk::SamplerAddressMode, w: vk::SamplerAddressMode) -> SamplerCI {
@@ -524,6 +595,8 @@ impl SamplerCI {
         self.inner.address_mode_w = w; self
     }
 
+    /// Set the `mip_bias`, `min` and `max` members for `vk::SamplerCreateInfo`.
+    ///
     /// `mip_bias` is the bias to be added to mipmap LOD (level-of-detail) calculation and bias provided by image sampling functions in SPIR-V.
     ///
     /// `min` used to clamp the minimum computed LOD value, as described in the Level-of-Detail Operation section.
@@ -536,6 +609,8 @@ impl SamplerCI {
         self.inner.max_lod = max; self
     }
 
+    /// Set the `max_anisotropy` member for `vk::SamplerCreateInfo`.
+    ///
     /// This function needs to enable an physical feature named 'sampler_anisotropy'.
     ///
     /// `max` is the anisotropy value clamp used by the sampler.
@@ -554,6 +629,8 @@ impl SamplerCI {
         self
     }
 
+    /// Set the `compare_op` member for `vk::SamplerCreateInfo`.
+    ///
     /// `op` specifies the comparison function to apply to fetched data before filtering
     /// as described in the Depth Compare Operation section.
     ///
@@ -573,12 +650,16 @@ impl SamplerCI {
         self
     }
 
+    /// Set the `border_color` member for `vk::SamplerCreateInfo`.
+    ///
     /// `border_color` specifies the predefined border color to use.
     #[inline(always)]
     pub fn border_color(mut self, color: vk::BorderColor) -> SamplerCI {
         self.inner.border_color = color; self
     }
 
+    /// Set the `unnormalized_coordinates` member for `vk::SamplerCreateInfo`.
+    ///
     /// `unnormalize_coordinates_enable` controls whether to use unnormalized or normalized texel coordinates to address texels of the image.
     ///
     /// When set to true, the range of the image coordinates used to lookup the texel is in the range of zero
