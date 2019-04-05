@@ -1,3 +1,4 @@
+//! Types which simplify the creation of Vulkan memory objects.
 
 use ash::vk;
 use ash::version::DeviceV1_0;
@@ -10,7 +11,20 @@ use crate::{vkuint, vkbytes};
 use std::ptr;
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::MemoryAllocateInfo.
+/// Wrapper class for `vk::MemoryAllocateInfo`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::MemoryAllocateInfo {
+///    s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
+///    p_next: ptr::null(),
+///    allocation_size  : 0,
+///    memory_type_index: 0,
+/// }
+/// ```
+///
+/// See [VkMemoryAllocateInfo](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkMemoryAllocateInfo.html) for more detail.
+///
 #[derive(Debug, Clone)]
 pub struct MemoryAI {
     inner: vk::MemoryAllocateInfo,
@@ -39,6 +53,7 @@ impl AsRef<vk::MemoryAllocateInfo> for MemoryAI {
 impl VkObjectBuildableCI for MemoryAI {
     type ObjectType = vk::DeviceMemory;
 
+    /// Allocate `vk::DeviceMemory` object, and return its handle.
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let memory = unsafe {
@@ -51,6 +66,11 @@ impl VkObjectBuildableCI for MemoryAI {
 
 impl MemoryAI {
 
+    /// Initialize `vk::MemoryAllocateInfo` with default value.
+    ///
+    /// `allocation_size` is the size in bytes of the memory to be allocated.
+    ///
+    /// `memory_type_index` is the index identifying a memory type querying from Vulkan.
     pub fn new(allocation_size: vkbytes, memory_type_index: vkuint) -> MemoryAI {
 
         MemoryAI {

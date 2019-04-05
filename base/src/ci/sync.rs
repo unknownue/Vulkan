@@ -1,3 +1,4 @@
+//! Types which simplify the creation of Vulkan sync objects.
 
 use ash::vk;
 use ash::version::DeviceV1_0;
@@ -12,7 +13,19 @@ use crate::utils::time::VkTimeDuration;
 
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::SemaphoreCreateInfo.
+/// Wrapper class for `vk::SemaphoreCreateInfo`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::SemaphoreCreateInfo {
+///     s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
+///     p_next: ptr::null(),
+///     flags : vk::SemaphoreCreateFlags::empty(),
+/// }
+/// ```
+///
+/// See [VkSemaphoreCreateInfo](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkSemaphoreCreateInfo.html) for more detail.
+///
 #[derive(Debug, Clone)]
 pub struct SemaphoreCI {
     inner: vk::SemaphoreCreateInfo,
@@ -40,6 +53,7 @@ impl AsRef<vk::SemaphoreCreateInfo> for SemaphoreCI {
 impl VkObjectBuildableCI for SemaphoreCI {
     type ObjectType = vk::Semaphore;
 
+    /// Create `vk::Semaphore` object, and return its handle.
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let semaphore = unsafe {
@@ -52,6 +66,8 @@ impl VkObjectBuildableCI for SemaphoreCI {
 
 impl SemaphoreCI {
 
+    /// Initialize `vk::SemaphoreCreateInfo` with default value.
+    #[inline(always)]
     pub fn new() -> SemaphoreCI {
 
         SemaphoreCI {
@@ -59,6 +75,9 @@ impl SemaphoreCI {
         }
     }
 
+    /// Set the `flags` member for `vk::SemaphoreCreateInfo`.
+    ///
+    /// It is still reserved for future use.
     #[inline(always)]
     pub fn flags(mut self, flags: vk::SemaphoreCreateFlags) {
         self.inner.flags = flags;
@@ -76,7 +95,19 @@ impl VkObjectDiscardable for vk::Semaphore {
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::FenceCreateInfo.
+/// Wrapper class for `vk::FenceCreateInfo`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::FenceCreateInfo {
+///     s_type: vk::StructureType::FENCE_CREATE_INFO,
+///     p_next: ptr::null(),
+///     flags : vk::FenceCreateFlags::empty(),
+/// }
+/// ```
+///
+/// See [VkFenceCreateInfo](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkFenceCreateInfo.html) for more detail.
+///
 #[derive(Debug, Clone)]
 pub struct FenceCI {
     inner: vk::FenceCreateInfo,
@@ -104,6 +135,7 @@ impl AsRef<vk::FenceCreateInfo> for FenceCI {
 impl VkObjectBuildableCI for FenceCI {
     type ObjectType = vk::Fence;
 
+    /// Create `vk::Fence` object, and return its handle.
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let fence = unsafe {
@@ -116,6 +148,9 @@ impl VkObjectBuildableCI for FenceCI {
 
 impl FenceCI {
 
+    /// Initialize `vk::FenceCreateInfo` with default value.
+    ///
+    /// if `is_signed` is true, `vk::FenceCreateFlags::SIGNALED_BIT` will be set.
     pub fn new(is_signed: bool) -> FenceCI {
 
         let mut fence = FenceCI { inner: FenceCI::default_ci() };
@@ -125,6 +160,12 @@ impl FenceCI {
         }
 
         fence
+    }
+
+    /// Set the `flags` member for `vk::FenceCreateInfo`.
+    #[inline(always)]
+    pub fn flags(mut self, flags: vk::FenceCreateFlags) {
+        self.inner.flags = flags;
     }
 }
 

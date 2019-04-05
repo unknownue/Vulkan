@@ -14,7 +14,6 @@ use std::ptr;
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for `vk::DescriptorPoolCreateInfo`.
 ///
-///
 /// The default values are defined as follows:
 /// ``` ignore
 /// vk::DescriptorPoolCreateInfo {
@@ -64,7 +63,7 @@ impl VkObjectBuildableCI for DescriptorPoolCI {
     /// Create `vk::DescriptorPool` object, and return its handle.
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
-        debug_assert!(!self.pool_sizes.empty(), "The count of pool sizes must be greater than 0!");
+        debug_assert!(!self.pool_sizes.is_empty(), "The count of pool sizes must be greater than 0!");
 
         let descriptor_pool = unsafe {
             device.logic.handle.create_descriptor_pool(self.as_ref(), None)
@@ -276,7 +275,7 @@ impl VkObjectBuildableCI for DescriptorSetAI {
     /// Create `vk::DescriptorSet` objects, and return their handles.
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
-        debug_assert!(!self.set_layouts.empty(), "Descriptor sets count must be greater than 0!");
+        debug_assert!(!self.set_layouts.is_empty(), "Descriptor sets count must be greater than 0!");
 
         let descriptor_sets = unsafe {
             device.logic.handle.allocate_descriptor_sets(self.as_ref())

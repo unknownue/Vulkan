@@ -1,4 +1,4 @@
-//! Types which simplify the creation of Vulkan Command objects.
+//! Types which simplify the creation of Vulkan command objects.
 
 use ash::vk;
 use ash::version::DeviceV1_0;
