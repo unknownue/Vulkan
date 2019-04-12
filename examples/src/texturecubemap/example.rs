@@ -402,10 +402,9 @@ fn prepare_pipelines(device: &VkDevice, skybox: &Skybox, render_pass: vk::Render
     let vert_codes = shader_compiler.compile_from_path(Path::new(SKY_BOX_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
     let frag_codes = shader_compiler.compile_from_path(Path::new(SKY_BOX_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
 
-    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+    let vert_module = ShaderModuleCI::new(vert_codes)
         .build(device)?;
-    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-        .build(device)?;
+    let frag_module = ShaderModuleCI::new(frag_codes).build(device)?;
 
     // Pipeline.
     let mut pipeline_ci = GraphicsPipelineCI::new(render_pass, pipeline_layout);

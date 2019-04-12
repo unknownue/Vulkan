@@ -84,6 +84,6 @@ path = "src/texturearray/main.rs"
 # -----------------------------------------------------
 
 
-[[bin]]
-name = "text-overlay"
-path = "src/text-overlay/main.rs"
+# [[bin]]
+# name = "text-overlay"
+# path = "src/text-overlay/main.rs"

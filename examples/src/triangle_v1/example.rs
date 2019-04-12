@@ -858,10 +858,9 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, layout: vk:
     use vkbase::ci::shader::ShaderModuleCI;
     let vert_codes = include_bytes!("triangle.vert.spv").to_vec();
     let frag_codes = include_bytes!("triangle.frag.spv").to_vec();
-    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+    let vert_module = ShaderModuleCI::new(vert_codes)
         .build(device)?;
-    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-        .build(device)?;
+    let frag_module = ShaderModuleCI::new(frag_codes).build(device)?;
 
     let main_name = CString::new("main").unwrap();
 

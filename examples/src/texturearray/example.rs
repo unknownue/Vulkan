@@ -366,10 +366,9 @@ fn prepare_pipelines(device: &VkDevice, render_pass: vk::RenderPass, set_layout:
     let vert_codes = shader_compiler.compile_from_path(Path::new(SHADER_VERTEX_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
     let frag_codes = shader_compiler.compile_from_path(Path::new(SHADER_FRAGMENT_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
 
-    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+    let vert_module = ShaderModuleCI::new(vert_codes)
         .build(device)?;
-    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-        .build(device)?;
+    let frag_module = ShaderModuleCI::new(frag_codes).build(device)?;
 
     // Pipeline Layout.
     let layout = PipelineLayoutCI::new()

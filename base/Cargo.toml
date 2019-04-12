@@ -23,7 +23,7 @@ memoffset      = "0.3.0"
 num            = "0.2"
 rusttype       = "0.7.5"
 
-gli = { package = "gli-rs", version = "0.3.0" }
+gli = { package = "gli-rs", version = "0.3.1" }
 vma = { package = "vk-mem", version = "0.1.6" }
 
 # vulkan platform dependencies on macOS.

@@ -298,10 +298,9 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
     let vert_codes = shader_compiler.compile_from_path(Path::new(TEXT_VERTEX_SHADER_SOURCE_PATH), shaderc::ShaderKind::Vertex, "[Vertex Shader]", "main")?;
     let frag_codes = shader_compiler.compile_from_path(Path::new(TEXT_FRAGMENT_SHADER_SOURCE_PATH), shaderc::ShaderKind::Fragment, "[Fragment Shader]", "main")?;
 
-    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
+    let vert_module = ShaderModuleCI::new(vert_codes)
         .build(device)?;
-    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-        .build(device)?;
+    let frag_module = ShaderModuleCI::new(frag_codes).build(device)?;
     let shaders = [
         ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
         ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),

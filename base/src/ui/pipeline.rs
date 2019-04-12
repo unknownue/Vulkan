@@ -1,3 +1,4 @@
+//! Types which simplify the creation of Vulkan shader objects.
 
 use ash::vk;
 
@@ -153,10 +154,9 @@ fn prepare_pipelines(device: &VkDevice, dimension: vk::Extent2D, render_pass: vk
         "[Fragment Shader]",
         "main")?;
 
-    let vert_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::VERTEX, vert_codes)
-        .build(device)?;
-    let frag_module = ShaderModuleCI::from_glsl(vk::ShaderStageFlags::FRAGMENT, frag_codes)
-        .build(device)?;
+    let vert_module = ShaderModuleCI::new(vert_codes).build(device)?;
+    let frag_module = ShaderModuleCI::new(frag_codes).build(device)?;
+
     let shaders = [
         ShaderStageCI::new(vk::ShaderStageFlags::VERTEX, vert_module),
         ShaderStageCI::new(vk::ShaderStageFlags::FRAGMENT, frag_module),
