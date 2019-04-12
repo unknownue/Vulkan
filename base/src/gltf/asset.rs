@@ -9,9 +9,10 @@ use crate::gltf::scene::Scene;
 use crate::command::{VkCmdRecorder, IGraphics};
 use crate::context::{VkDevice, VmaResourceDiscardable};
 use crate::Matrix4F;
-use crate::error::{VkResult, VkTryFrom};
+use crate::error::VkResult;
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 pub type ReferenceIndex = usize;
 pub type   StorageIndex = usize;

@@ -10,11 +10,11 @@ use crate::gltf::nodes::attachment::{NodeAttachments, NodeAttachmentFlags};
 use crate::ci::vma::VmaBuffer;
 use crate::context::{VkDevice, VmaResourceDiscardable};
 use crate::command::CmdTransferApi;
-use crate::error::{VkResult, VkErrorKind, VkTryFrom};
+use crate::error::{VkResult, VkError, VkErrorKind};
 use crate::{vkbytes, vkptr};
 
 use std::collections::HashMap;
-
+use std::convert::TryFrom;
 
 pub struct NodeAsset {
 
@@ -32,7 +32,8 @@ pub struct NodeResource {
     buffer: VmaBuffer,
 }
 
-impl VkTryFrom<NodeAttachmentFlags> for NodeAsset {
+impl TryFrom<NodeAttachmentFlags> for NodeAsset {
+    type Error = VkError;
 
     fn try_from(flag: NodeAttachmentFlags) -> VkResult<NodeAsset> {
 

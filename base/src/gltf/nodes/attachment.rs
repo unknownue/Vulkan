@@ -1,10 +1,11 @@
 
 use crate::gltf::asset::ReferenceIndex;
-use crate::error::{VkResult, VkError, VkTryFrom};
+use crate::error::{VkResult, VkError};
 use crate::{vkbytes, vkptr};
 
-use std::ops::{ BitAnd, BitOr, BitOrAssign, BitAndAssign };
+use std::ops::{BitAnd, BitOr, BitOrAssign, BitAndAssign};
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 type Matrix4F = nalgebra::Matrix4<f32>;
 
@@ -23,7 +24,8 @@ pub struct AttachmentContent {
     pub transform: Option<Matrix4F>,
 }
 
-impl VkTryFrom<NodeAttachmentFlags> for NodeAttachments {
+impl TryFrom<NodeAttachmentFlags> for NodeAttachments {
+    type Error = VkError;
 
     fn try_from(flags: NodeAttachmentFlags) -> VkResult<NodeAttachments> {
 

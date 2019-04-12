@@ -3,10 +3,11 @@ use ash::vk;
 
 use crate::gltf::asset::GltfDocument;
 use crate::ci::pipeline::VertexInputSCI;
-use crate::error::{VkTryFrom, VkResult, VkError};
+use crate::error::{VkResult, VkError};
 use crate::{vkbytes, vkptr};
 
-use std::ops::{ BitAnd, BitOr, BitOrAssign, BitAndAssign };
+use std::ops::{BitAnd, BitOr, BitOrAssign, BitAndAssign};
+use std::convert::TryFrom;
 
 // --------------------------------------------------------------------------------------
 type Point3F  = nalgebra::Point3<f32>;
@@ -25,7 +26,8 @@ pub struct AttributesData {
     pub data_content: Box<dyn VertexAttributes>,
 }
 
-impl VkTryFrom<AttributeFlags> for AttributesData {
+impl TryFrom<AttributeFlags> for AttributesData {
+    type Error = VkError;
 
     fn try_from(flags: AttributeFlags) -> VkResult<AttributesData> {
 

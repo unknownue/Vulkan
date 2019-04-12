@@ -14,8 +14,10 @@ use crate::ci::pipeline::VertexInputSCI;
 use crate::context::VkDevice;
 use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi, CmdTransferApi};
 
-use crate::error::{VkResult, VkTryFrom, VkErrorKind};
+use crate::error::{VkResult, VkError, VkErrorKind};
 use crate::vkptr;
+
+use std::convert::TryFrom;
 
 
 pub struct MeshAsset {
@@ -42,7 +44,8 @@ pub struct MeshResource {
     pub vertex_input: VertexInputSCI,
 }
 
-impl VkTryFrom<AttributeFlags> for MeshAsset {
+impl TryFrom<AttributeFlags> for MeshAsset {
+    type Error = VkError;
 
     fn try_from(flag: AttributeFlags) -> VkResult<MeshAsset> {
 
