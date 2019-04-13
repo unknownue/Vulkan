@@ -147,7 +147,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             .add_signal(self.backend.await_rendering);
 
         // Submit to the graphics queue passing a wait fence.
-        device.submit(submit_ci, device.logic.queues.graphics.handle, device_available)?;
+        device.submit(submit_ci, device.logic.queues.graphics.handle, Some(device_available))?;
 
         Ok(self.backend.await_rendering)
     }

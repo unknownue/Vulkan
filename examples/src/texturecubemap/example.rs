@@ -89,7 +89,7 @@ impl vkbase::RenderWorkflow for VulkanExample {
             .add_command(self.backend.commands[image_index])
             .add_signal(self.backend.await_rendering);
 
-        device.submit(submit_ci, device.logic.queues.graphics.handle, device_available)?;
+        device.submit(submit_ci, device.logic.queues.graphics.handle, Some(device_available))?;
 
         Ok(self.backend.await_rendering)
     }

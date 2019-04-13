@@ -115,7 +115,7 @@ impl VkDevice {
     }
 
     #[inline]
-    pub fn submit(&self, ci: impl VkSubmitCI, queue: vk::Queue, wait_fence: vk::Fence) -> VkResult<()> {
+    pub fn submit(&self, ci: impl VkSubmitCI, queue: vk::Queue, wait_fence: Option<vk::Fence>) -> VkResult<()> {
         ci.submit(self, queue, wait_fence)
     }
 
@@ -178,5 +178,5 @@ pub trait VkObjectWaitable: Copy {
 
 pub trait VkSubmitCI {
 
-    fn submit(self, device: &VkDevice, queue: vk::Queue, wait_fence: vk::Fence) -> VkResult<()>;
+    fn submit(self, device: &VkDevice, queue: vk::Queue, wait_fence: Option<vk::Fence>) -> VkResult<()>;
 }
