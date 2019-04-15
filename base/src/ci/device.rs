@@ -12,7 +12,6 @@ use std::ptr;
 // ----------------------------------------------------------------------------------------------
 /// Wrapper class for `vk::SubmitInfo`.
 ///
-///
 /// The default values are defined as follows:
 /// ``` ignore
 /// vk::SubmitInfo {
@@ -79,7 +78,7 @@ impl SubmitCI {
         }
     }
 
-    /// Add command buffer to this submit.
+    /// Add command buffer to this submission.
     #[inline]
     pub fn add_command(mut self, command: vk::CommandBuffer) -> SubmitCI {
 
@@ -123,11 +122,6 @@ impl SubmitCI {
 
 impl VkSubmitCI for vk::SubmitInfo {
 
-    /// Submit the command buffers to specific queue.
-    ///
-    /// `queue` is the queue that the command buffers will be submitted to.
-    ///
-    /// `wait_fence` is an optional fence to be signaled after the executions of command buffers.
     fn submit(self, device: &VkDevice, queue: vk::Queue, wait_fence: Option<vk::Fence>) -> VkResult<()> {
 
         unsafe {
@@ -139,6 +133,11 @@ impl VkSubmitCI for vk::SubmitInfo {
 
 impl VkSubmitCI for SubmitCI {
 
+    /// Submit the command buffers to specific queue.
+    ///
+    /// `queue` is the queue that the command buffers will be submitted to.
+    ///
+    /// `wait_fence` is an optional fence to be signaled after the executions of command buffers.
     fn submit(self, device: &VkDevice, queue: vk::Queue, wait_fence: Option<vk::Fence>) -> VkResult<()> {
 
         (self.as_ref()).submit(device, queue, wait_fence)

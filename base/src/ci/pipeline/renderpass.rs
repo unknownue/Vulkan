@@ -13,7 +13,26 @@ use crate::vkuint;
 use std::ptr;
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::RenderPassBeginInfo.
+/// Wrapper class for `vk::RenderPassBeginInfo`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::RenderPassBeginInfo {
+///     s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
+///     p_next: ptr::null(),
+///     render_area: vk::Rect2D {
+///         extent: vk::Extent2D { width : 0, height: 0 },
+///         offset: vk::Offset2D { x: 0, y: 0 },
+///     },
+///     clear_value_count: 0,
+///     p_clear_values   : ptr::null(),
+///     render_pass: vk::RenderPass::null(),
+///     framebuffer: vk::Framebuffer::null(),
+/// }
+/// ```
+///
+/// See [VkRenderPassBeginInfo](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkRenderPassBeginInfo.html) for more detail.
+///
 #[derive(Clone)]
 pub struct RenderPassBI {
 
@@ -49,6 +68,11 @@ impl AsRef<vk::RenderPassBeginInfo> for RenderPassBI {
 
 impl RenderPassBI {
 
+    /// Initialize `vk::RenderPassBeginInfo` with default value.
+    ///
+    /// `render_pass`is the handle of render pass for this operations.
+    ///
+    /// `framebuffer` is the framebuffer containing the attachments that are used with the render pass.
     pub fn new(render_pass: vk::RenderPass, framebuffer: vk::Framebuffer) -> RenderPassBI {
 
         RenderPassBI {
@@ -60,16 +84,19 @@ impl RenderPassBI {
         }
     }
 
+    /// Set the dimension of render area that is affected by this render pass.
     #[inline(always)]
     pub fn render_extent(mut self, area: vk::Extent2D) -> RenderPassBI {
         self.inner.render_area.extent = area; self
     }
 
+    /// Set the offset of render area. Default is 0 for both x, y coordinates.
     #[inline(always)]
     pub fn render_area_offset(mut self, offset: vk::Offset2D) -> RenderPassBI {
         self.inner.render_area.offset = offset; self
     }
 
+    /// Add clear value for attachment used in this render pass.
     #[inline]
     pub fn add_clear_value(mut self, value: vk::ClearValue) -> RenderPassBI {
 
@@ -80,6 +107,9 @@ impl RenderPassBI {
         self.inner.p_clear_values    = clear_values.as_ptr(); self
     }
 
+    /// Set all the clear values for attachments used in this render pass.
+    ///
+    /// The order of clear values must match the corresponding attachment.
     #[inline]
     pub fn set_clear_values(mut self, values: Vec<vk::ClearValue>) -> RenderPassBI {
 
@@ -93,7 +123,25 @@ impl RenderPassBI {
 
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::RenderPassCreateInfo.
+/// Wrapper class for `vk::RenderPassCreateInfo`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::RenderPassCreateInfo {
+///     s_type: vk::StructureType::RENDER_PASS_CREATE_INFO,
+///     p_next: ptr::null(),
+///     flags : vk::RenderPassCreateFlags::empty(),
+///     attachment_count: 0,
+///     p_attachments   : ptr::null(),
+///     subpass_count   : 0,
+///     p_subpasses     : ptr::null(),
+///     dependency_count: 0,
+///     p_dependencies  : ptr::null(),
+/// }
+/// ```
+///
+/// See [VkRenderPassCreateInfo](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkRenderPassCreateInfo.html) for more detail.
+///
 #[derive(Debug)]
 pub struct RenderPassCI {
 
@@ -133,6 +181,7 @@ impl AsRef<vk::RenderPassCreateInfo> for RenderPassCI {
 impl VkObjectBuildableCI for RenderPassCI {
     type ObjectType = vk::RenderPass;
 
+    /// Create `vk::RenderPass` object, and return its handle.
     fn build(&self, device: &VkDevice) -> VkResult<Self::ObjectType> {
 
         let render_pass = unsafe {
@@ -145,6 +194,7 @@ impl VkObjectBuildableCI for RenderPassCI {
 
 impl RenderPassCI {
 
+    /// Initialize `vk::RenderPassCreateInfo` with default value.
     pub fn new() -> RenderPassCI {
 
         RenderPassCI {
@@ -156,6 +206,7 @@ impl RenderPassCI {
         }
     }
 
+    /// Add an attachment used by this render pass.
     #[inline]
     pub fn add_attachment(mut self, attachment: AttachmentDescCI) -> RenderPassCI {
 
@@ -164,6 +215,7 @@ impl RenderPassCI {
         self.inner.p_attachments    = self.attachments.as_ptr(); self
     }
 
+    /// Add a subpass to this render pass.
     #[inline]
     pub fn add_subpass(mut self, subpass: SubpassDescCI) -> RenderPassCI {
 
@@ -178,6 +230,7 @@ impl RenderPassCI {
         self.inner.p_subpasses   = self.subpasses.as_ptr(); self
     }
 
+    /// Add a subpass dependency between two subpass.
     #[inline]
     pub fn add_dependency(mut self, dependency: SubpassDependencyCI) -> RenderPassCI {
 
@@ -188,6 +241,7 @@ impl RenderPassCI {
         self.inner.p_dependencies   = dependencies.as_ptr(); self
     }
 
+    /// Set the `flags` member for `vk::RenderPassCreateInfo`.
     #[inline(always)]
     pub fn flags(mut self, flags: vk::RenderPassCreateFlags) -> RenderPassCI {
         self.inner.flags = flags; self
@@ -205,7 +259,25 @@ impl VkObjectDiscardable for vk::RenderPass {
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::AttachmentDescription.
+/// Wrapper class for `vk::AttachmentDescription`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::AttachmentDescription {
+///     flags : vk::AttachmentDescriptionFlags::empty(),
+///     format: vk::Format::UNDEFINED,
+///     samples: vk::SampleCountFlags::TYPE_1,
+///     load_op : vk::AttachmentLoadOp::DONT_CARE,
+///     store_op: vk::AttachmentStoreOp::DONT_CARE,
+///     stencil_load_op : vk::AttachmentLoadOp::DONT_CARE,
+///     stencil_store_op: vk::AttachmentStoreOp::DONT_CARE,
+///     initial_layout: vk::ImageLayout::UNDEFINED,
+///     final_layout  : vk::ImageLayout::UNDEFINED,
+/// }
+/// ```
+///
+/// See [VkAttachmentDescription](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkAttachmentDescription.html) for more detail.
+///
 #[derive(Debug, Clone)]
 pub struct AttachmentDescCI {
     inner: vk::AttachmentDescription,
@@ -238,6 +310,9 @@ impl AsRef<vk::AttachmentDescription> for AttachmentDescCI {
 
 impl AttachmentDescCI {
 
+    /// Initialize `vk::AttachmentDescription` with default value.
+    ///
+    /// `format` is the format of image view used by this attachment.
     pub fn new(format: vk::Format) -> AttachmentDescCI {
 
         AttachmentDescCI {
@@ -248,29 +323,50 @@ impl AttachmentDescCI {
         }
     }
 
+    /// Set the `samples` member of `vk::AttachmentDescription`.
+    ///
+    /// `count` specifies the number of samples for the image.
     #[inline(always)]
     pub fn sample_count(mut self, count: vk::SampleCountFlags) -> AttachmentDescCI {
         self.inner.samples = count; self
     }
 
+    /// Set the `load_op` and `store_op` members of `vk::AttachmentDescription`.
+    ///
+    /// `load` specifies how to treat the color or depth attachment at the beginning of the subpass.
+    ///
+    /// `store` specifies how to treat the color or depth attachment at the end of subpass.
     #[inline(always)]
     pub fn op(mut self, load: vk::AttachmentLoadOp, store: vk::AttachmentStoreOp) -> AttachmentDescCI {
         self.inner.load_op  = load;
         self.inner.store_op = store; self
     }
 
+    /// Set the `stencil_load_op` and `stencil_store_op` members of `vk::AttachmentDescription`.
+    ///
+    /// `load` specifies how to treat the stencil attachment at the beginning of the subpass.
+    ///
+    /// `store` specifies how to treat the stencil attachment at the end of subpass.
     #[inline(always)]
     pub fn stencil_op(mut self, load: vk::AttachmentLoadOp, store: vk::AttachmentStoreOp) -> AttachmentDescCI {
         self.inner.stencil_load_op  = load;
         self.inner.stencil_store_op = store; self
     }
 
+    /// Set the `initial_layout` and `final_layout` members of `vk::AttachmentDescription`.
+    ///
+    /// `initial` is the layout of the attachment image before the render pass begins.
+    ///
+    /// `final` is the layout of the attachment image that will be transitioned to after the render pass.
     #[inline(always)]
-    pub fn layout(mut self, initial: vk::ImageLayout, r#final: vk::ImageLayout) -> AttachmentDescCI {
+    pub fn layout(mut self, initial: vk::ImageLayout, final_: vk::ImageLayout) -> AttachmentDescCI {
         self.inner.initial_layout = initial;
-        self.inner.final_layout   = r#final; self
+        self.inner.final_layout   = final_; self
     }
 
+    /// Set the `flags` member for `vk::AttachmentDescription`.
+    ///
+    /// `flags` specifies additional properties of the attachment.
     #[inline(always)]
     pub fn flags(mut self, flags: vk::AttachmentDescriptionFlags) -> AttachmentDescCI {
         self.inner.flags = flags; self
@@ -283,10 +379,36 @@ impl From<AttachmentDescCI> for vk::AttachmentDescription {
         v.inner
     }
 }
+
+impl From<vk::AttachmentDescription> for AttachmentDescCI {
+
+    fn from(v: vk::AttachmentDescription) -> AttachmentDescCI {
+        AttachmentDescCI { inner: v }
+    }
+}
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::SubpassDescription.
+/// Wrapper class for `vk::SubpassDescription`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::SubpassDescription {
+///     flags: vk::SubpassDescriptionFlags::empty(),
+///     pipeline_bind_point: vk::PipelineBindPoint::GRAPHICS,
+///     input_attachment_count: 0,
+///     p_input_attachments   : ptr::null(),
+///     color_attachment_count: 0,
+///     p_color_attachments   : ptr::null(),
+///     p_resolve_attachments : ptr::null(),
+///     preserve_attachment_count: 0,
+///     p_preserve_attachments   : ptr::null(),
+///     p_depth_stencil_attachment: ptr::null(),
+/// }
+/// ```
+///
+/// See [VkSubpassDescription](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkSubpassDescription.html) for more detail.
+///
 #[derive(Debug)]
 pub struct SubpassDescCI {
     inner: vk::SubpassDescription,
@@ -326,6 +448,9 @@ impl AsRef<vk::SubpassDescription> for SubpassDescCI {
 
 impl SubpassDescCI {
 
+    /// Initialize `vk::SubpassDescription` with default value.
+    ///
+    /// `bind_point` specifies the pipeline type of this subpass.
     pub fn new(bind_point: vk::PipelineBindPoint) -> SubpassDescCI {
 
         SubpassDescCI {
@@ -341,6 +466,11 @@ impl SubpassDescCI {
         }
     }
 
+    /// Add input attachment to this subpass.
+    ///
+    /// `attachment_index` is the corresponding index of attachment defined in `vk::RenderPassCreateInfo`.
+    ///
+    /// `image_layout` specifies the layout of attachment image of this subpass.
     #[inline]
     pub fn add_input_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
 
@@ -354,6 +484,11 @@ impl SubpassDescCI {
         self.inner.p_input_attachments    = inputs.as_ptr(); self
     }
 
+    /// Add color attachment to this subpass.
+    ///
+    /// `attachment_index` is the corresponding index of attachment defined in `vk::RenderPassCreateInfo`.
+    ///
+    /// `image_layout` specifies the layout of attachment image of this subpass.
     #[inline]
     pub fn add_color_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
 
@@ -367,6 +502,11 @@ impl SubpassDescCI {
         self.inner.p_color_attachments    = colors.as_ptr(); self
     }
 
+    /// Add resolve attachment to this subpass.
+    ///
+    /// `attachment_index` is the corresponding index of attachment defined in `vk::RenderPassCreateInfo`.
+    ///
+    /// `image_layout` specifies the layout of attachment image of this subpass.
     #[inline]
     pub fn add_resolve_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
 
@@ -380,6 +520,9 @@ impl SubpassDescCI {
         self.inner.p_resolve_attachments     = resolves.as_ptr(); self
     }
 
+    /// Add preserve attachment to this subpass.
+    ///
+    /// `attachment_index` is the corresponding index of attachment defined in `vk::RenderPassCreateInfo`.
     #[inline(always)]
     pub fn add_preserve_attachment(mut self, attachment_index: vkuint) -> SubpassDescCI {
 
@@ -389,6 +532,11 @@ impl SubpassDescCI {
         self.inner.p_preserve_attachments = preserves.as_ptr(); self
     }
 
+    /// Set depth stencil attachment of this subpass.
+    ///
+    /// `attachment_index` is the corresponding index of attachment defined in `vk::RenderPassCreateInfo`.
+    ///
+    /// `image_layout` specifies the layout of attachment image of this subpass.
     pub fn set_depth_stencil_attachment(mut self, attachment_index: vkuint, image_layout: vk::ImageLayout) -> SubpassDescCI {
 
         let depth_stencil_ref = self.depth_stencil.get_or_insert(vec![vk::AttachmentReference::default()]);
@@ -400,6 +548,9 @@ impl SubpassDescCI {
         self.inner.p_depth_stencil_attachment = depth_stencil_ref.as_ptr(); self
     }
 
+    /// Set the `flags` member for `vk::SubpassDescription`.
+    ///
+    /// It specifies usage of the subpass.
     #[inline(always)]
     pub fn flags(mut self, flags: vk::SubpassDescriptionFlags) -> SubpassDescCI {
         self.inner.flags = flags; self
@@ -409,7 +560,23 @@ impl SubpassDescCI {
 
 
 // ----------------------------------------------------------------------------------------------
-/// Wrapper class for vk::SubpassDependency.
+/// Wrapper class for `vk::SubpassDependency`.
+///
+/// The default values are defined as follows:
+/// ``` ignore
+/// vk::SubpassDependency {
+///     src_subpass: vk::SUBPASS_EXTERNAL,
+///     dst_subpass: vk::SUBPASS_EXTERNAL,
+///     src_stage_mask   : vk::PipelineStageFlags::empty(),
+///     dst_stage_mask   : vk::PipelineStageFlags::empty(),
+///     src_access_mask  : vk::AccessFlags::empty(),
+///     dst_access_mask  : vk::AccessFlags::empty(),
+///     dependency_flags : vk::DependencyFlags::empty(),
+/// }
+/// ```
+///
+/// See [VkSubpassDependency](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkSubpassDependency.html) for more detail.
+///
 #[derive(Debug, Clone)]
 pub struct SubpassDependencyCI {
     inner: vk::SubpassDependency,
@@ -440,6 +607,11 @@ impl AsRef<vk::SubpassDependency> for SubpassDependencyCI {
 
 impl SubpassDependencyCI {
 
+    /// Initialize `vk::SubpassDependency` with default value.
+    ///
+    /// `src` specifies the subpass index of the first subpass, or set to `vk::SUBPASS_EXTERNAL`.
+    ///
+    /// `dst` specifies the subpass index of the second subpass, or set to `vk::SUBPASS_EXTERNAL`.
     pub fn new(src: vkuint, dst: vkuint) -> SubpassDependencyCI {
 
         SubpassDependencyCI {
@@ -451,18 +623,31 @@ impl SubpassDependencyCI {
         }
     }
 
+    /// Set the `src_stage_mask` and `dst_stage_mask` members for `vk::SubpassDependency`.
+    ///
+    /// `src` specifies the source stage mask.
+    ///
+    /// `dst` specifies the destination stage mask.
     #[inline(always)]
     pub fn stage_mask(mut self, src: vk::PipelineStageFlags, dst: vk::PipelineStageFlags) -> SubpassDependencyCI {
         self.inner.src_stage_mask = src;
         self.inner.dst_stage_mask = dst; self
     }
 
+    /// Set the `src_access_mask` and `dst_access_mask` members for `vk::SubpassDependency`.
+    ///
+    /// `src` specifies the source access mask.
+    ///
+    /// `dst` specifies the destination access mask.
     #[inline(always)]
     pub fn access_mask(mut self, src: vk::AccessFlags, dst: vk::AccessFlags) -> SubpassDependencyCI {
         self.inner.src_access_mask = src;
         self.inner.dst_access_mask = dst; self
     }
 
+    /// Set the `flags` member for `vk::SubpassDependency`.
+    ///
+    /// It specifies some additional parameters of the subpass dependency.
     #[inline(always)]
     pub fn flags(mut self, flags: vk::DependencyFlags) -> SubpassDependencyCI {
         self.inner.dependency_flags = flags; self
@@ -473,6 +658,13 @@ impl From<SubpassDependencyCI> for vk::SubpassDependency {
 
     fn from(v: SubpassDependencyCI) -> vk::SubpassDependency {
         v.inner
+    }
+}
+
+impl From<vk::SubpassDependency> for SubpassDependencyCI {
+
+    fn from(v: vk::SubpassDependency) -> SubpassDependencyCI {
+        SubpassDependencyCI { inner: v }
     }
 }
 // ----------------------------------------------------------------------------------------------
