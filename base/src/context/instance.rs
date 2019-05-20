@@ -3,12 +3,14 @@ use ash::vk;
 use ash::vk_make_version;
 use ash::version::{InstanceV1_0, EntryV1_0};
 
-use crate::context::debug::DebugType;
+use crate::context::debug::{DebugType, VkDebugger};
 use crate::vkuint;
 use crate::error::{VkResult, VkError};
 
 use std::ffi::CString;
+use std::os::raw::c_void;
 use std::ptr;
+use crate::context::ValidationConfig;
 
 /// The configuration parameters used in the initialization of `vk::Instance`.
 #[derive(Debug, Clone)]
@@ -26,11 +28,11 @@ pub struct InstanceConfig {
     pub application_name: String,
     /// `engine_name` is the name of the engine used to create the application or None if it is not provided.
     pub engine_name: String,
-    /// `print_available_layers` specific program to print all available instance layers to console.
+    /// `print_available_layers` specify program to print all available instance layers to console.
     pub print_available_layers: bool,
-    /// `require_layer_names` specific which layers to load by vulkan.
+    /// `require_layer_names` specify which layers to load by vulkan.
     pub require_layer_names: Vec<String>,
-    /// `debug` specifies the debug tools used in vulkan backend.
+    /// `debug` specify what the debug tool used in Vulkan instance debugging.
     pub debug: DebugType,
 }
 
@@ -40,7 +42,7 @@ impl Default for InstanceConfig {
        InstanceConfig {
            api_version         : vk_make_version!(1, 0, 0),
            application_version : vk_make_version!(1, 0, 0),
-           engine_version      : vk_make_version!(1, 0, 97),
+           engine_version      : vk_make_version!(1, 0, 0),
            application_name    : String::from("Vulkan Application"),
            engine_name         : String::from("Engine powered by Vulkan"),
            print_available_layers: false,
@@ -48,7 +50,7 @@ impl Default for InstanceConfig {
                // request validation layer by default.
                String::from("VK_LAYER_LUNARG_standard_validation"),
            ],
-           debug: DebugType::DebugUtils, // default to use Debug Utils extension.
+           debug: DebugType::DebugUtils,// default to use Debug Utils for Vulkan instance debugging.
        }
     }
 }
@@ -67,7 +69,7 @@ pub struct VkInstance {
 impl VkInstance {
 
     /// Initialize `vk::Instance` object.
-    pub fn new(config: InstanceConfig) -> VkResult<VkInstance> {
+    pub fn new(config: InstanceConfig, validation_config: &ValidationConfig) -> VkResult<VkInstance> {
 
         let entry = ash::Entry::new()
             .or(Err(VkError::unlink("Entry")))?;
@@ -92,16 +94,24 @@ impl VkInstance {
             return Err(VkError::unsupported("Some of Vulkan instance layer"))
         }
 
+        // Specify the debug tool for instance.
+        let instance_debug_info = VkDebugger::instance_debug_info(config.debug, validation_config);
+        let instance_debug_ptr = if let Some(debug_ci) = instance_debug_info {
+            Box::into_raw(debug_ci) as *const c_void
+        } else {
+            ptr::null()
+        };
+
         // get the names of required vulkan layers.
         let enable_layer_names = layer_names_to_cstring(&config.require_layer_names)?;
         let enable_layer_names_ptr = crate::utils::cast::cstrings2ptrs(&enable_layer_names);
         // get the names of required vulkan extensions.
-        let enable_extension_names = VkInstance::require_extensions(config.debug);
+        let enable_extension_names = VkInstance::require_extensions(validation_config.debug_type, config.debug);
 
         let instance_ci = vk::InstanceCreateInfo {
-            s_type                     : vk::StructureType::INSTANCE_CREATE_INFO,
-            p_next                     : ptr::null(),
-            flags                      : vk::InstanceCreateFlags::empty(),
+            s_type : vk::StructureType::INSTANCE_CREATE_INFO,
+            p_next : instance_debug_ptr,
+            flags  : vk::InstanceCreateFlags::empty(),
             p_application_info         : &application_info,
             enabled_layer_count        : enable_layer_names_ptr.len() as _,
             pp_enabled_layer_names     : enable_layer_names_ptr.as_ptr(),
@@ -115,12 +125,13 @@ impl VkInstance {
                 .or(Err(VkError::unlink("Instance")))?
         };
 
+
         let instance = VkInstance { entry, handle, enable_layer_names };
         Ok(instance)
     }
 
     /// Specify the necessary extensions.
-    fn require_extensions(debug: DebugType) -> Vec<*const i8>  {
+    fn require_extensions(validation_debug: DebugType, instance_debug: DebugType) -> Vec<*const i8>  {
 
         // request extension about platform specific surface and debug tools.
         let mut instance_extensions = vec![
@@ -128,10 +139,18 @@ impl VkInstance {
             crate::platforms::platform_surface_names(),
         ];
 
-        match debug {
+        match validation_debug {
             | DebugType::DebugReport => instance_extensions.push(ash::extensions::ext::DebugReport::name()),
             | DebugType::DebugUtils  => instance_extensions.push(ash::extensions::ext::DebugUtils::name()),
             | DebugType::None => {},
+        }
+
+        if validation_debug != instance_debug {
+            match instance_debug {
+                | DebugType::DebugReport => instance_extensions.push(ash::extensions::ext::DebugReport::name()),
+                | DebugType::DebugUtils  => instance_extensions.push(ash::extensions::ext::DebugUtils::name()),
+                | DebugType::None => {},
+            }
         }
 
         instance_extensions.into_iter().map(|extension| {

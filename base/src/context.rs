@@ -111,7 +111,7 @@ impl<'a> VulkanContextBuilder<'a> {
 
     pub fn build(self) -> VkResult<VulkanContext> {
 
-        let instance = instance::VkInstance::new(self.config.instance)?;
+        let instance = instance::VkInstance::new(self.config.instance, &self.config.debugger)?;
         let debugger = debug::VkDebugger::new(&instance, self.config.debugger)?;
         let surface = surface::VkSurface::new(&instance, &self.window.handle)?;
 

@@ -645,7 +645,7 @@ impl ViewportSCI {
     /// `count` is the count of dynamic viewports.
     /// Use this method for pipeline with dynamic viewports.
     #[inline]
-    pub fn set_dynamic_viewport_count(mut self, count: vkuint) -> ViewportSCI {
+    pub fn with_dynamic_viewport_count(mut self, count: vkuint) -> ViewportSCI {
 
         self.viewports.clear();
         self.inner.viewport_count = count;
@@ -657,7 +657,7 @@ impl ViewportSCI {
     /// `count` is the count of dynamic scissors.
     /// Use this method for pipeline with dynamic scissors.
     #[inline]
-    pub fn set_dynamic_scissor_count(mut self, count: vkuint) -> ViewportSCI {
+    pub fn with_dynamic_scissor_count(mut self, count: vkuint) -> ViewportSCI {
 
         self.scissors.clear();
         self.inner.scissor_count = count;

@@ -19,7 +19,7 @@ pub struct ValidationConfig {
     pub  utils_config: DebugUtilsConfig,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum DebugType {
     DebugReport,
     DebugUtils,
@@ -33,11 +33,18 @@ impl Default for DebugType {
     }
 }
 
+
 /// `DebugInstance` is used as a trait object.
 trait DebugInstance {
+
     /// Destroy this validation tool.
     unsafe fn discard(&self);
 }
+
+pub trait DebugCreateInfo {}
+impl DebugCreateInfo for vk::DebugUtilsMessengerCreateInfoEXT {}
+impl DebugCreateInfo for vk::DebugReportCallbackCreateInfoEXT {}
+
 
 /// Wrapper class for the validation tools used in Vulkan.
 pub struct VkDebugger {
@@ -65,6 +72,23 @@ impl VkDebugger {
 
         let result = VkDebugger { target: debugger };
         Ok(result)
+    }
+
+    pub fn instance_debug_info(debug: DebugType, config: &ValidationConfig) -> Option<Box<dyn DebugCreateInfo>> {
+
+        match debug {
+            | DebugType::DebugReport => {
+                let report = VkDebugReport::create_info(&config.report_config);
+                Some(Box::new(report) as Box<dyn DebugCreateInfo>)
+            },
+            | DebugType::DebugUtils => {
+                let utils = VkDebugUtils::create_info(&config.utils_config);
+                Some(Box::new(utils) as Box<dyn DebugCreateInfo>)
+            },
+            | DebugType::None => {
+                None
+            },
+        }
     }
 }
 
@@ -136,14 +160,7 @@ impl VkDebugReport {
         let loader = ash::extensions::ext::DebugReport::new(&instance.entry, &instance.handle);
 
         // configure debug callback.
-        let debug_callback_ci = vk::DebugReportCallbackCreateInfoEXT {
-            s_type      : vk::StructureType::DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
-            p_next      : ptr::null(),
-            // Enum DebugReportFlags enumerate all available flags.
-            flags       : config.flags,
-            pfn_callback: Some(vulkan_debug_report_callback),
-            p_user_data : ptr::null_mut(),
-        };
+        let debug_callback_ci = VkDebugReport::create_info(config);
 
         let callback = unsafe {
             loader.create_debug_report_callback(&debug_callback_ci, None)
@@ -152,6 +169,18 @@ impl VkDebugReport {
 
         let report = VkDebugReport { loader, callback };
         Ok(report)
+    }
+
+    fn create_info(config: &DebugReportConfig) -> vk::DebugReportCallbackCreateInfoEXT {
+
+        vk::DebugReportCallbackCreateInfoEXT {
+            s_type      : vk::StructureType::DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
+            p_next      : ptr::null(),
+            // Enum DebugReportFlags enumerate all available flags.
+            flags       : config.flags,
+            pfn_callback: Some(vulkan_debug_report_callback),
+            p_user_data : ptr::null_mut(),
+        }
     }
 }
 
@@ -235,15 +264,7 @@ impl VkDebugUtils {
 
         let loader = ash::extensions::ext::DebugUtils::new(&instance.entry, &instance.handle);
 
-        let messenger_ci = vk::DebugUtilsMessengerCreateInfoEXT {
-            s_type: vk::StructureType::DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-            p_next: ptr::null(),
-            flags            : config.flags,
-            message_severity : config.severity,
-            message_type     : config.types,
-            pfn_user_callback: Some(vulkan_debug_utils_callback),
-            p_user_data      : ptr::null_mut(),
-        };
+        let messenger_ci = VkDebugUtils::create_info(config);
 
         let utils_messenger = unsafe {
             loader.create_debug_utils_messenger(&messenger_ci, None)
@@ -252,6 +273,19 @@ impl VkDebugUtils {
 
         let utils = VkDebugUtils { loader, utils_messenger };
         Ok(utils)
+    }
+
+    pub fn create_info(config: &DebugUtilsConfig) -> vk::DebugUtilsMessengerCreateInfoEXT {
+
+        vk::DebugUtilsMessengerCreateInfoEXT {
+            s_type: vk::StructureType::DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+            p_next: ptr::null(),
+            flags            : config.flags,
+            message_severity : config.severity,
+            message_type     : config.types,
+            pfn_user_callback: Some(vulkan_debug_utils_callback),
+            p_user_data      : ptr::null_mut(),
+        }
     }
 }
 
