@@ -4,9 +4,8 @@ use crate::gltf::asset::{VkglTFModel, ModelRenderParams};
 use crate::gltf::nodes::attachment::{NodeAttachments, AttachmentContent};
 use crate::command::{VkCmdRecorder, IGraphics, CmdGraphicsApi};
 use crate::error::VkResult;
-use crate::vkuint;
+use crate::{vkuint, Mat4F};
 
-type Matrix4F = nalgebra::Matrix4<f32>;
 
 // --------------------------------------------------------------------------------------
 /// A wrapper class for node level in glTF, containing the render parameters read from glTF file.
@@ -21,7 +20,7 @@ pub struct Node {
     /// the json index of children nodes.
     children: Vec<ReferenceIndex>,
     /// the transform property of current node.
-    local_transform: Matrix4F,
+    local_transform: Mat4F,
 }
 
 impl Node {
@@ -33,7 +32,7 @@ impl Node {
         let json_index = node.index();
 
         // read the transform matrix of Node.
-        let local_transform = Matrix4F::from(node.transform().matrix());
+        let local_transform = Mat4F::from_col_arrays(node.transform().matrix());
 
         // first, read json index of specific mesh referenced by current node.
         let local_mesh = node.mesh().and_then(|doc_mesh| Some(doc_mesh.index()));
@@ -47,10 +46,10 @@ impl Node {
         Ok(result)
     }
 
-    pub fn read_attachment(&self, nodes: &AssetElementList<Node>, attachments: &mut NodeAttachments, parent_transform: &Matrix4F) {
+    pub fn read_attachment(&self, nodes: &AssetElementList<Node>, attachments: &mut NodeAttachments, parent_transform: &Mat4F) {
 
         // apply parent node's transformation to current node level.
-        let node_transform: Matrix4F = parent_transform * self.local_transform;
+        let node_transform: Mat4F = (*parent_transform) * self.local_transform;
 
         if self.local_mesh.is_some() {
 
@@ -88,3 +87,4 @@ impl Node {
     }
 }
 // --------------------------------------------------------------------------------------
+

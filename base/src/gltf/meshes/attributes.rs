@@ -5,19 +5,13 @@ use crate::gltf::asset::GltfDocument;
 use crate::ci::pipeline::VertexInputSCI;
 use crate::error::{VkResult, VkError};
 use crate::{vkbytes, vkptr};
+use crate::{Vec3F, Vec2F, Vec4F, Vec4U};
 
 use std::ops::{BitAnd, BitOr, BitOrAssign, BitAndAssign};
 use std::convert::TryFrom;
 
+
 // --------------------------------------------------------------------------------------
-type Point3F  = nalgebra::Point3<f32>;
-type Point2F  = nalgebra::Point2<f32>;
-
-type Vector3F = nalgebra::Vector3<f32>;
-type Vector4F = nalgebra::Vector4<f32>;
-type Vector4U = nalgebra::Vector4<u16>;
-
-
 pub struct AttributesData {
 
     /// the size of each vertices.
@@ -171,25 +165,25 @@ pub trait VertexAttributes {
 }
 
 macro_rules! attribute_type {
-    (position)   => (Point3F);
-    (normal)     => (Vector3F);
-    (tangents)   => (Vector4F);
-    (texcoord_0) => (Point2F);
-    (texcoord_1) => (Point2F);
-    (color_0)    => (Vector4F);
-    (joints_0)   => (Vector4U);
-    (weights_0)  => (Vector4F);
+    (position)   => (Vec3F);
+    (normal)     => (Vec3F);
+    (tangents)   => (Vec4F);
+    (texcoord_0) => (Vec2F);
+    (texcoord_1) => (Vec2F);
+    (color_0)    => (Vec4F);
+    (joints_0)   => (Vec4U);
+    (weights_0)  => (Vec4F);
 }
 
 macro_rules! attribute_default {
-    (position)   => { Point3F::new(0.0, 0.0, 0.0) };
-    (normal)     => { nalgebra::zero() };
-    (tangents)   => { nalgebra::zero() };
-    (texcoord_0) => { Point2F::new(0.0, 0.0) };
-    (texcoord_1) => { Point2F::new(0.0, 0.0) };
-    (color_0)    => { nalgebra::zero() };
-    (joints_0)   => { nalgebra::zero() };
-    (weights_0)  => { nalgebra::zero() };
+    (position)   => { Vec3F::zero() };
+    (normal)     => { Vec3F::zero() };
+    (tangents)   => { Vec4F::zero() };
+    (texcoord_0) => { Vec2F::zero() };
+    (texcoord_1) => { Vec2F::zero() };
+    (color_0)    => { Vec4F::zero() };
+    (joints_0)   => { Vec4U::zero() };
+    (weights_0)  => { Vec4F::zero() };
 }
 
 macro_rules! attribute_format {
@@ -210,16 +204,16 @@ macro_rules! read_attribute {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = pos_iter.map(|pos| {
-                    let mut position = Point3F::from(pos);
+                    let mut position = Vec3F::from(pos);
                     if let Some(ref transform) = $source.transform {
-                        position = transform.transform_point(&position);
+                        position = transform.mul_point(position);
                     }
                     $VertexType { position, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
             } else {
                 for (i, pos) in pos_iter.enumerate() {
-                    $target.data[i + $origin_length].position = Point3F::from(pos);
+                    $target.data[i + $origin_length].position = Vec3F::from(pos);
                 }
             }
         }
@@ -231,13 +225,13 @@ macro_rules! read_attribute {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = normal_iter.map(|nor| {
-                    let normal = Vector3F::from(nor);
+                    let normal = Vec3F::from(nor);
                     $VertexType { normal, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
             } else {
                 for (i, normal) in normal_iter.enumerate() {
-                    $target.data[i + $origin_length].normal = Vector3F::from(normal);
+                    $target.data[i + $origin_length].normal = Vec3F::from(normal);
                 }
             }
         }
@@ -249,13 +243,13 @@ macro_rules! read_attribute {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = tangents_iter.map(|tan| {
-                    let tangents = Vector4F::from(tan);
+                    let tangents = Vec4F::from(tan);
                     $VertexType { tangents, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
             } else {
                 for (i, tangent) in tangents_iter.enumerate() {
-                    $target.data[i + $origin_length].tangents = Vector4F::from(tangent);
+                    $target.data[i + $origin_length].tangents = Vec4F::from(tangent);
                 }
             }
         }
@@ -266,13 +260,13 @@ macro_rules! read_attribute {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = texcoord_0_iter.into_f32().map(|texcoord| {
-                    let texcoord_0 = Point2F::from(texcoord);
+                    let texcoord_0 = Vec2F::from(texcoord);
                     $VertexType { texcoord_0, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
             } else {
                 for (i, texcoord_0) in texcoord_0_iter.into_f32().enumerate() {
-                    $target.data[i + $origin_length].texcoord_0 = Point2F::from(texcoord_0);
+                    $target.data[i + $origin_length].texcoord_0 = Vec2F::from(texcoord_0);
                 }
             }
         }
@@ -283,13 +277,13 @@ macro_rules! read_attribute {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = texcoord_1_iter.into_f32().map(|texcoord| {
-                    let texcoord_1 = Point2F::from(texcoord);
+                    let texcoord_1 = Vec2F::from(texcoord);
                     $VertexType { texcoord_1, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
             } else {
                 for (i, texcoord_1) in texcoord_1_iter.into_f32().enumerate() {
-                    $target.data[i + $origin_length].texcoord_1 = Point2F::from(texcoord_1);
+                    $target.data[i + $origin_length].texcoord_1 = Vec2F::from(texcoord_1);
                 }
             }
         }
@@ -300,13 +294,13 @@ macro_rules! read_attribute {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = color_0_iter.into_rgba_f32().map(|color| {
-                    let color_0 = Vector4F::from(color);
+                    let color_0 = Vec4F::from(color);
                     $VertexType { color_0, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
             } else {
                 for (i, color_0) in color_0_iter.into_rgba_f32().enumerate() {
-                    $target.data[i + $origin_length].color_0 = Vector4F::from(color_0);
+                    $target.data[i + $origin_length].color_0 = Vec4F::from(color_0);
                 }
             }
         }
@@ -317,13 +311,13 @@ macro_rules! read_attribute {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = joints_0_iter.into_u16().map(|joint| {
-                    let joints_0 = Vector4U::from(joint);
+                    let joints_0 = Vec4U::from(joint);
                     $VertexType { joints_0, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
             } else {
                 for (i, joints_0) in joints_0_iter.into_u16().enumerate() {
-                    $target.data[i + $origin_length].joints_0 = Vector4U::from(joints_0);
+                    $target.data[i + $origin_length].joints_0 = Vec4U::from(joints_0);
                 }
             }
         }
@@ -334,13 +328,13 @@ macro_rules! read_attribute {
 
             if $target.data.len() == $origin_length {
                 let vertex_iter = weights_0_iter.into_f32().map(|weight| {
-                    let weights_0 = Vector4F::from(weight);
+                    let weights_0 = Vec4F::from(weight);
                     $VertexType { weights_0, ..Default::default() }
                 });
                 $target.data.extend(vertex_iter);
             } else {
                 for (i, weights_0) in weights_0_iter.into_f32().enumerate() {
-                    $target.data[i + $origin_length].weights_0 = Vector4F::from(weights_0);
+                    $target.data[i + $origin_length].weights_0 = Vec4F::from(weights_0);
                 }
             }
         }

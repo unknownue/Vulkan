@@ -2,12 +2,12 @@
 use crate::gltf::asset::ReferenceIndex;
 use crate::error::{VkResult, VkError};
 use crate::{vkbytes, vkptr};
+use crate::Mat4F;
 
 use std::ops::{BitAnd, BitOr, BitOrAssign, BitAndAssign};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-type Matrix4F = nalgebra::Matrix4<f32>;
 
 // --------------------------------------------------------------------------------------
 pub struct NodeAttachments {
@@ -21,7 +21,7 @@ pub struct NodeAttachments {
 }
 
 pub struct AttachmentContent {
-    pub transform: Option<Matrix4F>,
+    pub transform: Option<Mat4F>,
 }
 
 impl TryFrom<NodeAttachmentFlags> for NodeAttachments {
@@ -64,11 +64,11 @@ pub trait AttachmentData {
 }
 
 macro_rules! property_type {
-    (transform) => (Matrix4F);
+    (transform) => (Mat4F);
 }
 
 macro_rules! property_default {
-    (transform) => { Matrix4F::identity() };
+    (transform) => { Mat4F::identity() };
 }
 
 macro_rules! read_transform {
@@ -217,3 +217,4 @@ impl BitOrAssign for NodeAttachmentFlags {
     }
 }
 // --------------------------------------------------------------------------------------
+

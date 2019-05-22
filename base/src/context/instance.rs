@@ -3,14 +3,14 @@ use ash::vk;
 use ash::vk_make_version;
 use ash::version::{InstanceV1_0, EntryV1_0};
 
-use crate::context::debug::{DebugType, VkDebugger};
-use crate::vkuint;
+use crate::context::debug::{DebugType, VkDebugger, ValidationConfig};
 use crate::error::{VkResult, VkError};
+use crate::vkuint;
 
 use std::ffi::CString;
 use std::os::raw::c_void;
 use std::ptr;
-use crate::context::ValidationConfig;
+
 
 /// The configuration parameters used in the initialization of `vk::Instance`.
 #[derive(Debug, Clone)]
@@ -139,18 +139,19 @@ impl VkInstance {
             crate::platforms::platform_surface_names(),
         ];
 
-        match validation_debug {
-            | DebugType::DebugReport => instance_extensions.push(ash::extensions::ext::DebugReport::name()),
-            | DebugType::DebugUtils  => instance_extensions.push(ash::extensions::ext::DebugUtils::name()),
-            | DebugType::None => {},
-        }
 
-        if validation_debug != instance_debug {
-            match instance_debug {
+        let mut add_debug_extension = |debug: DebugType| {
+            match debug {
                 | DebugType::DebugReport => instance_extensions.push(ash::extensions::ext::DebugReport::name()),
                 | DebugType::DebugUtils  => instance_extensions.push(ash::extensions::ext::DebugUtils::name()),
                 | DebugType::None => {},
             }
+        };
+
+        add_debug_extension(validation_debug);
+
+        if validation_debug != instance_debug {
+            add_debug_extension(instance_debug)
         }
 
         instance_extensions.into_iter().map(|extension| {

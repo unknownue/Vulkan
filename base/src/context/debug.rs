@@ -105,6 +105,9 @@ impl Drop for VkDebugger {
 }
 
 
+
+
+
 // Debug Report -----------------------------------------------------------------------------------
 
 /// the callback function used in Debug Report.
@@ -193,6 +196,11 @@ impl DebugInstance for VkDebugReport {
 }
 // ------------------------------------------------------------------------------------------------
 
+
+
+
+
+
 // Debug Utils ------------------------------------------------------------------------------------
 
 /// the callback function used in Debug Utils.
@@ -275,7 +283,7 @@ impl VkDebugUtils {
         Ok(utils)
     }
 
-    pub fn create_info(config: &DebugUtilsConfig) -> vk::DebugUtilsMessengerCreateInfoEXT {
+    fn create_info(config: &DebugUtilsConfig) -> vk::DebugUtilsMessengerCreateInfoEXT {
 
         vk::DebugUtilsMessengerCreateInfoEXT {
             s_type: vk::StructureType::DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,

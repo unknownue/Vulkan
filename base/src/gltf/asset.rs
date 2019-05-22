@@ -8,8 +8,8 @@ use crate::gltf::scene::Scene;
 
 use crate::command::{VkCmdRecorder, IGraphics};
 use crate::context::{VkDevice, VmaResourceDiscardable};
-use crate::Matrix4F;
 use crate::error::VkResult;
+use crate::Mat4F;
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -17,13 +17,14 @@ use std::convert::TryFrom;
 pub type ReferenceIndex = usize;
 pub type   StorageIndex = usize;
 
+
 // --------------------------------------------------------------------------------------
 pub struct GltfDocument {
     pub doc: gltf::Document,
     pub buffers: Vec<gltf::buffer::Data>,
     pub images : Vec<gltf::image::Data>,
 
-    pub transform: Option<Matrix4F>,
+    pub transform: Option<Mat4F>,
 }
 // --------------------------------------------------------------------------------------
 

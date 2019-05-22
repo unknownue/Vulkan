@@ -2,10 +2,8 @@
 use winit::VirtualKeyCode;
 
 use crate::input::EventController;
+use crate::{Vec3F, Mat4F};
 
-type Point3F  = nalgebra::Point3<f32>;
-type Vector3F = nalgebra::Vector3<f32>;
-type Matrix4F = nalgebra::Matrix4<f32>;
 
 /// A simple flight through camera.
 ///
@@ -13,15 +11,15 @@ type Matrix4F = nalgebra::Matrix4<f32>;
 pub struct FlightCamera {
 
     /// Camera position.
-    pos  : Point3F,
+    pos  : Vec3F,
     /// Front direction.
-    front: Vector3F,
+    front: Vec3F,
     /// Up direction.
-    up   : Vector3F,
+    up   : Vec3F,
     /// right direction.
-    right: Vector3F,
+    right: Vec3F,
 
-    world_up: Vector3F,
+    world_up: Vec3F,
 
     yaw  : f32,
     pitch: f32,
@@ -54,20 +52,20 @@ impl FlightCamera {
         self.move_speed = speed;
     }
 
-    pub fn current_position(&self) -> Point3F {
+    pub fn current_position(&self) -> Vec3F {
         self.pos.clone()
     }
 
     /// Generate a new view matrix based on camera status.
-    pub fn view_matrix(&self) -> Matrix4F {
+    pub fn view_matrix(&self) -> Mat4F {
 
-        Matrix4F::look_at_rh(&self.pos, &(self.pos + self.front), &self.up)
+        Mat4F::look_at_rh(self.pos, self.pos + self.front, self.up)
     }
 
     /// Generate a new projection matrix based on camera status.
-    pub fn proj_matrix(&self) -> Matrix4F {
+    pub fn proj_matrix(&self) -> Mat4F {
 
-        Matrix4F::new_perspective(self.screen_aspect, self.zoom, self.near, self.far)
+        Mat4F::perspective_rh_zo(self.screen_aspect, self.zoom, self.near, self.far)
     }
 
     pub fn reset_screen_dimension(&mut self, width: u32, height: u32) {
@@ -117,21 +115,21 @@ impl FlightCamera {
         // also calculate the right and up vector.
         // Normalize the vectors, because their length gets closer to 0 the move you look up or down which results in slower movement.
         if self.flip_vertically {
-            self.front = Vector3F::new(-front_x, front_y, front_z).normalize();
-            self.right = self.front.cross(&Vector3F::new(self.world_up.x, -self.world_up.y, self.world_up.z));
-            self.up    = self.right.cross(&self.front);
+            self.front = Vec3F::new(-front_x, front_y, front_z).normalized();
+            self.right = Vec3F::cross(self.front, Vec3F::new(self.world_up.x, -self.world_up.y, self.world_up.z));
+            self.up    = Vec3F::cross(self.right, self.front);
         } else {
-            self.front = Vector3F::new(front_x, front_y, front_z).normalize();
-            self.right = self.front.cross(&self.world_up);
-            self.up    = self.right.cross(&self.front);
+            self.front = Vec3F::new(front_x, front_y, front_z).normalized();
+            self.right = Vec3F::cross(self.front, self.world_up);
+            self.up    = Vec3F::cross(self.right, self.front);
         }
     }
 }
 
 pub struct FlightCameraBuilder {
 
-    pos     : Point3F,
-    world_up: Vector3F,
+    pos     : Vec3F,
+    world_up: Vec3F,
 
     yaw  : f32,
     pitch: f32,
@@ -145,8 +143,8 @@ impl Default for FlightCameraBuilder {
 
     fn default() -> FlightCameraBuilder {
         FlightCameraBuilder {
-            pos      : Point3F::new(0.0, 0.0, 0.0),
-            world_up : Vector3F::new(0.0, 1.0, 0.0),
+            pos      : Vec3F::new(0.0, 0.0, 0.0),
+            world_up : Vec3F::new(0.0, 1.0, 0.0),
             yaw      : -90.0,
             pitch    : 0.0,
             near     : 0.1,
@@ -159,11 +157,12 @@ impl Default for FlightCameraBuilder {
 impl FlightCameraBuilder {
 
     pub fn build(self) -> FlightCamera {
+
         let mut camera = FlightCamera {
             pos      : self.pos,
-            front    : Vector3F::new(0.0, 0.0, -1.0),
-            up       : nalgebra::zero(),
-            right    : nalgebra::zero(),
+            front    : Vec3F::new(0.0, 0.0, -1.0),
+            up       : Vec3F::zero(),
+            right    : Vec3F::zero(),
             world_up : self.world_up,
             yaw      : self.yaw,
             pitch    : self.pitch,
@@ -183,11 +182,11 @@ impl FlightCameraBuilder {
         camera
     }
 
-    pub fn place_at(mut self, position: Point3F) -> FlightCameraBuilder {
+    pub fn place_at(mut self, position: Vec3F) -> FlightCameraBuilder {
         self.pos = position; self
     }
 
-    pub fn world_up(mut self, up: Vector3F) -> FlightCameraBuilder {
+    pub fn world_up(mut self, up: Vec3F) -> FlightCameraBuilder {
         self.world_up = up; self
     }
 
@@ -208,3 +207,4 @@ impl FlightCameraBuilder {
         self.screen_aspect = ratio; self
     }
 }
+

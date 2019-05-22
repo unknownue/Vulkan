@@ -8,8 +8,9 @@ use crate::gltf::asset::{GltfDocument, AssetAbstract, AssetRepository};
 use crate::gltf::asset::VkglTFModel;
 
 use crate::context::VkDevice;
-use crate::Matrix4F;
 use crate::error::{VkResult, VkError, VkErrorKind};
+use crate::Mat4F;
+
 
 pub struct GltfModelInfo<'a> {
     /// The path of model file.
@@ -19,7 +20,7 @@ pub struct GltfModelInfo<'a> {
     /// Indicate what properties will be read for Node hierarchy(etc. transform matrix).
     pub node: NodeAttachmentFlags,
     /// A matrix that will apply to position attribute of the model.
-    pub transform: Option<Matrix4F>,
+    pub transform: Option<Mat4F>,
 }
 
 pub fn load_gltf(device: &mut VkDevice, info: GltfModelInfo) -> VkResult<VkglTFModel> {
@@ -45,3 +46,4 @@ pub fn load_gltf(device: &mut VkDevice, info: GltfModelInfo) -> VkResult<VkglTFM
     let result = asset_repo.allocate(device, scene)?;
     Ok(result)
 }
+
