@@ -17,7 +17,7 @@ use vkbase::context::VkDevice;
 use vkbase::command::CmdTransferApi;
 use vkbase::FlightCamera;
 
-use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Point3F, Point2F, Vector3F, Vector4F, Matrix4F};
+use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Vec3F, Vec2F, Vec4F, Mat4F};
 use vkbase::{VkResult, VkError, VkErrorKind};
 
 const TEXTURE_ARRAY_BC3_PATH      : &'static str = "assets/textures/texturearray_bc3_unorm.ktx";
@@ -27,10 +27,10 @@ const TEXTURE_ARRAY_ETC2_PATH     : &'static str = "assets/textures/texturearray
 lazy_static! {
 
     pub static ref VERTEX_DATA: [Vertex; 4] = [
-        Vertex { pos: Point3F::new( 2.5,  2.5,  0.0), uv: Point2F::new(1.0, 1.0) }, // v0
-        Vertex { pos: Point3F::new(-2.5,  2.5,  0.0), uv: Point2F::new(0.0, 1.0) }, // v1
-        Vertex { pos: Point3F::new(-2.5, -2.5,  0.0), uv: Point2F::new(0.0, 0.0) }, // v2
-        Vertex { pos: Point3F::new( 2.5, -2.5,  0.0), uv: Point2F::new(1.0, 0.0) }, // v3
+        Vertex { pos: Vec3F::new( 2.5,  2.5,  0.0), uv: Vec2F::new(1.0, 1.0) }, // v0
+        Vertex { pos: Vec3F::new(-2.5,  2.5,  0.0), uv: Vec2F::new(0.0, 1.0) }, // v1
+        Vertex { pos: Vec3F::new(-2.5, -2.5,  0.0), uv: Vec2F::new(0.0, 0.0) }, // v2
+        Vertex { pos: Vec3F::new( 2.5, -2.5,  0.0), uv: Vec2F::new(1.0, 0.0) }, // v3
     ];
 
     pub static ref INDEX_DATA: [vkuint; 6] = [0,1,2, 2,3,0];
@@ -39,8 +39,8 @@ lazy_static! {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Vertex {
-    pos: Point3F,
-    uv : Point2F,
+    pos: Vec3F,
+    uv : Vec2F,
 }
 
 impl Vertex {
@@ -128,17 +128,17 @@ pub struct UboVS {
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct UboMatrices {
-    pub projection: Matrix4F,
-    pub view      : Matrix4F,
+    pub projection: Mat4F,
+    pub view      : Mat4F,
 }
 
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct UboInstanceData {
     // model matrix.
-    pub model: Matrix4F,
+    pub model: Mat4F,
     // Texture array index(Vec4 due to padding).
-    pub array_index: Vector4F,
+    pub array_index: Vec4F,
 }
 
 impl UboVS {
@@ -178,9 +178,9 @@ impl UboVS {
             for i in 0..textures.layer_count {
                 // instance model matrix.
                 let instance_data = UboInstanceData {
-                    model: Matrix4F::new_translation(&Vector3F::new(0.0, (i as f32) * OFFSET - center, 0.0)),
-                    // * Matrix4F::from_axis_angle(&Vector3F::x_axis(), ::std::f32::consts::FRAC_PI_3)
-                    array_index: Vector4F::new(i as f32, 0.0, 0.0, 0.0),
+                    model: Mat4F::translation_3d(Vec3F::new(0.0, (i as f32) * OFFSET - center, 0.0)),
+                    // * Mat4F::from_axis_angle(&Vector3F::x_axis(), ::std::f32::consts::FRAC_PI_3)
+                    array_index: Vec4F::new(i as f32, 0.0, 0.0, 0.0),
                 };
                 ubo_data.instances.push(instance_data);
             }

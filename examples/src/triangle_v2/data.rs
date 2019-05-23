@@ -6,7 +6,7 @@ use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::buffer::BufferCI;
 use vkbase::ci::memory::MemoryAI;
 use vkbase::VkResult;
-use vkbase::{vkuint, vkptr, vkbytes, Matrix4F};
+use vkbase::{vkuint, vkptr, vkbytes, Mat4F, Vec3F};
 
 use std::mem;
 
@@ -93,9 +93,9 @@ pub struct DescriptorStaff {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct UboVS {
-    pub projection: Matrix4F,
-    pub view: Matrix4F,
-    pub model: Matrix4F,
+    pub projection: Mat4F,
+    pub view: Mat4F,
+    pub model: Mat4F,
 }
 
 // Prepare vertices buffer and index buffer for an indexed triangle.
@@ -250,9 +250,9 @@ fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: 
     let screen_aspect = (dimension.width as f32) / (dimension.height as f32);
 
     let ubo_data = UboVS {
-        projection: Matrix4F::new_perspective(screen_aspect, 60.0_f32.to_radians(), 0.1, 256.0),
-        view: Matrix4F::new_translation(&nalgebra::Vector3::new(0.0, 0.0, -2.5)),
-        model: Matrix4F::identity(),
+        projection : Mat4F::perspective_rh_zo(60.0_f32.to_radians(), screen_aspect, 0.1, 256.0),
+        view       : Mat4F::translation_3d(Vec3F::new(0.0, 0.0, -2.5)),
+        model      : Mat4F::identity(),
     };
 
     // Map uniform buffer and update it.
@@ -263,3 +263,4 @@ fn update_uniform_buffers(device: &VkDevice, dimension: vk::Extent2D, uniforms: 
 
     Ok(())
 }
+

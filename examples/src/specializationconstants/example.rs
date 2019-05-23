@@ -14,7 +14,7 @@ use vkbase::gltf::VkglTFModel;
 use vkbase::texture::Texture2D;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkbytes, vkuint, vkfloat, vkptr, Point3F, Matrix4F, Vector4F};
+use vkbase::{vkbytes, vkuint, vkfloat, vkptr, Vec3F, Vec4F, Mat4F};
 use vkbase::{VkResult, VkErrorKind};
 
 use vkexamples::VkExampleBackend;
@@ -58,7 +58,7 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(12.0, 16.0, 0.2))
+            .place_at(Vec3F::new(12.0, 16.0, 0.2))
             .screen_aspect_ratio((dimension.width as f32 / 3.0) / dimension.height as f32)
             .pitch(-50.0)
             .yaw(0.0)
@@ -68,7 +68,7 @@ impl VulkanExample {
         let ubo_data = UboVS {
             projection : camera.proj_matrix(),
             model      : camera.view_matrix(),
-            light_pos  : Vector4F::new(-3.0, -12.0, 30.0, 0.0),
+            light_pos  : Vec4F::new(-3.0, -12.0, 30.0, 0.0),
         };
 
         let render_pass = setup_renderpass(device, &context.swapchain)?;
@@ -286,9 +286,9 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 struct UboVS {
-    projection: Matrix4F,
-    model     : Matrix4F,
-    light_pos : Vector4F,
+    projection: Mat4F,
+    model     : Mat4F,
+    light_pos : Vec4F,
 }
 
 fn prepare_uniform(device: &mut VkDevice) -> VkResult<VmaBuffer> {
@@ -606,3 +606,4 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
     };
     Ok(result)
 }
+

@@ -65,7 +65,7 @@ impl FlightCamera {
     /// Generate a new projection matrix based on camera status.
     pub fn proj_matrix(&self) -> Mat4F {
 
-        Mat4F::perspective_rh_zo(self.screen_aspect, self.zoom, self.near, self.far)
+        Mat4F::perspective_rh_zo(self.zoom, self.screen_aspect, self.near, self.far)
     }
 
     pub fn reset_screen_dimension(&mut self, width: u32, height: u32) {
@@ -173,7 +173,7 @@ impl FlightCameraBuilder {
             move_speed: 2.5,
             _mouse_sensitivity: 1.0,
             _wheel_sensitivity: 1.0,
-            zoom: 45.0,
+            zoom: 45.0_f32.to_radians(),
 
             flip_vertically: true,
         };

@@ -15,7 +15,7 @@ use vkbase::gltf::VkglTFModel;
 use vkbase::texture::Texture2D;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkbytes, vkptr, Point3F, Matrix4F, Vector3F};
+use vkbase::{vkbytes, vkptr, Vec3F, Mat4F};
 use vkbase::{VkResult, VkErrorKind};
 
 use vkexamples::VkExampleBackend;
@@ -64,7 +64,7 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.0, 0.0, 5.0))
+            .place_at(Vec3F::new(0.0, 0.0, 5.0))
             .view_distance(0.1, 512.0)
             .screen_aspect_ratio(dimension.width as f32 / dimension.height as f32)
             .build();
@@ -221,16 +221,13 @@ impl VulkanExample {
 
         if IS_ANIMATE || self.is_toggle_event {
 
-            let model_translation: [Matrix4F; 2] = [
-                Matrix4F::new_translation(&Vector3F::new(-2.0, 0.0, 0.0)),
-                Matrix4F::new_translation(&Vector3F::new(1.5, 0.5, 0.0)),
-            ];
+            self.cubes[0].rotation = (self.cubes[0].rotation + 2.5 * delta_time) % 360.0;
+            self.cubes[0].matrices.model = Mat4F::rotation_x(self.cubes[0].rotation.to_radians())
+                .translated_3d(Vec3F::new(-2.0, 0.0, 0.0));
 
-            self.cubes[0].rotation.x = (self.cubes[0].rotation.x + 2.5 * delta_time) % 360.0;
-            self.cubes[0].matrices.model = model_translation[0] * Matrix4F::new_rotation(self.cubes[0].rotation);
-
-            self.cubes[1].rotation.y = (self.cubes[1].rotation.y + 2.0 * delta_time) % 360.0;
-            self.cubes[1].matrices.model = model_translation[1] * Matrix4F::new_rotation(self.cubes[1].rotation);
+            self.cubes[1].rotation = (self.cubes[1].rotation + 2.0 * delta_time) % 360.0;
+            self.cubes[1].matrices.model = Mat4F::rotation_y(self.cubes[1].rotation.to_radians())
+                .translated_3d(Vec3F::new(1.5, 0.5, 0.0));
 
             self.cubes[0].matrices.view = self.camera.view_matrix();
             self.cubes[1].matrices.view = self.camera.view_matrix();
@@ -285,9 +282,9 @@ pub fn prepare_model(device: &mut VkDevice) -> VkResult<VkglTFModel> {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 struct UBOMatrices {
-    projection: Matrix4F,
-    view      : Matrix4F,
-    model     : Matrix4F,
+    projection: Mat4F,
+    view      : Mat4F,
+    model     : Mat4F,
 }
 
 struct Cube {
@@ -295,7 +292,7 @@ struct Cube {
     descriptor_set: vk::DescriptorSet,
     uniform_buffer: VmaBuffer,
     texture : Texture2D,
-    rotation: Vector3F,
+    rotation: f32, // angle
 }
 
 
@@ -319,14 +316,14 @@ fn prepare_uniform(device: &mut VkDevice, camera: &FlightCamera) -> VkResult<Arr
         let cube = Cube {
             matrices: UBOMatrices {
                 projection: camera.proj_matrix(),
-                model     : Matrix4F::identity(),
+                model     : Mat4F::identity(),
                 view      : camera.view_matrix(),
             },
             // the descriptor_set member will be set in setup_descriptor() method.
             descriptor_set: vk::DescriptorSet::null(),
             uniform_buffer: ubo_buffer,
             texture : Texture2D::load_ktx(device, Path::new(CUBE_TEXTURE_PATHS[i]), vk::Format::R8G8B8A8_UNORM)?,
-            rotation: Vector3F::new(0.0, 0.0, 0.0),
+            rotation: 0.0,
         };
         cubes.push(cube);
     }
@@ -609,3 +606,4 @@ fn prepare_pipelines(device: &VkDevice, model: &VkglTFModel, render_pass: vk::Re
     let result = PipelineStaff { pipeline, layout };
     Ok(result)
 }
+

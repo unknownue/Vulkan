@@ -9,7 +9,7 @@ use vkbase::context::{VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::context::VulkanContext;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkbytes, vkptr, Point3F, Vector3F, Matrix4F};
+use vkbase::{vkbytes, vkptr, Vec3F, Mat4F};
 use vkbase::VkResult;
 
 use vkexamples::VkExampleBackend;
@@ -45,7 +45,7 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.0, 0.0, 0.0))
+            .place_at(Vec3F::new(0.0, 0.0, 0.0))
             .screen_aspect_ratio(dimension.width as f32 / dimension.height as f32)
             .build();
         camera.set_move_speed(10.0);
@@ -198,13 +198,13 @@ impl VulkanExample {
         if self.is_toggle_event {
 
             let camera_pos = self.camera.current_position();
-            let skybox_translation = Vector3F::new(camera_pos.x, camera_pos.y, camera_pos.z);
+            let skybox_translation = Vec3F::new(camera_pos.x, camera_pos.y, camera_pos.z);
 
-            // Magic number to adjust rotation.
-            let camera_rotation = Matrix4F::new_rotation(Vector3F::new(-1.41, -0.8, -0.82));
+            // Some magic numbers to adjust rotation.
+            let camera_rotation = Mat4F::rotation_3d(90.0_f32.to_radians(), Vec3F::new(-6.8, -0.9, -0.94));
 
-            self.skybox.ubo_data.model = self.camera.view_matrix() * Matrix4F::new_translation(&skybox_translation) * camera_rotation;
             //self.skybox.ubo_data.model = self.camera.view_matrix();
+            self.skybox.ubo_data.model = self.camera.view_matrix() * Mat4F::translation_3d(skybox_translation) * camera_rotation;
 
             unsafe {
                 let data_ptr = self.skybox.ubo_buffer.info.get_mapped_data() as vkptr<UBOVS>;

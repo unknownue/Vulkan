@@ -8,7 +8,7 @@ use vkbase::context::{VulkanContext, VkDevice, VkSwapchain};
 use vkbase::ci::VkObjectBuildableCI;
 use vkbase::ci::vma::VmaBuffer;
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkuint, vkptr, Point3F};
+use vkbase::{vkuint, vkptr, Vec3F};
 use vkbase::VkResult;
 
 use vkexamples::VkExampleBackend;
@@ -46,7 +46,7 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.0, 0.0, 10.0))
+            .place_at(Vec3F::new(0.0, 0.0, 10.0))
             .screen_aspect_ratio(dimension.width as f32 / dimension.height as f32)
             .build();
         camera.set_move_speed(20.0);

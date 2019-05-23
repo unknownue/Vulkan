@@ -13,7 +13,7 @@ use vkbase::ci::vma::{VmaBuffer, VmaAllocationCI};
 use vkbase::context::VkDevice;
 use vkbase::FlightCamera;
 
-use vkbase::{vkuint, vkbytes, vkptr, Point3F, Vector3F, Matrix4F};
+use vkbase::{vkuint, vkbytes, vkptr, Vec3F, Mat4F};
 use vkbase::{VkResult, VkErrorKind};
 
 pub const OBJECT_INSTANCES: usize = 125;
@@ -21,14 +21,14 @@ pub const OBJECT_INSTANCES: usize = 125;
 lazy_static! {
 
     pub static ref VERTEX_DATA: [Vertex; 8] = [
-        Vertex { position: Point3F::new(-1.0, -1.0,  1.0), color: Vector3F::new(1.0, 0.0, 0.0), }, // v0
-        Vertex { position: Point3F::new( 1.0, -1.0,  1.0), color: Vector3F::new(0.0, 1.0, 0.0), }, // v1
-        Vertex { position: Point3F::new( 1.0,  1.0,  1.0), color: Vector3F::new(0.0, 0.0, 1.0), }, // v2
-        Vertex { position: Point3F::new(-1.0,  1.0,  1.0), color: Vector3F::new(0.0, 0.0, 0.0), }, // v3
-        Vertex { position: Point3F::new(-1.0, -1.0, -1.0), color: Vector3F::new(1.0, 0.0, 0.0), }, // v4
-        Vertex { position: Point3F::new( 1.0, -1.0, -1.0), color: Vector3F::new(0.0, 1.0, 0.0), }, // v5
-        Vertex { position: Point3F::new( 1.0,  1.0, -1.0), color: Vector3F::new(0.0, 0.0, 1.0), }, // v6
-        Vertex { position: Point3F::new(-1.0,  1.0, -1.0), color: Vector3F::new(0.0, 0.0, 0.0), }, // v7
+        Vertex { position: Vec3F::new(-1.0, -1.0,  1.0), color: Vec3F::new(1.0, 0.0, 0.0), }, // v0
+        Vertex { position: Vec3F::new( 1.0, -1.0,  1.0), color: Vec3F::new(0.0, 1.0, 0.0), }, // v1
+        Vertex { position: Vec3F::new( 1.0,  1.0,  1.0), color: Vec3F::new(0.0, 0.0, 1.0), }, // v2
+        Vertex { position: Vec3F::new(-1.0,  1.0,  1.0), color: Vec3F::new(0.0, 0.0, 0.0), }, // v3
+        Vertex { position: Vec3F::new(-1.0, -1.0, -1.0), color: Vec3F::new(1.0, 0.0, 0.0), }, // v4
+        Vertex { position: Vec3F::new( 1.0, -1.0, -1.0), color: Vec3F::new(0.0, 1.0, 0.0), }, // v5
+        Vertex { position: Vec3F::new( 1.0,  1.0, -1.0), color: Vec3F::new(0.0, 0.0, 1.0), }, // v6
+        Vertex { position: Vec3F::new(-1.0,  1.0, -1.0), color: Vec3F::new(0.0, 0.0, 0.0), }, // v7
     ];
 
     pub static ref INDEX_DATA: [vkuint; 36] = [
@@ -39,8 +39,8 @@ lazy_static! {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Vertex {
-    position: Point3F,
-    color   : Vector3F,
+    position: Vec3F,
+    color   : Vec3F,
 }
 
 impl Vertex {
@@ -116,8 +116,8 @@ pub fn generate_cube(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct UboView {
-    pub projection: Matrix4F,
-    pub view      : Matrix4F,
+    pub projection: Mat4F,
+    pub view      : Mat4F,
 }
 
 impl UboView {
@@ -148,14 +148,14 @@ impl UboView {
 }
 
 pub struct UboDynamicData {
-    pub model: [Matrix4F; OBJECT_INSTANCES],
+    pub model: [Mat4F; OBJECT_INSTANCES],
 }
 
 impl UboDynamicData {
 
     fn identity() -> UboDynamicData {
         UboDynamicData {
-            model: [Matrix4F::identity(); OBJECT_INSTANCES],
+            model: [Mat4F::identity(); OBJECT_INSTANCES],
         }
     }
 
@@ -165,7 +165,7 @@ impl UboDynamicData {
         println!("minUniformBufferOffsetAlignment in Vulkan: {}", min_alignment);
 
         // Calculate required alignment based on minimum device offset alignment.
-        let dynamic_alignment = (::std::mem::size_of::<Matrix4F>() + min_alignment - 1) & !(min_alignment - 1);
+        let dynamic_alignment = (::std::mem::size_of::<Mat4F>() + min_alignment - 1) & !(min_alignment - 1);
         println!("dynamicAlignment: {}", dynamic_alignment);
 
         let buffer_ci = BufferCI::new((dynamic_alignment * OBJECT_INSTANCES) as vkbytes)
@@ -191,11 +191,12 @@ impl UboDynamicData {
         Ok((VmaBuffer::from(buffer_allocation), initial_data, dynamic_alignment as vkuint))
     }
 
+    // Although the rotation effect is different from the original implementation..
     pub fn update(&mut self, rotations: &mut RotationData, delta_time: f32) {
 
         // Dynamic ubo with per-object model matrices indexed by offsets in the command buffer
         let dim: usize = (OBJECT_INSTANCES as f32).powf(1.0 / 3.0) as usize;
-        let offset = Vector3F::new(5.0, 5.0, 5.0);
+        let offset = Vec3F::new(5.0, 5.0, 5.0);
 
         for x in 0..dim {
             for y in 0..dim {
@@ -205,17 +206,16 @@ impl UboDynamicData {
 
                     let index = x * dim * dim + y * dim + z;
                     // update rotations
-                    rotations.rotations[index] += delta_time * rotations.rotate_speeds[index];
+                    rotations.rotations[index] += delta_time;
 
-                    let pos = Vector3F::new(
+                    let pos = Vec3F::new(
                         -((dim_f * offset.x) / 2.0) + offset.x / 2.0 + (x as f32) * offset.x,
                         -((dim_f * offset.y) / 2.0) + offset.y / 2.0 + (y as f32) * offset.y,
                         -((dim_f * offset.z) / 2.0) + offset.z / 2.0 + (z as f32) * offset.z,
                     );
-                    let translate = Matrix4F::new_translation(&pos);
-                    let rotate = Matrix4F::new_rotation(rotations.rotations[index]);
 
-                    self.model[index] = translate * rotate;
+                    self.model[index] = Mat4F::rotation_3d(rotations.rotations[index] * 2.5, rotations.rotate_speeds[index])
+                        .translated_3d(pos);
                 }
             }
         }
@@ -224,8 +224,8 @@ impl UboDynamicData {
 
 
 pub struct RotationData {
-    pub rotations    : [Vector3F; OBJECT_INSTANCES],
-    pub rotate_speeds: [Vector3F; OBJECT_INSTANCES],
+    pub rotations    : [f32; OBJECT_INSTANCES], // angle
+    pub rotate_speeds: [Vec3F; OBJECT_INSTANCES],
 }
 
 impl RotationData {
@@ -233,8 +233,8 @@ impl RotationData {
     pub fn new_by_rng() -> RotationData {
 
         let mut data = RotationData {
-            rotations    : [nalgebra::zero(); OBJECT_INSTANCES],
-            rotate_speeds: [nalgebra::zero(); OBJECT_INSTANCES],
+            rotations    : [0.0; OBJECT_INSTANCES],
+            rotate_speeds: [Vec3F::zero(); OBJECT_INSTANCES],
         };
 
         use rand::distributions::Distribution;
@@ -242,13 +242,9 @@ impl RotationData {
         let mut rnd_engine = rand::thread_rng();
 
         for i in 0..OBJECT_INSTANCES {
-            data.rotations[i] = Vector3F::new(
+            data.rotations[i] = rnd_dist.sample(&mut rnd_engine);
+            data.rotate_speeds[i] = Vec3F::new(
                 rnd_dist.sample(&mut rnd_engine), // generate a random float between -1.0 ~ 1.0.
-                rnd_dist.sample(&mut rnd_engine),
-                rnd_dist.sample(&mut rnd_engine),
-            );
-            data.rotate_speeds[i] = Vector3F::new(
-                rnd_dist.sample(&mut rnd_engine),
                 rnd_dist.sample(&mut rnd_engine),
                 rnd_dist.sample(&mut rnd_engine),
             );

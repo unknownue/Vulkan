@@ -10,7 +10,7 @@ use vkbase::ci::vma::VmaBuffer;
 use vkbase::utils::color::VkColor;
 use vkbase::ui::{TextInfo, TextType, TextHAlign};
 use vkbase::{FlightCamera, FrameAction};
-use vkbase::{vkuint, vkptr, Point3F, Point4F};
+use vkbase::{vkuint, vkptr, Vec3F, Vec4F};
 use vkbase::VkResult;
 
 use vkexamples::VkExampleBackend;
@@ -49,7 +49,7 @@ impl VulkanExample {
         let dimension = swapchain.dimension;
 
         let mut camera = FlightCamera::new()
-            .place_at(Point3F::new(0.0, 0.0, 2.5))
+            .place_at(Vec3F::new(0.0, 0.0, 2.5))
             .screen_aspect_ratio(dimension.width as f32 / dimension.height as f32)
             .build();
         camera.set_move_speed(5.0);
@@ -225,7 +225,7 @@ impl VulkanExample {
         if self.is_toggle_event {
 
             let camera_pos = self.camera.current_position();
-            self.ubo_data.view_pos = Point4F::new(camera_pos.x, camera_pos.y, camera_pos.z, 0.0);
+            self.ubo_data.view_pos = Vec4F::new(camera_pos.x, camera_pos.y, camera_pos.z, 0.0);
             self.ubo_data.model = self.camera.view_matrix();
 
             unsafe {

@@ -15,7 +15,7 @@ use vkbase::gltf::VkglTFModel;
 use vkbase::command::CmdTransferApi;
 use vkbase::FlightCamera;
 
-use vkbase::{vkuint, vkbytes, vkfloat, Matrix4F};
+use vkbase::{vkuint, vkbytes, vkfloat, Mat4F};
 use vkbase::{VkResult, VkError, VkErrorKind};
 
 const CUBEMAP_TEXTURE_COMPRESSION_BC_PATH       : &'static str = "assets/textures/cubemap_yokohama_bc3_unorm.ktx";
@@ -95,8 +95,8 @@ impl Skybox {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct UBOVS {
-    pub projection: Matrix4F,
-    pub model     : Matrix4F,
+    pub projection: Mat4F,
+    pub model     : Mat4F,
     pub lod_bias  : f32,
 }
 

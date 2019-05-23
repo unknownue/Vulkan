@@ -17,17 +17,17 @@ use vkbase::context::VkDevice;
 use vkbase::command::CmdTransferApi;
 use vkbase::FlightCamera;
 
-use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Point4F, Point3F, Point2F, Vector3F, Matrix4F};
+use vkbase::{vkuint, vkbytes, vkfloat, vkptr, Vec4F, Vec3F, Vec2F, Mat4F};
 use vkbase::{VkResult, VkErrorKind};
 
 
 lazy_static! {
 
     pub static ref VERTEX_DATA: [Vertex; 4] = [
-        Vertex { pos: Point3F::new( 1.0,  1.0,  0.0), uv: Point2F::new(1.0, 1.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v0
-        Vertex { pos: Point3F::new(-1.0,  1.0,  0.0), uv: Point2F::new(0.0, 1.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v1
-        Vertex { pos: Point3F::new(-1.0, -1.0,  0.0), uv: Point2F::new(0.0, 0.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v2
-        Vertex { pos: Point3F::new( 1.0, -1.0,  0.0), uv: Point2F::new(1.0, 0.0), normal: Vector3F::new(0.0, 0.0, 1.0) }, // v3
+        Vertex { pos: Vec3F::new( 1.0,  1.0,  0.0), uv: Vec2F::new(1.0, 1.0), normal: Vec3F::new(0.0, 0.0, 1.0) }, // v0
+        Vertex { pos: Vec3F::new(-1.0,  1.0,  0.0), uv: Vec2F::new(0.0, 1.0), normal: Vec3F::new(0.0, 0.0, 1.0) }, // v1
+        Vertex { pos: Vec3F::new(-1.0, -1.0,  0.0), uv: Vec2F::new(0.0, 0.0), normal: Vec3F::new(0.0, 0.0, 1.0) }, // v2
+        Vertex { pos: Vec3F::new( 1.0, -1.0,  0.0), uv: Vec2F::new(1.0, 0.0), normal: Vec3F::new(0.0, 0.0, 1.0) }, // v3
     ];
 
     pub static ref INDEX_DATA: [vkuint; 6] = [0,1,2, 2,3,0];
@@ -36,9 +36,9 @@ lazy_static! {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Vertex {
-    pos: Point3F,
-    uv : Point2F,
-    normal: Vector3F,
+    pos: Vec3F,
+    uv : Vec2F,
+    normal: Vec3F,
 }
 
 impl Vertex {
@@ -121,9 +121,9 @@ pub fn generate_quad(device: &mut VkDevice) -> VkResult<(VmaBuffer, VmaBuffer)> 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct UboVS {
-    pub projection: Matrix4F,
-    pub model     : Matrix4F,
-    pub view_pos  : Point4F,
+    pub projection: Mat4F,
+    pub model     : Mat4F,
+    pub view_pos  : Vec4F,
     pub lod_bias  : f32,
 }
 
@@ -141,8 +141,8 @@ impl UboVS {
 
         let ubo_data = UboVS {
             projection: camera.proj_matrix(),
-            model     : Matrix4F::identity(),
-            view_pos  : Point4F::new(0.0, 0.0, -2.5, 0.0),
+            model     : Mat4F::identity(),
+            view_pos  : Vec4F::new(0.0, 0.0, -2.5, 0.0),
             lod_bias  : 0.0,
         };
 
